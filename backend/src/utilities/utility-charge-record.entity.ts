@@ -91,7 +91,7 @@ export class UtilityChargeRecord extends BaseEntityWithTimestamps {
   @Column({ type: "date", nullable: true })
   paidAt!: string | null;
 
-  @Column({ nullable: true })
+  @Column({ type: "text", nullable: true })
   paymentMethod!: string | null;
 
   @Column({ type: "text", nullable: true })

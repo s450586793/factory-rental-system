@@ -56,7 +56,7 @@ export class Contract extends BaseEntityWithTimestamps {
   })
   status!: ContractStatus;
 
-  @Column({ nullable: true })
+  @Column({ type: "text", nullable: true })
   businessLicenseFileId!: string | null;
 
   @ManyToOne(() => StoredFile, { nullable: true, onDelete: "SET NULL", eager: true })

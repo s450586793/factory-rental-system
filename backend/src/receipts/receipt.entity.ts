@@ -47,7 +47,7 @@ export class Receipt extends BaseEntityWithTimestamps {
   @Column()
   summary!: string;
 
-  @Column({ nullable: true })
+  @Column({ type: "text", nullable: true })
   pdfFileId!: string | null;
 
   @ManyToOne(() => StoredFile, { eager: true, nullable: true, onDelete: "SET NULL" })
