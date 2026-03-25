@@ -14,14 +14,14 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Prepare local compose env
+        run: cp .env.example .env
+
       - name: Validate local compose
         run: docker compose -f docker-compose.yml config
 
       - name: Validate GHCR compose
-        run: |
-          BACKEND_IMAGE=ghcr.io/example/project-backend:latest \
-          FRONTEND_IMAGE=ghcr.io/example/project-frontend:latest \
-          docker compose -f docker-compose.ghcr.yml config
+        run: docker compose --env-file .env.ghcr.example -f docker-compose.ghcr.yml config
 
   build-images:
     runs-on: ubuntu-latest
