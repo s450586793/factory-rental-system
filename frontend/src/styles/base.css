@@ -1,0 +1,271 @@
+:root {
+  color-scheme: light;
+  --bg: #eef4f2;
+  --panel: rgba(255, 255, 255, 0.84);
+  --panel-strong: #ffffff;
+  --line: rgba(24, 71, 60, 0.12);
+  --text: #19352f;
+  --muted: #55716b;
+  --brand: #0f8f71;
+  --brand-deep: #0d5b5d;
+  --accent: #d97706;
+  --danger: #b42318;
+  --shadow: 0 20px 50px rgba(14, 64, 55, 0.12);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#app {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  color: var(--text);
+  font-family: "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+  background:
+    radial-gradient(circle at top left, rgba(15, 143, 113, 0.18), transparent 24%),
+    radial-gradient(circle at right center, rgba(217, 119, 6, 0.12), transparent 22%),
+    linear-gradient(135deg, #eff7f4, #f6f1e8 48%, #edf5f4);
+}
+
+a {
+  color: var(--brand-deep);
+}
+
+.app-shell {
+  min-height: 100vh;
+  display: grid;
+  grid-template-columns: 270px 1fr;
+}
+
+.app-sidebar {
+  padding: 28px 22px;
+  background:
+    linear-gradient(180deg, rgba(9, 67, 70, 0.96), rgba(15, 143, 113, 0.92)),
+    linear-gradient(180deg, #123c3f, #123c3f);
+  color: #ecfffa;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.brand-mark {
+  font-size: 12px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  opacity: 0.78;
+}
+
+.brand-title {
+  margin: 0;
+  font-size: 24px;
+  line-height: 1.25;
+}
+
+.brand-copy {
+  margin: 0;
+  line-height: 1.7;
+  color: rgba(236, 255, 250, 0.76);
+}
+
+.nav-stack {
+  display: grid;
+  gap: 10px;
+}
+
+.nav-link {
+  display: block;
+  padding: 12px 14px;
+  border-radius: 16px;
+  text-decoration: none;
+  color: inherit;
+  background: rgba(255, 255, 255, 0.08);
+  transition: all 0.2s ease;
+}
+
+.nav-link.active,
+.nav-link:hover {
+  background: rgba(255, 255, 255, 0.18);
+}
+
+.sidebar-card {
+  margin-top: auto;
+  padding: 16px;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.sidebar-card p {
+  margin: 0;
+  line-height: 1.65;
+  color: rgba(236, 255, 250, 0.8);
+}
+
+.app-main {
+  padding: 24px;
+  display: grid;
+  gap: 18px;
+}
+
+.panel-card {
+  border-radius: 24px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(10px);
+}
+
+.page-panel {
+  padding: 22px;
+}
+
+.page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  margin-bottom: 18px;
+}
+
+.page-header h2,
+.page-header p {
+  margin: 0;
+}
+
+.page-header p {
+  margin-top: 8px;
+  color: var(--muted);
+  line-height: 1.7;
+}
+
+.toolbar-row {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.stats-row {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.stat-item {
+  padding: 18px;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid rgba(24, 71, 60, 0.08);
+}
+
+.stat-item small {
+  color: var(--muted);
+}
+
+.stat-item strong {
+  display: block;
+  margin-top: 6px;
+  font-size: 26px;
+}
+
+.file-chip-list {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.file-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: 999px;
+  background: rgba(15, 143, 113, 0.1);
+}
+
+.detail-grid {
+  display: grid;
+  gap: 18px;
+}
+
+.detail-section {
+  padding: 18px;
+  border-radius: 18px;
+  border: 1px solid rgba(24, 71, 60, 0.08);
+  background: rgba(255, 255, 255, 0.78);
+}
+
+.detail-section h3 {
+  margin: 0 0 12px;
+}
+
+.login-shell {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+}
+
+.login-card {
+  width: min(960px, 100%);
+  display: grid;
+  grid-template-columns: 1.05fr 0.95fr;
+  overflow: hidden;
+}
+
+.login-aside {
+  padding: 38px;
+  color: #f5fffd;
+  background:
+    radial-gradient(circle at top right, rgba(255, 255, 255, 0.12), transparent 30%),
+    linear-gradient(150deg, #0d5b5d, #0f8f71 58%, #d97706);
+}
+
+.login-panel {
+  padding: 38px;
+  background: rgba(255, 255, 255, 0.92);
+}
+
+.login-panel h1,
+.login-aside h1 {
+  margin: 0;
+}
+
+.login-panel p,
+.login-aside p {
+  line-height: 1.75;
+}
+
+@media (max-width: 980px) {
+  .app-shell {
+    grid-template-columns: 1fr;
+  }
+
+  .stats-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .login-card {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  .app-main {
+    padding: 16px;
+  }
+
+  .stats-row {
+    grid-template-columns: 1fr;
+  }
+
+  .page-header {
+    flex-direction: column;
+  }
+}

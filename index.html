@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>厂房出租管理系统</title>
+    <link rel="stylesheet" href="./style.css" />
+  </head>
+  <body>
+    <div class="shell">
+      <aside class="sidebar">
+        <div class="sidebar-top">
+          <p class="eyebrow">JINCHENG ESTATE</p>
+          <h1>厂房出租管理系统</h1>
+          <p class="intro">把房源资料、水电计费和合同附件放在一个后台里维护。</p>
+        </div>
+
+        <nav class="nav-list">
+          <button class="nav-button active" data-tab="factory">厂房管理</button>
+          <button class="nav-button" data-tab="utility">水电管理</button>
+        </nav>
+
+        <div class="menu-card">
+          <p class="menu-title">当前能力</p>
+          <p>年租金管理、弹窗添加房源、多电表/水表计费、合同附件预览。</p>
+        </div>
+      </aside>
+
+      <main class="main-content">
+        <section class="hero">
+          <div>
+            <p class="section-tag">园区看板</p>
+            <h2>统一查看每个房源的租赁和水电收费状态</h2>
+            <p class="hero-copy">房源按年租金统计，水电支持按读表值自动计算。</p>
+          </div>
+          <button id="reset-demo" class="secondary-button">恢复示例数据</button>
+        </section>
+
+        <section class="stats-grid" id="stats-grid"></section>
+
+        <section class="tab-panel active" data-panel="factory">
+          <div class="panel full-span">
+            <div class="panel-head">
+              <div>
+                <p class="section-tag">厂房管理</p>
+                <h3>房源总表</h3>
+              </div>
+              <div class="toolbar">
+                <input id="unit-search" class="search-input" type="search" placeholder="搜索编号、位置、租户" />
+                <button id="open-unit-modal" class="primary-button">添加房源</button>
+              </div>
+            </div>
+            <div class="table-shell">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th><button class="table-head-button" data-sort-table="factory" data-sort-key="code">房源编号<span class="sort-indicator">↕</span></button></th>
+                    <th><button class="table-head-button" data-sort-table="factory" data-sort-key="location">位置<span class="sort-indicator">↕</span></button></th>
+                    <th><button class="table-head-button" data-sort-table="factory" data-sort-key="area">面积<span class="sort-indicator">↕</span></button></th>
+                    <th><button class="table-head-button" data-sort-table="factory" data-sort-key="rent">年租金<span class="sort-indicator">↕</span></button></th>
+                    <th><button class="table-head-button" data-sort-table="factory" data-sort-key="tenantName">租户<span class="sort-indicator">↕</span></button></th>
+                    <th><button class="table-head-button" data-sort-table="factory" data-sort-key="startDate">合同开始<span class="sort-indicator">↕</span></button></th>
+                    <th><button class="table-head-button" data-sort-table="factory" data-sort-key="endDate">合同结束<span class="sort-indicator">↕</span></button></th>
+                    <th><button class="table-head-button" data-sort-table="factory" data-sort-key="attachmentCount">合同附件<span class="sort-indicator">↕</span></button></th>
+                    <th><button class="table-head-button" data-sort-table="factory" data-sort-key="status">状态<span class="sort-indicator">↕</span></button></th>
+                    <th>操作</th>
+                  </tr>
+                </thead>
+                <tbody id="unit-table-body"></tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <section class="tab-panel" data-panel="utility">
+          <div class="panel">
+            <div class="panel-head">
+              <div>
+                <p class="section-tag">水电管理</p>
+                <h3>已录入水电费状态</h3>
+              </div>
+              <div class="toolbar">
+                <button id="open-utility-modal" class="primary-button">添加水电费</button>
+              </div>
+            </div>
+            <div class="table-shell">
+              <table class="data-table utility-data-table">
+                <thead>
+                  <tr>
+                    <th><button class="table-head-button" data-sort-table="utility" data-sort-key="unit">租户<span class="sort-indicator">↕</span></button></th>
+                    <th><button class="table-head-button" data-sort-table="utility" data-sort-key="type">类型<span class="sort-indicator">↕</span></button></th>
+                    <th><button class="table-head-button" data-sort-table="utility" data-sort-key="previousDisplay">上次表显<span class="sort-indicator">↕</span></button></th>
+                    <th><button class="table-head-button" data-sort-table="utility" data-sort-key="currentDisplay">当次表显<span class="sort-indicator">↕</span></button></th>
+                    <th><button class="table-head-button" data-sort-table="utility" data-sort-key="unitPrice">单价<span class="sort-indicator">↕</span></button></th>
+                    <th><button class="table-head-button" data-sort-table="utility" data-sort-key="usage">总用量<span class="sort-indicator">↕</span></button></th>
+                    <th><button class="table-head-button" data-sort-table="utility" data-sort-key="amount">总金额<span class="sort-indicator">↕</span></button></th>
+                    <th><button class="table-head-button" data-sort-table="utility" data-sort-key="status">状态<span class="sort-indicator">↕</span></button></th>
+                    <th><button class="table-head-button" data-sort-table="utility" data-sort-key="createdAt">录入日期<span class="sort-indicator">↕</span></button></th>
+                    <th>操作</th>
+                  </tr>
+                </thead>
+                <tbody id="utility-table-body"></tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <div id="unit-modal" class="modal hidden" aria-hidden="true">
+      <div class="modal-backdrop" data-close-modal="true"></div>
+      <div class="modal-card">
+        <div class="panel-head">
+          <div>
+            <p class="section-tag">房源维护</p>
+            <h3 id="unit-form-title">新增房源</h3>
+          </div>
+          <button id="close-unit-modal" class="secondary-button">关闭</button>
+        </div>
+
+        <form id="unit-form" class="data-form">
+          <input type="hidden" name="unitId" />
+          <label>
+            房源编号
+            <input name="code" required placeholder="例如 A-03" />
+          </label>
+          <label>
+            所在位置
+            <input name="location" required placeholder="例如 东区 3 号车间" />
+          </label>
+          <label>
+            面积（㎡）
+            <input name="area" type="number" min="1" required />
+          </label>
+          <label>
+            年租金（元）
+            <input name="rent" type="number" min="0" required />
+          </label>
+          <label>
+            租户名称
+            <input name="tenantName" placeholder="为空则视为空置" />
+          </label>
+          <label>
+            联系电话
+            <input name="tenantPhone" placeholder="例如 13800000000" />
+          </label>
+          <label>
+            合同开始日
+            <input name="startDate" type="date" />
+          </label>
+          <label>
+            合同结束日
+            <input name="endDate" type="date" />
+          </label>
+          <label>
+            上传合同附件
+            <input name="contractFile" type="file" accept=".pdf,image/*" multiple />
+          </label>
+          <div class="meter-panel">
+            <div class="panel-head compact">
+              <div>
+                <p class="section-tag">电费参数</p>
+                <h3>固定设置</h3>
+              </div>
+              <button type="button" id="add-electric-config-meter" class="secondary-button">增加电表</button>
+            </div>
+            <div class="grid-two">
+              <label>
+                电费单价（元）
+                <input name="electricUnitPrice" type="number" min="0" step="0.0001" />
+              </label>
+              <label>
+                电费线损（%）
+                <input name="electricLossPercent" type="number" min="0" step="0.01" value="5" />
+              </label>
+            </div>
+            <div id="electric-config-list" class="meter-list"></div>
+          </div>
+          <div class="meter-panel">
+            <div class="panel-head compact">
+              <div>
+                <p class="section-tag">水费参数</p>
+                <h3>固定设置</h3>
+              </div>
+              <button type="button" id="add-water-config-meter" class="secondary-button">增加水表</button>
+            </div>
+            <div class="grid-two">
+              <label>
+                水费单价（元）
+                <input name="waterUnitPrice" type="number" min="0" step="0.0001" />
+              </label>
+              <label>
+                水费线损（%）
+                <input name="waterLossPercent" type="number" min="0" step="0.01" value="0" />
+              </label>
+            </div>
+            <div id="water-config-list" class="meter-list"></div>
+          </div>
+          <div class="form-actions">
+            <button type="submit" class="primary-button">保存房源</button>
+            <button type="button" id="cancel-unit-edit" class="secondary-button">取消</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <div id="utility-modal" class="modal hidden" aria-hidden="true">
+      <div class="modal-backdrop" data-close-utility="true"></div>
+      <div class="modal-card modal-card-large">
+        <div class="panel-head">
+          <div>
+            <p class="section-tag">水电录入</p>
+            <h3 id="utility-form-title">添加水电费</h3>
+          </div>
+          <button id="close-utility-modal" class="secondary-button">关闭</button>
+        </div>
+
+        <form id="utility-form" class="data-form">
+          <input type="hidden" name="utilityId" />
+          <div class="grid-two">
+            <label>
+              租户
+              <select name="unitId" id="utility-unit-select" required></select>
+            </label>
+            <label>
+              费用类型
+              <select name="type" id="utility-type-select" required>
+                <option value="electric">电费</option>
+                <option value="water">水费</option>
+              </select>
+            </label>
+          </div>
+
+          <div class="utility-entry-grid">
+            <div class="meter-panel">
+              <div id="meter-list" class="meter-list"></div>
+            </div>
+
+            <div id="utility-calc-summary" class="calc-summary compact-box"></div>
+          </div>
+
+          <div class="form-actions">
+            <button type="submit" id="save-utility-button" class="primary-button">保存水电费</button>
+            <button type="button" id="cancel-utility-edit" class="secondary-button">取消</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <div id="preview-modal" class="modal hidden" aria-hidden="true">
+      <div class="modal-backdrop" data-close-preview="true"></div>
+      <div class="modal-card modal-card-large">
+        <div class="panel-head">
+          <div>
+            <p class="section-tag">合同附件</p>
+            <h3>预览</h3>
+          </div>
+          <button id="close-preview-modal" class="secondary-button">关闭</button>
+        </div>
+        <div id="contract-preview" class="preview-box">
+          <p class="empty-state">选择一份已上传合同后，可在这里预览。</p>
+        </div>
+      </div>
+    </div>
+
+    <div id="utility-detail-modal" class="modal hidden" aria-hidden="true">
+      <div class="modal-backdrop" data-close-utility-detail="true"></div>
+      <div class="modal-card modal-card-large">
+        <div class="panel-head">
+          <div>
+            <p class="section-tag">水电录入</p>
+            <h3 id="utility-detail-title">查看水电费</h3>
+          </div>
+          <button id="close-utility-detail-modal" class="secondary-button">关闭</button>
+        </div>
+        <div id="utility-detail-content" class="data-form detail-form"></div>
+      </div>
+    </div>
+
+    <template id="stat-card-template">
+      <article class="stat-card">
+        <p class="stat-label"></p>
+        <p class="stat-value"></p>
+        <p class="stat-note"></p>
+      </article>
+    </template>
+
+    <template id="meter-row-template">
+      <div class="meter-row meter-config-row">
+        <label>
+          表名称
+          <input data-field="name" placeholder="例如 主表、办公室表" />
+        </label>
+        <label>
+          倍率
+          <input data-field="multiplier" type="number" min="0" step="0.01" value="1" />
+        </label>
+        <div class="meter-meta">
+          <button type="button" class="link-button" data-remove-meter="true">删除</button>
+        </div>
+      </div>
+    </template>
+
+    <template id="reading-row-template">
+      <div class="meter-sheet">
+        <table class="mini-table meter-sheet-table">
+          <colgroup>
+            <col class="meter-col-label" />
+            <col class="meter-col-value" />
+          </colgroup>
+          <tbody>
+            <tr>
+              <th colspan="2" data-role="name"></th>
+            </tr>
+            <tr>
+              <th>倍率</th>
+              <td data-role="multiplier"></td>
+            </tr>
+            <tr>
+              <th data-role="previous-date-label"></th>
+              <td data-role="previous-reading"></td>
+            </tr>
+            <tr>
+              <th class="date-input-head">
+                <div class="date-input-wrap">
+                  <div class="date-display" data-role="current-date-label"></div>
+                  <input class="date-overlay-input" data-field="currentReadAt" type="date" required />
+                </div>
+              </th>
+              <td class="reading-value-cell">
+                <input data-field="currentReading" type="number" step="0.01" value="0" />
+              </td>
+            </tr>
+            <tr>
+              <th>用量</th>
+              <td data-role="usage">0</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </template>
+
+    <script src="./app.js"></script>
+  </body>
+</html>

@@ -1,0 +1,681 @@
+<template>
+  <AppShell>
+    <section class="panel-card page-panel">
+      <div class="page-header">
+        <div>
+          <h2>厂房信息管理</h2>
+          <p>维护厂房基础资料、当前在租状态、合同历史和水电表配置。</p>
+        </div>
+        <div class="toolbar-row">
+          <el-button type="primary" @click="openCreateUnit">新增厂房</el-button>
+          <el-button @click="loadUnits">刷新</el-button>
+        </div>
+      </div>
+
+      <div class="stats-row">
+        <div class="stat-item">
+          <small>厂房总数</small>
+          <strong>{{ units.length }}</strong>
+        </div>
+        <div class="stat-item">
+          <small>当前在租</small>
+          <strong>{{ occupiedCount }}</strong>
+        </div>
+        <div class="stat-item">
+          <small>空置数量</small>
+          <strong>{{ vacantCount }}</strong>
+        </div>
+        <div class="stat-item">
+          <small>当前年租金合计</small>
+          <strong>{{ formatCurrency(activeRentSum) }}</strong>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel-card page-panel">
+      <el-table :data="units" v-loading="loading">
+        <el-table-column prop="code" label="编号" min-width="120" />
+        <el-table-column prop="location" label="位置" min-width="180" />
+        <el-table-column label="状态" width="110">
+          <template #default="{ row }">
+            <el-tag :type="row.status === 'occupied' ? 'success' : 'info'">
+              {{ row.status === "occupied" ? "在租" : "空置" }}
+            </el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column label="当前租户" min-width="180">
+          <template #default="{ row }">
+            {{ row.activeContract?.tenantName || "--" }}
+          </template>
+        </el-table-column>
+        <el-table-column label="当前合同" min-width="220">
+          <template #default="{ row }">
+            {{
+              row.activeContract
+                ? `${row.activeContract.startDate} 至 ${row.activeContract.endDate}`
+                : "--"
+            }}
+          </template>
+        </el-table-column>
+        <el-table-column label="当前年租金" min-width="160">
+          <template #default="{ row }">
+            {{ row.activeContract ? formatCurrency(row.activeContract.annualRent) : "--" }}
+          </template>
+        </el-table-column>
+        <el-table-column label="操作" width="240" fixed="right">
+          <template #default="{ row }">
+            <el-space wrap>
+              <el-button text type="primary" @click="openDetail(row.id)">详情</el-button>
+              <el-button text @click="openEditUnit(row)">编辑</el-button>
+              <el-button text type="danger" @click="confirmRemoveUnit(row.id)">删除</el-button>
+            </el-space>
+          </template>
+        </el-table-column>
+      </el-table>
+    </section>
+
+    <el-dialog v-model="unitDialogVisible" :title="unitForm.id ? '编辑厂房' : '新增厂房'" width="460px">
+      <el-form label-position="top">
+        <el-form-item label="厂房编号">
+          <el-input v-model="unitForm.code" placeholder="例如 A-01" />
+        </el-form-item>
+        <el-form-item label="位置">
+          <el-input v-model="unitForm.location" placeholder="例如 东区 1 号车间" />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="unitDialogVisible = false">取消</el-button>
+        <el-button type="primary" :loading="submittingUnit" @click="saveUnit">保存</el-button>
+      </template>
+    </el-dialog>
+
+    <el-drawer v-model="detailDrawerVisible" size="72%" :with-header="false">
+      <div v-if="selectedUnit" class="detail-grid">
+        <section class="detail-section">
+          <div class="page-header" style="margin-bottom: 0">
+            <div>
+              <h2>{{ selectedUnit.code }} / {{ selectedUnit.location }}</h2>
+              <p>
+                当前状态：
+                {{ selectedUnit.status === "occupied" ? "在租" : "空置" }}
+                <span v-if="selectedUnit.activeContract">
+                  ，当前租户 {{ selectedUnit.activeContract.tenantName }}
+                </span>
+              </p>
+            </div>
+          </div>
+        </section>
+
+        <section class="detail-section">
+          <div class="page-header">
+            <div>
+              <h3>合同历史</h3>
+              <p>营业执照和合同附件都挂在具体合同记录下。</p>
+            </div>
+            <el-button type="primary" @click="openCreateContract">新增合同</el-button>
+          </div>
+
+          <el-table :data="selectedUnit.contracts">
+            <el-table-column prop="tenantName" label="租户" min-width="160" />
+            <el-table-column label="合同周期" min-width="220">
+              <template #default="{ row }">
+                {{ row.startDate }} 至 {{ row.endDate }}
+              </template>
+            </el-table-column>
+            <el-table-column label="年租金" min-width="150">
+              <template #default="{ row }">
+                {{ formatCurrency(row.annualRent) }}
+              </template>
+            </el-table-column>
+            <el-table-column label="状态" width="120">
+              <template #default="{ row }">
+                <el-tag :type="contractTagType(row.status)">
+                  {{ contractStatusLabel(row.status) }}
+                </el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column label="附件" min-width="220">
+              <template #default="{ row }">
+                <div class="file-chip-list">
+                  <a
+                    v-if="row.businessLicenseFile"
+                    class="file-chip"
+                    :href="apiFileUrl(row.businessLicenseFile.id)"
+                    target="_blank"
+                  >
+                    营业执照
+                  </a>
+                  <a
+                    v-for="file in row.attachmentFiles"
+                    :key="file.id"
+                    class="file-chip"
+                    :href="apiFileUrl(file.id)"
+                    target="_blank"
+                  >
+                    {{ file.originalName }}
+                  </a>
+                </div>
+              </template>
+            </el-table-column>
+            <el-table-column label="操作" width="180">
+              <template #default="{ row }">
+                <el-space wrap>
+                  <el-button text @click="openEditContract(row)">编辑</el-button>
+                  <el-button text type="danger" @click="confirmRemoveContract(row.id)">删除</el-button>
+                </el-space>
+              </template>
+            </el-table-column>
+          </el-table>
+        </section>
+
+        <section class="detail-section">
+          <div class="page-header">
+            <div>
+              <h3>水电表配置</h3>
+              <p>每个表计分别维护初始读数、倍率、单价和线损。</p>
+            </div>
+            <el-button type="primary" @click="openCreateMeter">新增表计</el-button>
+          </div>
+
+          <el-table :data="selectedUnit.meterConfigs">
+            <el-table-column label="类型" width="120">
+              <template #default="{ row }">
+                {{ row.type === "electric" ? "电表" : "水表" }}
+              </template>
+            </el-table-column>
+            <el-table-column prop="name" label="名称" min-width="160" />
+            <el-table-column prop="initialReading" label="初始读数" min-width="120" />
+            <el-table-column prop="multiplier" label="倍率" min-width="110" />
+            <el-table-column prop="unitPrice" label="单价" min-width="110" />
+            <el-table-column prop="lineLossPercent" label="线损%" min-width="110" />
+            <el-table-column label="启用" width="90">
+              <template #default="{ row }">
+                <el-tag :type="row.enabled ? 'success' : 'info'">
+                  {{ row.enabled ? "是" : "否" }}
+                </el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column label="操作" width="180">
+              <template #default="{ row }">
+                <el-space wrap>
+                  <el-button text @click="openEditMeter(row)">编辑</el-button>
+                  <el-button text type="danger" @click="confirmRemoveMeter(row.id)">删除</el-button>
+                </el-space>
+              </template>
+            </el-table-column>
+          </el-table>
+        </section>
+      </div>
+    </el-drawer>
+
+    <el-dialog v-model="contractDialogVisible" :title="contractForm.id ? '编辑合同' : '新增合同'" width="760px">
+      <el-form label-position="top">
+        <el-row :gutter="14">
+          <el-col :span="12">
+            <el-form-item label="租户名称">
+              <el-input v-model="contractForm.tenantName" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="联系电话">
+              <el-input v-model="contractForm.tenantPhone" />
+            </el-form-item>
+          </el-col>
+        </el-row>
+
+        <el-row :gutter="14">
+          <el-col :span="12">
+            <el-form-item label="合同开始">
+              <el-date-picker v-model="contractForm.startDate" type="date" value-format="YYYY-MM-DD" style="width: 100%" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="合同结束">
+              <el-date-picker v-model="contractForm.endDate" type="date" value-format="YYYY-MM-DD" style="width: 100%" />
+            </el-form-item>
+          </el-col>
+        </el-row>
+
+        <el-form-item label="年租金">
+          <el-input-number v-model="contractForm.annualRent" :min="0" :precision="2" style="width: 100%" />
+        </el-form-item>
+
+        <el-form-item label="营业执照">
+          <div class="detail-grid">
+            <div v-if="existingBusinessLicense" class="file-chip-list">
+              <a class="file-chip" :href="apiFileUrl(existingBusinessLicense.id)" target="_blank">
+                {{ existingBusinessLicense.originalName }}
+              </a>
+              <el-button text type="danger" @click="removeBusinessLicense">移除</el-button>
+            </div>
+            <input type="file" accept=".pdf,image/*" @change="onBusinessLicenseChange" />
+          </div>
+        </el-form-item>
+
+        <el-form-item label="合同附件">
+          <div class="detail-grid">
+            <div class="file-chip-list" v-if="existingAttachments.length">
+              <span v-for="file in existingAttachments" :key="file.id" class="file-chip">
+                <a :href="apiFileUrl(file.id)" target="_blank">{{ file.originalName }}</a>
+                <el-button text type="danger" @click="removeAttachment(file.id)">移除</el-button>
+              </span>
+            </div>
+            <input type="file" accept=".pdf,image/*" multiple @change="onAttachmentFilesChange" />
+          </div>
+        </el-form-item>
+      </el-form>
+
+      <template #footer>
+        <el-button @click="contractDialogVisible = false">取消</el-button>
+        <el-button type="primary" :loading="submittingContract" @click="saveContract">保存合同</el-button>
+      </template>
+    </el-dialog>
+
+    <el-dialog v-model="meterDialogVisible" :title="meterForm.id ? '编辑表计' : '新增表计'" width="620px">
+      <el-form label-position="top">
+        <el-row :gutter="14">
+          <el-col :span="12">
+            <el-form-item label="类型">
+              <el-select v-model="meterForm.type" style="width: 100%">
+                <el-option label="电表" value="electric" />
+                <el-option label="水表" value="water" />
+              </el-select>
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="表计名称">
+              <el-input v-model="meterForm.name" />
+            </el-form-item>
+          </el-col>
+        </el-row>
+
+        <el-row :gutter="14">
+          <el-col :span="12">
+            <el-form-item label="初始读数">
+              <el-input-number v-model="meterForm.initialReading" :precision="2" style="width: 100%" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="倍率">
+              <el-input-number v-model="meterForm.multiplier" :min="0" :precision="4" style="width: 100%" />
+            </el-form-item>
+          </el-col>
+        </el-row>
+
+        <el-row :gutter="14">
+          <el-col :span="12">
+            <el-form-item label="单价">
+              <el-input-number v-model="meterForm.unitPrice" :min="0" :precision="4" style="width: 100%" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="线损(%)">
+              <el-input-number v-model="meterForm.lineLossPercent" :min="0" :precision="2" style="width: 100%" />
+            </el-form-item>
+          </el-col>
+        </el-row>
+
+        <el-form-item label="启用">
+          <el-switch v-model="meterForm.enabled" />
+        </el-form-item>
+      </el-form>
+
+      <template #footer>
+        <el-button @click="meterDialogVisible = false">取消</el-button>
+        <el-button type="primary" :loading="submittingMeter" @click="saveMeter">保存表计</el-button>
+      </template>
+    </el-dialog>
+  </AppShell>
+</template>
+
+<script setup lang="ts">
+import { computed, onMounted, reactive, ref } from "vue";
+import { ElMessage, ElMessageBox } from "element-plus";
+import AppShell from "../components/AppShell.vue";
+import { apiFileUrl } from "../api/client";
+import { contractsApi, filesApi, unitsApi, utilitiesApi } from "../api";
+import type { Contract, MeterConfig, StoredFile, UnitSummary } from "../types/models";
+import { formatCurrency } from "../utils/format";
+
+const loading = ref(false);
+const units = ref<UnitSummary[]>([]);
+const selectedUnit = ref<UnitSummary | null>(null);
+const detailDrawerVisible = ref(false);
+
+const unitDialogVisible = ref(false);
+const submittingUnit = ref(false);
+const unitForm = reactive({
+  id: "",
+  code: "",
+  location: "",
+});
+
+const contractDialogVisible = ref(false);
+const submittingContract = ref(false);
+const contractForm = reactive({
+  id: "",
+  tenantName: "",
+  tenantPhone: "",
+  startDate: "",
+  endDate: "",
+  annualRent: 0,
+  businessLicenseFileId: "",
+  attachmentFileIds: [] as string[],
+});
+const existingBusinessLicense = ref<StoredFile | null>(null);
+const existingAttachments = ref<StoredFile[]>([]);
+const businessLicenseUpload = ref<File | null>(null);
+const attachmentUploads = ref<File[]>([]);
+
+const meterDialogVisible = ref(false);
+const submittingMeter = ref(false);
+const meterForm = reactive({
+  id: "",
+  type: "electric" as "electric" | "water",
+  name: "",
+  initialReading: 0,
+  multiplier: 1,
+  unitPrice: 0,
+  lineLossPercent: 0,
+  enabled: true,
+});
+
+const occupiedCount = computed(() => units.value.filter((item) => item.status === "occupied").length);
+const vacantCount = computed(() => units.value.filter((item) => item.status === "vacant").length);
+const activeRentSum = computed(() =>
+  units.value.reduce((sum, item) => sum + Number(item.activeContract?.annualRent ?? 0), 0),
+);
+
+onMounted(loadUnits);
+
+async function loadUnits() {
+  try {
+    loading.value = true;
+    units.value = await unitsApi.list();
+    if (selectedUnit.value) {
+      const found = units.value.find((item) => item.id === selectedUnit.value?.id);
+      if (found && detailDrawerVisible.value) {
+        await openDetail(found.id);
+      }
+    }
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : "加载厂房失败");
+  } finally {
+    loading.value = false;
+  }
+}
+
+function resetUnitForm() {
+  unitForm.id = "";
+  unitForm.code = "";
+  unitForm.location = "";
+}
+
+function openCreateUnit() {
+  resetUnitForm();
+  unitDialogVisible.value = true;
+}
+
+function openEditUnit(unit: UnitSummary) {
+  unitForm.id = unit.id;
+  unitForm.code = unit.code;
+  unitForm.location = unit.location;
+  unitDialogVisible.value = true;
+}
+
+async function saveUnit() {
+  try {
+    submittingUnit.value = true;
+    const payload = {
+      code: unitForm.code.trim(),
+      location: unitForm.location.trim(),
+    };
+    if (unitForm.id) {
+      await unitsApi.update(unitForm.id, payload);
+      ElMessage.success("厂房已更新");
+    } else {
+      await unitsApi.create(payload);
+      ElMessage.success("厂房已新增");
+    }
+    unitDialogVisible.value = false;
+    await loadUnits();
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : "保存厂房失败");
+  } finally {
+    submittingUnit.value = false;
+  }
+}
+
+async function openDetail(unitId: string) {
+  try {
+    selectedUnit.value = await unitsApi.detail(unitId);
+    detailDrawerVisible.value = true;
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : "加载详情失败");
+  }
+}
+
+async function refreshSelectedUnit() {
+  if (!selectedUnit.value) {
+    return;
+  }
+  selectedUnit.value = await unitsApi.detail(selectedUnit.value.id);
+}
+
+async function confirmRemoveUnit(unitId: string) {
+  try {
+    await ElMessageBox.confirm("删除后将无法恢复，确定继续吗？", "删除厂房", { type: "warning" });
+    await unitsApi.remove(unitId);
+    ElMessage.success("厂房已删除");
+    await loadUnits();
+  } catch (error) {
+    if (error !== "cancel") {
+      ElMessage.error(error instanceof Error ? error.message : "删除失败");
+    }
+  }
+}
+
+function resetContractForm() {
+  contractForm.id = "";
+  contractForm.tenantName = "";
+  contractForm.tenantPhone = "";
+  contractForm.startDate = "";
+  contractForm.endDate = "";
+  contractForm.annualRent = 0;
+  contractForm.businessLicenseFileId = "";
+  contractForm.attachmentFileIds = [];
+  existingBusinessLicense.value = null;
+  existingAttachments.value = [];
+  businessLicenseUpload.value = null;
+  attachmentUploads.value = [];
+}
+
+function openCreateContract() {
+  resetContractForm();
+  contractDialogVisible.value = true;
+}
+
+function openEditContract(contract: Contract) {
+  resetContractForm();
+  contractForm.id = contract.id;
+  contractForm.tenantName = contract.tenantName;
+  contractForm.tenantPhone = contract.tenantPhone;
+  contractForm.startDate = contract.startDate;
+  contractForm.endDate = contract.endDate;
+  contractForm.annualRent = contract.annualRent;
+  contractForm.businessLicenseFileId = contract.businessLicenseFile?.id ?? "";
+  contractForm.attachmentFileIds = contract.attachmentFiles.map((item) => item.id);
+  existingBusinessLicense.value = contract.businessLicenseFile;
+  existingAttachments.value = [...contract.attachmentFiles];
+  contractDialogVisible.value = true;
+}
+
+function onBusinessLicenseChange(event: Event) {
+  const target = event.target as HTMLInputElement;
+  businessLicenseUpload.value = target.files?.[0] ?? null;
+}
+
+function onAttachmentFilesChange(event: Event) {
+  const target = event.target as HTMLInputElement;
+  attachmentUploads.value = Array.from(target.files ?? []);
+}
+
+function removeBusinessLicense() {
+  existingBusinessLicense.value = null;
+  contractForm.businessLicenseFileId = "";
+}
+
+function removeAttachment(fileId: string) {
+  existingAttachments.value = existingAttachments.value.filter((item) => item.id !== fileId);
+  contractForm.attachmentFileIds = contractForm.attachmentFileIds.filter((item) => item !== fileId);
+}
+
+async function saveContract() {
+  if (!selectedUnit.value) {
+    return;
+  }
+
+  try {
+    submittingContract.value = true;
+
+    let businessLicenseFileId = contractForm.businessLicenseFileId || "";
+    if (businessLicenseUpload.value) {
+      const [uploaded] = await filesApi.upload([businessLicenseUpload.value], "business-license");
+      businessLicenseFileId = uploaded.id;
+    }
+
+    let attachmentFileIds = [...contractForm.attachmentFileIds];
+    if (attachmentUploads.value.length) {
+      const uploaded = await filesApi.upload(attachmentUploads.value, "contract-attachment");
+      attachmentFileIds = [...attachmentFileIds, ...uploaded.map((item) => item.id)];
+    }
+
+    const payload = {
+      unitId: selectedUnit.value.id,
+      tenantName: contractForm.tenantName.trim(),
+      tenantPhone: contractForm.tenantPhone.trim(),
+      startDate: contractForm.startDate,
+      endDate: contractForm.endDate,
+      annualRent: Number(contractForm.annualRent),
+      businessLicenseFileId,
+      attachmentFileIds,
+    };
+
+    if (contractForm.id) {
+      await contractsApi.update(contractForm.id, payload);
+      ElMessage.success("合同已更新");
+    } else {
+      await contractsApi.create(payload);
+      ElMessage.success("合同已新增");
+    }
+
+    contractDialogVisible.value = false;
+    await Promise.all([refreshSelectedUnit(), loadUnits()]);
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : "保存合同失败");
+  } finally {
+    submittingContract.value = false;
+  }
+}
+
+async function confirmRemoveContract(contractId: string) {
+  try {
+    await ElMessageBox.confirm("确认删除这条合同记录吗？", "删除合同", { type: "warning" });
+    await contractsApi.remove(contractId);
+    ElMessage.success("合同已删除");
+    await Promise.all([refreshSelectedUnit(), loadUnits()]);
+  } catch (error) {
+    if (error !== "cancel") {
+      ElMessage.error(error instanceof Error ? error.message : "删除失败");
+    }
+  }
+}
+
+function resetMeterForm() {
+  meterForm.id = "";
+  meterForm.type = "electric";
+  meterForm.name = "";
+  meterForm.initialReading = 0;
+  meterForm.multiplier = 1;
+  meterForm.unitPrice = 0;
+  meterForm.lineLossPercent = 0;
+  meterForm.enabled = true;
+}
+
+function openCreateMeter() {
+  resetMeterForm();
+  meterDialogVisible.value = true;
+}
+
+function openEditMeter(meter: MeterConfig) {
+  meterForm.id = meter.id;
+  meterForm.type = meter.type;
+  meterForm.name = meter.name;
+  meterForm.initialReading = meter.initialReading;
+  meterForm.multiplier = meter.multiplier;
+  meterForm.unitPrice = meter.unitPrice;
+  meterForm.lineLossPercent = meter.lineLossPercent;
+  meterForm.enabled = meter.enabled;
+  meterDialogVisible.value = true;
+}
+
+async function saveMeter() {
+  if (!selectedUnit.value) {
+    return;
+  }
+
+  try {
+    submittingMeter.value = true;
+    const payload = {
+      unitId: selectedUnit.value.id,
+      type: meterForm.type,
+      name: meterForm.name.trim(),
+      initialReading: Number(meterForm.initialReading),
+      multiplier: Number(meterForm.multiplier),
+      unitPrice: Number(meterForm.unitPrice),
+      lineLossPercent: Number(meterForm.lineLossPercent),
+      enabled: meterForm.enabled,
+    };
+
+    if (meterForm.id) {
+      await utilitiesApi.updateMeterConfig(meterForm.id, payload);
+      ElMessage.success("表计已更新");
+    } else {
+      await utilitiesApi.createMeterConfig(payload);
+      ElMessage.success("表计已新增");
+    }
+
+    meterDialogVisible.value = false;
+    await Promise.all([refreshSelectedUnit(), loadUnits()]);
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : "保存表计失败");
+  } finally {
+    submittingMeter.value = false;
+  }
+}
+
+async function confirmRemoveMeter(meterId: string) {
+  try {
+    await ElMessageBox.confirm("确认删除这个表计配置吗？", "删除表计", { type: "warning" });
+    await utilitiesApi.removeMeterConfig(meterId);
+    ElMessage.success("表计已删除");
+    await Promise.all([refreshSelectedUnit(), loadUnits()]);
+  } catch (error) {
+    if (error !== "cancel") {
+      ElMessage.error(error instanceof Error ? error.message : "删除失败");
+    }
+  }
+}
+
+function contractStatusLabel(status: Contract["status"]) {
+  if (status === "active") return "生效中";
+  if (status === "future") return "待生效";
+  return "已到期";
+}
+
+function contractTagType(status: Contract["status"]) {
+  if (status === "active") return "success";
+  if (status === "future") return "warning";
+  return "info";
+}
+</script>
