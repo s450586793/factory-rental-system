@@ -6,44 +6,44 @@ services:
     container_name: factory-rental-postgres
     restart: unless-stopped
     environment:
-      TZ: ${TZ:-Asia/Shanghai}
-      POSTGRES_DB: ${POSTGRES_DB}
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      TZ: Asia/Shanghai
+      POSTGRES_DB: factory_rental
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: change-this-postgres-password
     volumes:
       - ./volumes/postgres:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      test: ["CMD-SHELL", "pg_isready -U postgres -d factory_rental"]
       interval: 10s
       timeout: 5s
       retries: 10
       start_period: 10s
     ports:
-      - "${POSTGRES_PORT:-5432}:5432"
+      - "5432:5432"
 
   backend:
-    image: ${BACKEND_IMAGE}
+    image: ghcr.io/s450586793/factory-rental-system-backend:latest
     container_name: factory-rental-backend
     init: true
     pull_policy: always
     restart: unless-stopped
     environment:
-      TZ: ${TZ:-Asia/Shanghai}
+      TZ: Asia/Shanghai
       NODE_ENV: production
       DB_HOST: postgres
-      DB_PORT: ${DB_PORT}
-      DB_NAME: ${DB_NAME}
-      DB_USER: ${DB_USER}
-      DB_PASSWORD: ${DB_PASSWORD}
-      DB_SYNCHRONIZE: ${DB_SYNCHRONIZE}
-      PORT: 3000
-      JWT_SECRET: ${JWT_SECRET}
-      COOKIE_SECURE: ${COOKIE_SECURE}
-      FRONTEND_ORIGIN: ${FRONTEND_ORIGIN}
+      DB_PORT: "5432"
+      DB_NAME: factory_rental
+      DB_USER: postgres
+      DB_PASSWORD: change-this-postgres-password
+      DB_SYNCHRONIZE: "true"
+      PORT: "3000"
+      JWT_SECRET: change-this-jwt-secret
+      COOKIE_SECURE: "false"
+      FRONTEND_ORIGIN: http://your-synology-host-or-domain:8080
       STORAGE_ROOT: /app/storage
-      PDF_FONT_PATH: ${PDF_FONT_PATH}
-      ADMIN_USERNAME: ${ADMIN_USERNAME}
-      ADMIN_PASSWORD: ${ADMIN_PASSWORD}
+      PDF_FONT_PATH: /usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc
+      ADMIN_USERNAME: admin
+      ADMIN_PASSWORD: change-this-admin-password
     volumes:
       - ./volumes/storage:/app/storage
     depends_on:
@@ -60,10 +60,10 @@ services:
       retries: 10
       start_period: 20s
     ports:
-      - "${BACKEND_PORT:-3000}:3000"
+      - "3000:3000"
 
   frontend:
-    image: ${FRONTEND_IMAGE}
+    image: ghcr.io/s450586793/factory-rental-system-frontend:latest
     container_name: factory-rental-frontend
     init: true
     pull_policy: always
@@ -78,4 +78,4 @@ services:
       retries: 10
       start_period: 10s
     ports:
-      - "${FRONTEND_PORT:-8080}:80"
+      - "8080:80"

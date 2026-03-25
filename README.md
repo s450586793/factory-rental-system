@@ -1,6 +1,6 @@
 # 厂房出租管理系统
 
-更新时间：2026-03-25 23:46 CST
+更新时间：2026-03-26 00:07 CST
 
 单超级用户使用的厂房出租管理后台，采用前后端分离架构：
 
@@ -104,28 +104,34 @@ docker compose up -d --build
 
 前提：仓库的 Docker 发布工作流已经成功把前后端镜像推送到 GHCR。
 
-1. 复制部署环境变量模板
+这种方式已经改成单文件部署，适合群晖 Container Manager 的 GUI 直接新建 compose 项目。
+
+1. 直接使用 [docker-compose.ghcr.yml](./docker-compose.ghcr.yml)
+
+群晖 GUI 里新建项目时，直接粘贴这个文件内容即可，不需要再准备 `.env.ghcr`。
+
+2. 在 compose 文件里直接修改这些值
+
+必须改：
+
+- `POSTGRES_PASSWORD`
+- `DB_PASSWORD`
+- `JWT_SECRET`
+- `FRONTEND_ORIGIN`
+- `ADMIN_PASSWORD`
+
+建议按需改：
+
+- 前端端口 `8080:80`
+- 后端端口 `3000:3000`
+- 数据库端口 `5432:5432`
+- `COOKIE_SECURE`
+- `DB_SYNCHRONIZE`
+
+3. 直接部署整套项目
 
 ```bash
-cp .env.ghcr.example .env.ghcr
-```
-
-2. 修改 `.env.ghcr`，至少确认以下值：
-
-```env
-TZ=Asia/Shanghai
-POSTGRES_PORT=5432
-BACKEND_PORT=3000
-FRONTEND_PORT=8080
-BACKEND_IMAGE=ghcr.io/s450586793/factory-rental-system-backend:latest
-FRONTEND_IMAGE=ghcr.io/s450586793/factory-rental-system-frontend:latest
-DB_SYNCHRONIZE=true
-```
-
-3. 直接部署整套项目：
-
-```bash
-docker compose --env-file .env.ghcr -f docker-compose.ghcr.yml up -d
+docker compose -f docker-compose.ghcr.yml up -d
 ```
 
 这个 compose 同样会一次启动 `postgres`、`backend`、`frontend`，并包含：
@@ -133,13 +139,15 @@ docker compose --env-file .env.ghcr -f docker-compose.ghcr.yml up -d
 - PostgreSQL 持久化目录 `./volumes/postgres`
 - 文件存储目录 `./volumes/storage`
 - `postgres -> backend -> frontend` 的健康检查和启动依赖
-- 可通过 `POSTGRES_PORT`、`BACKEND_PORT`、`FRONTEND_PORT` 调整端口
+- 固定的 GHCR 镜像地址
+- 固定默认端口，改 compose 文件即可调整
 
 这个模式下，前后端直接拉取 GHCR 镜像，数据库仍然使用官方 `postgres:16`。
 
 ## 补充说明
 
 - [docker-compose.yml](./docker-compose.yml) 用于本地从源码构建前后端镜像
-- [docker-compose.ghcr.yml](./docker-compose.ghcr.yml) 用于直接拉取 GHCR 镜像部署
+- [docker-compose.ghcr.yml](./docker-compose.ghcr.yml) 用于群晖 GUI 直接粘贴部署
+- [`.env.ghcr.example`](./.env.ghcr.example) 现在仅作为参数参考，不是 GHCR 部署必需文件
 - 当前环境如果没有 `node`、`npm` 或 `docker`，则无法在本机实际完成前后端构建或容器启动验证
 - 仓库里可能存在与本系统无关的其他目录时，应通过 `.gitignore` 或目录清理避免误提交

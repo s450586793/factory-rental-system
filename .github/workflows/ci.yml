@@ -21,7 +21,7 @@ jobs:
         run: docker compose -f docker-compose.yml config
 
       - name: Validate GHCR compose
-        run: docker compose --env-file .env.ghcr.example -f docker-compose.ghcr.yml config
+        run: docker compose -f docker-compose.ghcr.yml config
 
   build-images:
     runs-on: ubuntu-latest
