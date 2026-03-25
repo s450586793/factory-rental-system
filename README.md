@@ -1,6 +1,6 @@
 # 厂房出租管理系统
 
-更新时间：2026-03-25 23:38 CST
+更新时间：2026-03-25 23:46 CST
 
 单超级用户使用的厂房出租管理后台，采用前后端分离架构：
 
@@ -54,6 +54,7 @@ style.css                旧静态原型参考
 - 数据库服务已包含在 [docker-compose.yml](./docker-compose.yml) 和 [docker-compose.ghcr.yml](./docker-compose.ghcr.yml)
 - 表结构由 TypeORM 实体维护
 - 当 `DB_SYNCHRONIZE=true` 时，后端首次启动会自动创建表
+- 两份 compose 都已经包含启动依赖、健康检查、持久化目录和可配置端口，可直接拉起完整项目
 
 表结构说明见 [docs/database-schema.md](./docs/database-schema.md)。
 
@@ -68,6 +69,10 @@ cp .env.example .env
 2. 按需修改 `.env`，至少设置这些值：
 
 ```env
+TZ=Asia/Shanghai
+POSTGRES_PORT=5432
+BACKEND_PORT=3000
+FRONTEND_PORT=8080
 POSTGRES_PASSWORD=your-postgres-password
 DB_PASSWORD=your-postgres-password
 JWT_SECRET=your-jwt-secret
@@ -83,6 +88,11 @@ DB_SYNCHRONIZE=true
 ```bash
 docker compose up -d --build
 ```
+
+这个 compose 会一次启动 `postgres`、`backend`、`frontend`，并自动挂载：
+
+- `./volumes/postgres` 数据库数据
+- `./volumes/storage` 上传文件和收据文件
 
 默认端口：
 
@@ -103,16 +113,27 @@ cp .env.ghcr.example .env.ghcr
 2. 修改 `.env.ghcr`，至少确认以下值：
 
 ```env
+TZ=Asia/Shanghai
+POSTGRES_PORT=5432
+BACKEND_PORT=3000
+FRONTEND_PORT=8080
 BACKEND_IMAGE=ghcr.io/s450586793/factory-rental-system-backend:latest
 FRONTEND_IMAGE=ghcr.io/s450586793/factory-rental-system-frontend:latest
 DB_SYNCHRONIZE=true
 ```
 
-3. 使用 GHCR 部署版 compose 启动：
+3. 直接部署整套项目：
 
 ```bash
 docker compose --env-file .env.ghcr -f docker-compose.ghcr.yml up -d
 ```
+
+这个 compose 同样会一次启动 `postgres`、`backend`、`frontend`，并包含：
+
+- PostgreSQL 持久化目录 `./volumes/postgres`
+- 文件存储目录 `./volumes/storage`
+- `postgres -> backend -> frontend` 的健康检查和启动依赖
+- 可通过 `POSTGRES_PORT`、`BACKEND_PORT`、`FRONTEND_PORT` 调整端口
 
 这个模式下，前后端直接拉取 GHCR 镜像，数据库仍然使用官方 `postgres:16`。
 
