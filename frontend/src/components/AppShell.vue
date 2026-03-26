@@ -84,30 +84,28 @@
           </span>
         </RouterLink>
       </nav>
+
+      <div class="sidebar-user">
+        <el-dropdown trigger="click" @command="handleUserCommand">
+          <button type="button" class="user-trigger">
+            <span class="user-avatar">{{ userInitial }}</span>
+            <span class="user-copy">
+              <small>当前登录</small>
+              <strong>{{ currentUsername }}</strong>
+            </span>
+          </button>
+
+          <template #dropdown>
+            <el-dropdown-menu>
+              <el-dropdown-item disabled>当前登录：{{ currentUsername }}</el-dropdown-item>
+              <el-dropdown-item command="logout">退出登录</el-dropdown-item>
+            </el-dropdown-menu>
+          </template>
+        </el-dropdown>
+      </div>
     </aside>
 
     <div class="app-shell-body">
-      <header class="shell-topbar panel-card">
-        <div class="topbar-right">
-          <el-dropdown trigger="click" @command="handleUserCommand">
-            <button type="button" class="user-trigger">
-              <span class="user-avatar">{{ userInitial }}</span>
-              <span class="user-copy">
-                <small>当前登录</small>
-                <strong>{{ currentUsername }}</strong>
-              </span>
-            </button>
-
-            <template #dropdown>
-              <el-dropdown-menu>
-                <el-dropdown-item disabled>当前登录：{{ currentUsername }}</el-dropdown-item>
-                <el-dropdown-item command="logout">退出登录</el-dropdown-item>
-              </el-dropdown-menu>
-            </template>
-          </el-dropdown>
-        </div>
-      </header>
-
       <main class="app-main">
         <slot />
       </main>
