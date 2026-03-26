@@ -16,6 +16,18 @@
       />
     </Transition>
 
+    <button
+      v-if="!showSidebar"
+      type="button"
+      class="sidebar-launcher"
+      aria-label="显示导航"
+      @click="toggleSidebar"
+    >
+      <span />
+      <span />
+      <span />
+    </button>
+
     <aside
       class="app-sidebar"
       :class="{
@@ -24,9 +36,36 @@
       }"
     >
       <div class="sidebar-brand">
-        <div class="brand-mark">Jincheng Estate</div>
-        <h1 class="brand-title">厂房管理</h1>
-        <p class="brand-copy">围绕厂房、合同、水电、收款和收据的统一后台。</p>
+        <div class="sidebar-brand-row">
+          <div class="sidebar-brand-copy">
+            <div class="brand-mark">Jincheng Estate</div>
+            <h1 class="brand-title">厂房管理</h1>
+          </div>
+
+          <button
+            type="button"
+            class="topbar-icon-button sidebar-toggle-button"
+            :aria-label="showSidebar ? '隐藏导航' : '显示导航'"
+            @click="toggleSidebar"
+          >
+            <span />
+            <span />
+            <span />
+          </button>
+        </div>
+
+        <div class="sidebar-mode-switch" aria-label="导航模式">
+          <button
+            v-for="option in sidebarModeOptions"
+            :key="option.value"
+            type="button"
+            class="sidebar-mode-button"
+            :class="{ 'is-active': sidebarMode === option.value }"
+            @click="setSidebarMode(option.value)"
+          >
+            {{ option.label }}
+          </button>
+        </div>
       </div>
 
       <nav class="nav-stack">
@@ -45,52 +84,11 @@
           </span>
         </RouterLink>
       </nav>
-
-      <div class="sidebar-footnote">
-        <span>导航模式</span>
-        <strong>{{ sidebarStatusLabel }}</strong>
-      </div>
     </aside>
 
     <div class="app-shell-body">
       <header class="shell-topbar panel-card">
-        <div class="topbar-left">
-          <div class="topbar-actions">
-            <button
-              type="button"
-              class="topbar-icon-button"
-              :aria-label="showSidebar ? '隐藏导航' : '显示导航'"
-              @click="toggleSidebar"
-            >
-              <span />
-              <span />
-              <span />
-            </button>
-
-            <div class="sidebar-mode-switch" aria-label="导航模式">
-              <button
-                v-for="option in sidebarModeOptions"
-                :key="option.value"
-                type="button"
-                class="sidebar-mode-button"
-                :class="{ 'is-active': sidebarMode === option.value }"
-                @click="setSidebarMode(option.value)"
-              >
-                {{ option.label }}
-              </button>
-            </div>
-          </div>
-
-          <div class="topbar-copy">
-            <span class="topbar-mark">Jincheng Estate</span>
-            <h2>{{ currentSection.label }}</h2>
-            <p>{{ currentSection.description }}</p>
-          </div>
-        </div>
-
         <div class="topbar-right">
-          <span class="topbar-status">{{ sidebarStatusLabel }}</span>
-
           <el-dropdown trigger="click" @command="handleUserCommand">
             <button type="button" class="user-trigger">
               <span class="user-avatar">{{ userInitial }}</span>
@@ -184,10 +182,6 @@ const lastExpandedMode = ref<Exclude<SidebarMode, "hidden">>(
 const viewportWidth = ref(typeof window === "undefined" ? AUTO_BREAKPOINT : window.innerWidth);
 const overlayOpen = ref(false);
 
-const currentSection = computed(() => {
-  return navItems.find((item) => route.path === item.to) ?? navItems[0];
-});
-
 const currentUsername = computed(() => authStore.state.user?.username || "管理员");
 const userInitial = computed(() => currentUsername.value.slice(0, 1).toUpperCase());
 
@@ -205,17 +199,6 @@ const isSidebarPinned = computed(() => {
 
 const showSidebar = computed(() => isSidebarPinned.value || overlayOpen.value);
 const showSidebarBackdrop = computed(() => overlayOpen.value && !isSidebarPinned.value);
-const sidebarStatusLabel = computed(() => {
-  if (sidebarMode.value === "hidden") {
-    return "手动隐藏";
-  }
-
-  if (sidebarMode.value === "fixed") {
-    return isSidebarPinned.value ? "固定展开" : "固定模式 / 窄屏折叠";
-  }
-
-  return isSidebarPinned.value ? "自动展开" : "自动隐藏";
-});
 
 watch(
   () => route.fullPath,
