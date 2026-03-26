@@ -10,6 +10,7 @@ import { access, mkdir, rm } from "fs/promises";
 import { createWriteStream } from "fs";
 import { join } from "path";
 import { Repository } from "typeorm";
+import type { StorageConfig } from "../config/storage.config";
 import { StoredFileCategory } from "../files/stored-file.entity";
 import { FilesService } from "../files/files.service";
 import { RentPayment } from "../rent-payments/rent-payment.entity";
@@ -41,9 +42,9 @@ export class ReceiptsService {
     @InjectRepository(RentPayment)
     private readonly rentPaymentsRepository: Repository<RentPayment>,
     private readonly filesService: FilesService,
-    configService: ConfigService,
+    private readonly configService: ConfigService,
   ) {
-    const storageRoot = configService.get<string>("STORAGE_ROOT", join(process.cwd(), "storage"));
+    const storageRoot = this.configService.getOrThrow<StorageConfig>("storage").root;
     this.tempRoot = join(storageRoot, "tmp");
   }
 
@@ -204,8 +205,9 @@ export class ReceiptsService {
   }
 
   private async resolveFontPath() {
+    const storage = this.configService.getOrThrow<StorageConfig>("storage");
     const candidates = [
-      process.env.PDF_FONT_PATH,
+      storage.pdfFontPath,
       "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
       "/usr/share/fonts/truetype/noto/NotoSansCJK-Regular.ttc",
     ].filter(Boolean) as string[];

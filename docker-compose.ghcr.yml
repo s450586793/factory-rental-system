@@ -18,8 +18,6 @@ services:
       timeout: 5s
       retries: 10
       start_period: 10s
-    ports:
-      - "5432:5432"
 
   backend:
     image: ghcr.io/s450586793/factory-rental-system-backend:latest
@@ -29,15 +27,17 @@ services:
     restart: unless-stopped
     environment:
       TZ: Asia/Shanghai
-      NODE_ENV: production
       DB_HOST: postgres
       DB_PORT: "5432"
       DB_NAME: factory_rental
       DB_USER: postgres
       DB_PASSWORD: change-this-postgres-password
-      DB_SYNCHRONIZE: "true"
+      DB_SYNCHRONIZE: "false"
+      APP_NAME: factory-rental-system
+      NODE_ENV: production
       PORT: "3000"
       JWT_SECRET: change-this-jwt-secret
+      COOKIE_NAME: token
       COOKIE_SECURE: "false"
       FRONTEND_ORIGIN: http://your-synology-host-or-domain:8080
       STORAGE_ROOT: /app/storage
@@ -54,13 +54,11 @@ services:
         - CMD
         - node
         - -e
-        - "require('http').get('http://127.0.0.1:3000/api/auth/me', (res) => process.exit(res.statusCode >= 500 ? 1 : 0)).on('error', () => process.exit(1))"
+        - "require('http').get('http://127.0.0.1:3000/api/health', (res) => process.exit(res.statusCode === 200 ? 0 : 1)).on('error', () => process.exit(1))"
       interval: 15s
       timeout: 5s
       retries: 10
       start_period: 20s
-    ports:
-      - "3000:3000"
 
   frontend:
     image: ghcr.io/s450586793/factory-rental-system-frontend:latest

@@ -1,8 +1,10 @@
 import { Body, Controller, Delete, Get, Param, Patch, Post, Query, UseGuards } from "@nestjs/common";
+import { ApiTags } from "@nestjs/swagger";
 import { JwtAuthGuard } from "../common/guards/jwt-auth.guard";
 import { CreateContractDto, UpdateContractDto } from "./contracts.dto";
 import { ContractsService } from "./contracts.service";
 
+@ApiTags("contracts")
 @Controller("contracts")
 @UseGuards(JwtAuthGuard)
 export class ContractsController {

@@ -34,15 +34,17 @@ services:
       - .env
     environment:
       TZ: ${TZ:-Asia/Shanghai}
-      NODE_ENV: production
       DB_HOST: postgres
       DB_PORT: ${DB_PORT}
       DB_NAME: ${DB_NAME}
       DB_USER: ${DB_USER}
       DB_PASSWORD: ${DB_PASSWORD}
-      DB_SYNCHRONIZE: ${DB_SYNCHRONIZE}
+      DB_SYNCHRONIZE: ${DB_SYNCHRONIZE:-false}
+      APP_NAME: ${APP_NAME:-factory-rental-system}
+      NODE_ENV: ${NODE_ENV:-production}
       PORT: 3000
       JWT_SECRET: ${JWT_SECRET}
+      COOKIE_NAME: ${COOKIE_NAME:-token}
       COOKIE_SECURE: ${COOKIE_SECURE}
       FRONTEND_ORIGIN: ${FRONTEND_ORIGIN}
       STORAGE_ROOT: /app/storage
@@ -59,7 +61,7 @@ services:
         - CMD
         - node
         - -e
-        - "require('http').get('http://127.0.0.1:3000/api/auth/me', (res) => process.exit(res.statusCode >= 500 ? 1 : 0)).on('error', () => process.exit(1))"
+        - "require('http').get('http://127.0.0.1:3000/api/health', (res) => process.exit(res.statusCode === 200 ? 0 : 1)).on('error', () => process.exit(1))"
       interval: 15s
       timeout: 5s
       retries: 10

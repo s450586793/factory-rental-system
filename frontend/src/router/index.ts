@@ -1,11 +1,11 @@
 import { createRouter, createWebHistory } from "vue-router";
 import { useAuthStore } from "../stores/auth";
-import LoginView from "../views/LoginView.vue";
-import UnitsView from "../views/UnitsView.vue";
-import UtilitiesView from "../views/UtilitiesView.vue";
-import RentPaymentsView from "../views/RentPaymentsView.vue";
-import DepositsView from "../views/DepositsView.vue";
-import ReceiptsView from "../views/ReceiptsView.vue";
+import LoginView from "../features/auth/views/LoginView.vue";
+import UnitsView from "../features/units/views/UnitsView.vue";
+import UtilitiesView from "../features/utilities/views/UtilitiesView.vue";
+import RentPaymentsView from "../features/rent-payments/views/RentPaymentsView.vue";
+import DepositsView from "../features/deposits/views/DepositsView.vue";
+import ReceiptsView from "../features/receipts/views/ReceiptsView.vue";
 
 const routes = [
   {

@@ -6,14 +6,14 @@ import { FactoryUnit } from "../units/factory-unit.entity";
 
 @Entity("rent_payments")
 export class RentPayment extends BaseEntityWithTimestamps {
-  @Column()
+  @Column({ type: "uuid" })
   unitId!: string;
 
   @ManyToOne(() => FactoryUnit, (unit) => unit.rentPayments, { eager: true, onDelete: "RESTRICT" })
   @JoinColumn({ name: "unitId" })
   unit!: FactoryUnit;
 
-  @Column()
+  @Column({ type: "uuid" })
   contractId!: string;
 
   @ManyToOne(() => Contract, (contract) => contract.rentPayments, { eager: true, onDelete: "RESTRICT" })

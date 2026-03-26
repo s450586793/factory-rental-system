@@ -10,7 +10,7 @@ export enum UtilityType {
 
 @Entity("utility_meter_configs")
 export class UtilityMeterConfig extends BaseEntityWithTimestamps {
-  @Column()
+  @Column({ type: "uuid" })
   unitId!: string;
 
   @ManyToOne(() => FactoryUnit, (unit) => unit.meterConfigs, { onDelete: "RESTRICT" })

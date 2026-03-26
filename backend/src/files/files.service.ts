@@ -8,6 +8,7 @@ import { randomUUID } from "crypto";
 import { extname, join } from "path";
 import { mkdir, readFile, stat, unlink, writeFile } from "fs/promises";
 import { In, Repository } from "typeorm";
+import type { StorageConfig } from "../config/storage.config";
 import { GenerateStoredFileDto } from "./files.dto";
 import { StoredFile, StoredFileCategory } from "./stored-file.entity";
 
@@ -27,7 +28,7 @@ export class FilesService {
     private readonly storedFilesRepository: Repository<StoredFile>,
     configService: ConfigService,
   ) {
-    this.storageRoot = configService.get<string>("STORAGE_ROOT", join(process.cwd(), "storage"));
+    this.storageRoot = configService.getOrThrow<StorageConfig>("storage").root;
   }
 
   async saveUploadedFiles(files: UploadLike[], category: StoredFileCategory) {

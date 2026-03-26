@@ -102,6 +102,11 @@ jobs:
           name: github-deploy-bundle
           path: |
             docker-compose.ghcr.yml
+            docker-compose.yml
+            .env.example
             .env.ghcr.example
+            docs/env-reference.md
+            docs/synology-deploy.md
+            docs/database-migrations.md
             docs/database-schema.md
             README.md

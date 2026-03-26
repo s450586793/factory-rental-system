@@ -1,8 +1,10 @@
 import { Body, Controller, Delete, Get, Param, Patch, Post, UseGuards } from "@nestjs/common";
+import { ApiTags } from "@nestjs/swagger";
 import { JwtAuthGuard } from "../common/guards/jwt-auth.guard";
 import { CreateRentPaymentDto, UpdateRentPaymentDto } from "./rent-payments.dto";
 import { RentPaymentsService } from "./rent-payments.service";
 
+@ApiTags("rent-payments")
 @Controller("rent-payments")
 @UseGuards(JwtAuthGuard)
 export class RentPaymentsController {

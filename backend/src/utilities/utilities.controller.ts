@@ -9,6 +9,7 @@ import {
   Query,
   UseGuards,
 } from "@nestjs/common";
+import { ApiTags } from "@nestjs/swagger";
 import { JwtAuthGuard } from "../common/guards/jwt-auth.guard";
 import {
   CreateMeterConfigDto,
@@ -22,6 +23,7 @@ import {
 import { UtilitiesService } from "./utilities.service";
 import { UtilityType } from "./utility-meter-config.entity";
 
+@ApiTags("utilities")
 @Controller("utilities")
 @UseGuards(JwtAuthGuard)
 export class UtilitiesController {

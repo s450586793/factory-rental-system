@@ -1,12 +1,13 @@
-# 数据库表说明
+# 数据库表结构说明
 
-当前系统使用 `TypeORM + PostgreSQL`，表结构由后端实体自动映射生成。
+当前系统使用 `TypeORM + PostgreSQL`，数据库生命周期已调整为：
 
-## 建表方式
+- 实体定义：维护在 `backend/src/**/*.entity.ts`
+- schema 变更：通过 migration 管理
+- 首次部署：`migration + seed admin`
+- 仅本地临时开发才建议使用 `DB_SYNCHRONIZE=true`
 
-- 默认通过环境变量 `DB_SYNCHRONIZE=true` 自动建表
-- 第一次启动 `backend` 容器时，NestJS 会根据实体创建或更新表
-- 如果之后需要更稳的生产变更流程，建议再切换到 TypeORM migration
+相关文档见 [database-migrations.md](./database-migrations.md)。
 
 ## 主要表
 

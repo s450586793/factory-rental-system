@@ -6,14 +6,14 @@ import { UtilityMeterConfig } from "./utility-meter-config.entity";
 
 @Entity("utility_charge_items")
 export class UtilityChargeItem extends BaseEntityWithTimestamps {
-  @Column()
+  @Column({ type: "uuid" })
   recordId!: string;
 
   @ManyToOne(() => UtilityChargeRecord, (record) => record.items, { onDelete: "CASCADE" })
   @JoinColumn({ name: "recordId" })
   record!: UtilityChargeRecord;
 
-  @Column()
+  @Column({ type: "uuid" })
   meterConfigId!: string;
 
   @ManyToOne(() => UtilityMeterConfig, { eager: true, onDelete: "RESTRICT" })

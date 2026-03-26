@@ -3,7 +3,7 @@
     <section class="panel-card page-panel">
       <div class="page-header">
         <div>
-          <h2>厂房信息管理</h2>
+          <h2>厂房管理</h2>
           <p>维护厂房基础资料、当前在租状态、合同历史和水电表配置。</p>
         </div>
         <div class="toolbar-row">

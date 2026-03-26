@@ -7,6 +7,8 @@ import { ConfigService } from "@nestjs/config";
 import { JwtService } from "@nestjs/jwt";
 import * as bcrypt from "bcrypt";
 import { Response } from "express";
+import type { AuthConfig } from "../config/auth.config";
+import { ensureAdminUserExists } from "../database/seeds/admin-user.seed";
 import { LoginDto } from "./auth.dto";
 import { UsersService } from "../users/users.service";
 
@@ -19,9 +21,8 @@ export class AuthService implements OnModuleInit {
   ) {}
 
   async onModuleInit() {
-    const username = this.configService.get<string>("ADMIN_USERNAME", "admin");
-    const password = this.configService.get<string>("ADMIN_PASSWORD", "admin123456");
-    await this.usersService.ensureAdminUser(username, password);
+    const auth = this.configService.getOrThrow<AuthConfig>("auth");
+    await ensureAdminUserExists(this.usersService.getRepository(), auth.adminUsername, auth.adminPassword);
   }
 
   async login(dto: LoginDto, response: Response) {
@@ -40,12 +41,12 @@ export class AuthService implements OnModuleInit {
       sub: user.id,
       username: user.username,
     });
-    const secure = this.configService.get<string>("COOKIE_SECURE", "false") === "true";
+    const auth = this.configService.getOrThrow<AuthConfig>("auth");
 
-    response.cookie("token", token, {
+    response.cookie(auth.cookieName, token, {
       httpOnly: true,
       sameSite: "lax",
-      secure,
+      secure: auth.cookieSecure,
       maxAge: 1000 * 60 * 60 * 24 * 7,
     });
 
@@ -58,7 +59,8 @@ export class AuthService implements OnModuleInit {
   }
 
   logout(response: Response) {
-    response.clearCookie("token");
+    const auth = this.configService.getOrThrow<AuthConfig>("auth");
+    response.clearCookie(auth.cookieName);
     return { success: true };
   }
 }

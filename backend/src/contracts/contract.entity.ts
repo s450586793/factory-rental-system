@@ -23,7 +23,7 @@ export enum ContractStatus {
 
 @Entity("contracts")
 export class Contract extends BaseEntityWithTimestamps {
-  @Column()
+  @Column({ type: "uuid" })
   unitId!: string;
 
   @ManyToOne(() => FactoryUnit, (unit) => unit.contracts, { onDelete: "RESTRICT" })
@@ -56,7 +56,7 @@ export class Contract extends BaseEntityWithTimestamps {
   })
   status!: ContractStatus;
 
-  @Column({ type: "text", nullable: true })
+  @Column({ type: "uuid", nullable: true })
   businessLicenseFileId!: string | null;
 
   @ManyToOne(() => StoredFile, { nullable: true, onDelete: "SET NULL", eager: true })

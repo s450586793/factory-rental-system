@@ -1,8 +1,10 @@
 import { Body, Controller, Delete, Get, Param, Patch, Post, UseGuards } from "@nestjs/common";
+import { ApiTags } from "@nestjs/swagger";
 import { JwtAuthGuard } from "../common/guards/jwt-auth.guard";
 import { CreateUnitDto, UpdateUnitDto } from "./units.dto";
 import { UnitsService } from "./units.service";
 
+@ApiTags("units")
 @Controller("units")
 @UseGuards(JwtAuthGuard)
 export class UnitsController {

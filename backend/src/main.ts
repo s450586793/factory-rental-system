@@ -1,19 +1,17 @@
 import { ValidationPipe } from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
 import { NestFactory } from "@nestjs/core";
 import cookieParser from "cookie-parser";
 import { AppModule } from "./app.module";
-
-function parseOrigins() {
-  const raw = process.env.FRONTEND_ORIGIN ?? "";
-  return raw
-    .split(",")
-    .map((item) => item.trim())
-    .filter(Boolean);
-}
+import type { AppConfig } from "./config/app.config";
+import type { AuthConfig } from "./config/auth.config";
+import { setupSwagger } from "./openapi/swagger";
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
-  const origins = parseOrigins();
+  const configService = app.get(ConfigService);
+  const runtime = configService.getOrThrow<AppConfig>("app");
+  const auth = configService.getOrThrow<AuthConfig>("auth");
 
   app.setGlobalPrefix("api");
   app.use(cookieParser());
@@ -25,12 +23,12 @@ async function bootstrap() {
     }),
   );
   app.enableCors({
-    origin: origins.length ? origins : true,
+    origin: runtime.frontendOrigins.length ? runtime.frontendOrigins : true,
     credentials: true,
   });
+  setupSwagger(app, auth.cookieName);
 
-  const port = Number(process.env.PORT ?? 3000);
-  await app.listen(port);
+  await app.listen(runtime.port);
 }
 
 bootstrap();

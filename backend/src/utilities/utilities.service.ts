@@ -8,6 +8,7 @@ import { In, Repository } from "typeorm";
 import { Contract } from "../contracts/contract.entity";
 import { Receipt, ReceiptSourceType, ReceiptStatus } from "../receipts/receipt.entity";
 import { FactoryUnit } from "../units/factory-unit.entity";
+import { calculateUtilityCharge, round2 } from "./utility-calculation";
 import {
   CreateMeterConfigDto,
   CreateUtilityRecordDto,
@@ -19,10 +20,6 @@ import {
 import { UtilityChargeItem } from "./utility-charge-item.entity";
 import { UtilityChargeRecord, UtilityChargeStatus } from "./utility-charge-record.entity";
 import { UtilityMeterConfig, UtilityType } from "./utility-meter-config.entity";
-
-function round2(value: number) {
-  return Number(value.toFixed(2));
-}
 
 function today() {
   return new Date().toISOString().slice(0, 10);
@@ -195,9 +192,13 @@ export class UtilitiesService {
         throw new BadRequestException(`表计 ${config.name} 的本次读数不能小于上次读数`);
       }
 
-      const usage = round2((input.currentReading - input.previousReading) * config.multiplier);
-      const adjustedUsage = round2(usage * (1 + config.lineLossPercent / 100));
-      const amount = round2(adjustedUsage * config.unitPrice);
+      const calculation = calculateUtilityCharge({
+        previousReading: input.previousReading,
+        currentReading: input.currentReading,
+        multiplier: config.multiplier,
+        unitPrice: config.unitPrice,
+        lineLossPercent: config.lineLossPercent,
+      });
 
       return {
         meterConfigId: config.id,
@@ -208,9 +209,9 @@ export class UtilitiesService {
         lineLossPercentSnapshot: config.lineLossPercent,
         previousReading: input.previousReading,
         currentReading: input.currentReading,
-        usage,
-        adjustedUsage,
-        amount,
+        usage: calculation.usage,
+        adjustedUsage: calculation.adjustedUsage,
+        amount: calculation.amount,
       };
     });
 

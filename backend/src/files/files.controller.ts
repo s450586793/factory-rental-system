@@ -11,12 +11,14 @@ import {
   UseInterceptors,
 } from "@nestjs/common";
 import { FilesInterceptor } from "@nestjs/platform-express";
+import { ApiTags } from "@nestjs/swagger";
 import { memoryStorage } from "multer";
 import { Response } from "express";
 import { JwtAuthGuard } from "../common/guards/jwt-auth.guard";
 import { UploadFilesDto } from "./files.dto";
 import { FilesService } from "./files.service";
 
+@ApiTags("files")
 @Controller("files")
 @UseGuards(JwtAuthGuard)
 export class FilesController {

@@ -11,14 +11,14 @@ export enum DepositRecordType {
 
 @Entity("deposit_records")
 export class DepositRecord extends BaseEntityWithTimestamps {
-  @Column()
+  @Column({ type: "uuid" })
   unitId!: string;
 
   @ManyToOne(() => FactoryUnit, { eager: true, onDelete: "RESTRICT" })
   @JoinColumn({ name: "unitId" })
   unit!: FactoryUnit;
 
-  @Column()
+  @Column({ type: "uuid" })
   contractId!: string;
 
   @ManyToOne(() => Contract, (contract) => contract.deposits, { eager: true, onDelete: "RESTRICT" })

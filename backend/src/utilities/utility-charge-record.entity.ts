@@ -19,14 +19,14 @@ export enum UtilityChargeStatus {
 
 @Entity("utility_charge_records")
 export class UtilityChargeRecord extends BaseEntityWithTimestamps {
-  @Column()
+  @Column({ type: "uuid" })
   unitId!: string;
 
   @ManyToOne(() => FactoryUnit, { eager: true, onDelete: "RESTRICT" })
   @JoinColumn({ name: "unitId" })
   unit!: FactoryUnit;
 
-  @Column()
+  @Column({ type: "uuid" })
   contractId!: string;
 
   @ManyToOne(() => Contract, (contract) => contract.utilityChargeRecords, {

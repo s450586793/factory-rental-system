@@ -1,8 +1,10 @@
 import { Body, Controller, Delete, Get, Param, Patch, Post, UseGuards } from "@nestjs/common";
+import { ApiTags } from "@nestjs/swagger";
 import { JwtAuthGuard } from "../common/guards/jwt-auth.guard";
 import { CreateDepositRecordDto, UpdateDepositRecordDto } from "./deposits.dto";
 import { DepositsService } from "./deposits.service";
 
+@ApiTags("deposits")
 @Controller("deposits")
 @UseGuards(JwtAuthGuard)
 export class DepositsController {
