@@ -146,7 +146,7 @@
             <el-form-item label="营业执照">
               <div class="detail-grid">
                 <div v-if="unitBusinessLicenseUpload" class="file-chip-list">
-                  <span class="file-chip">{{ unitBusinessLicenseUpload.name }}</span>
+                  <span class="file-chip">营业执照</span>
                 </div>
                 <input
                   ref="unitBusinessLicenseInput"
@@ -160,8 +160,12 @@
             <el-form-item label="合同附件">
               <div class="detail-grid">
                 <div v-if="unitAttachmentUploads.length" class="file-chip-list">
-                  <span v-for="file in unitAttachmentUploads" :key="file.name + file.size" class="file-chip">
-                    {{ file.name }}
+                  <span
+                    v-for="(file, index) in unitAttachmentUploads"
+                    :key="file.name + file.size"
+                    class="file-chip"
+                  >
+                    {{ attachmentPreviewLabel(index, unitAttachmentUploads.length) }}
                   </span>
                 </div>
                 <input
@@ -251,23 +255,23 @@
             <el-table-column label="附件" min-width="220">
               <template #default="{ row }">
                 <div class="file-chip-list">
-                  <a
+                  <button
                     v-if="row.businessLicenseFile"
+                    type="button"
                     class="file-chip"
-                    :href="apiFileUrl(row.businessLicenseFile.id)"
-                    target="_blank"
+                    @click="openFilePreview(row.businessLicenseFile, '营业执照')"
                   >
                     营业执照
-                  </a>
-                  <a
-                    v-for="file in row.attachmentFiles"
+                  </button>
+                  <button
+                    v-for="(file, index) in row.attachmentFiles"
                     :key="file.id"
+                    type="button"
                     class="file-chip"
-                    :href="apiFileUrl(file.id)"
-                    target="_blank"
+                    @click="openFilePreview(file, attachmentPreviewLabel(index, row.attachmentFiles.length))"
                   >
-                    {{ file.originalName }}
-                  </a>
+                    {{ attachmentPreviewLabel(index, row.attachmentFiles.length) }}
+                  </button>
                 </div>
               </template>
             </el-table-column>
@@ -357,9 +361,13 @@
         <el-form-item label="营业执照">
           <div class="detail-grid">
             <div v-if="existingBusinessLicense" class="file-chip-list">
-              <a class="file-chip" :href="apiFileUrl(existingBusinessLicense.id)" target="_blank">
-                {{ existingBusinessLicense.originalName }}
-              </a>
+              <button
+                type="button"
+                class="file-chip"
+                @click="openFilePreview(existingBusinessLicense, '营业执照')"
+              >
+                营业执照
+              </button>
               <el-button text type="danger" @click="removeBusinessLicense">移除</el-button>
             </div>
             <input type="file" accept=".pdf,image/*" @change="onBusinessLicenseChange" />
@@ -369,8 +377,14 @@
         <el-form-item label="合同附件">
           <div class="detail-grid">
             <div class="file-chip-list" v-if="existingAttachments.length">
-              <span v-for="file in existingAttachments" :key="file.id" class="file-chip">
-                <a :href="apiFileUrl(file.id)" target="_blank">{{ file.originalName }}</a>
+              <span v-for="(file, index) in existingAttachments" :key="file.id" class="file-chip">
+                <button
+                  type="button"
+                  class="file-chip-link"
+                  @click="openFilePreview(file, attachmentPreviewLabel(index, existingAttachments.length))"
+                >
+                  {{ attachmentPreviewLabel(index, existingAttachments.length) }}
+                </button>
                 <el-button text type="danger" @click="removeAttachment(file.id)">移除</el-button>
               </span>
             </div>
@@ -438,6 +452,27 @@
         <el-button @click="meterDialogVisible = false">取消</el-button>
         <el-button type="primary" :loading="submittingMeter" @click="saveMeter">保存表计</el-button>
       </template>
+    </el-dialog>
+
+    <el-dialog v-model="filePreviewVisible" :title="filePreviewTitle" width="72%" top="4vh">
+      <div v-if="previewFile" class="file-preview-shell">
+        <img
+          v-if="isPreviewImage(previewFile)"
+          class="file-preview-image"
+          :src="apiFileUrl(previewFile.id)"
+          :alt="filePreviewTitle"
+        />
+        <iframe
+          v-else-if="isPreviewPdf(previewFile)"
+          class="file-preview-frame"
+          :src="apiFileUrl(previewFile.id)"
+          :title="filePreviewTitle"
+        />
+        <div v-else class="file-preview-empty">
+          <p>当前文件类型不支持页内预览。</p>
+          <el-button type="primary" @click="downloadPreviewFile">下载文件</el-button>
+        </div>
+      </div>
     </el-dialog>
   </AppShell>
 </template>
@@ -510,6 +545,9 @@ const meterForm = reactive({
   lineLossPercent: 0,
   enabled: true,
 });
+const filePreviewVisible = ref(false);
+const previewFile = ref<StoredFile | null>(null);
+const filePreviewTitle = ref("文件预览");
 
 const occupiedCount = computed(() => units.value.filter((item) => item.status === "occupied").length);
 const vacantCount = computed(() => units.value.filter((item) => item.status === "vacant").length);
@@ -638,6 +676,32 @@ function onUnitBusinessLicenseChange(event: Event) {
 function onUnitAttachmentFilesChange(event: Event) {
   const target = event.target as HTMLInputElement;
   unitAttachmentUploads.value = Array.from(target.files ?? []);
+}
+
+function openFilePreview(file: StoredFile, title: string) {
+  previewFile.value = file;
+  filePreviewTitle.value = title;
+  filePreviewVisible.value = true;
+}
+
+function attachmentPreviewLabel(index: number, total: number) {
+  return total > 1 ? `合同附件 ${index + 1}` : "合同附件";
+}
+
+function isPreviewImage(file: StoredFile) {
+  return file.mimeType.startsWith("image/");
+}
+
+function isPreviewPdf(file: StoredFile) {
+  return file.mimeType.includes("pdf");
+}
+
+function downloadPreviewFile() {
+  if (!previewFile.value) {
+    return;
+  }
+
+  window.open(apiFileUrl(previewFile.value.id), "_self");
 }
 
 function handleUnitContractStartDateChange() {
