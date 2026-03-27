@@ -344,7 +344,13 @@
         <el-row :gutter="14">
           <el-col :span="12">
             <el-form-item label="合同开始">
-              <el-date-picker v-model="contractForm.startDate" type="date" value-format="YYYY-MM-DD" style="width: 100%" />
+              <el-date-picker
+                v-model="contractForm.startDate"
+                type="date"
+                value-format="YYYY-MM-DD"
+                style="width: 100%"
+                @change="handleContractStartDateChange"
+              />
             </el-form-item>
           </el-col>
           <el-col :span="12">
@@ -823,6 +829,13 @@ function resetContractForm() {
 
 function openCreateContract() {
   resetContractForm();
+  const latestContract = selectedUnit.value?.contracts?.[0];
+  if (latestContract) {
+    contractForm.tenantName = latestContract.tenantName;
+    contractForm.tenantPhone = latestContract.tenantPhone;
+    contractForm.startDate = deriveNextDate(latestContract.endDate);
+    contractForm.endDate = deriveContractEndDate(contractForm.startDate);
+  }
   contractDialogVisible.value = true;
 }
 
@@ -849,6 +862,12 @@ function onBusinessLicenseChange(event: Event) {
 function onAttachmentFilesChange(event: Event) {
   const target = event.target as HTMLInputElement;
   attachmentUploads.value = Array.from(target.files ?? []);
+}
+
+function handleContractStartDateChange() {
+  if (!contractForm.id) {
+    contractForm.endDate = deriveContractEndDate(contractForm.startDate);
+  }
 }
 
 function removeBusinessLicense() {
@@ -1033,5 +1052,24 @@ function deriveContractEndDate(startDate: string) {
   const endMonth = String(end.getUTCMonth() + 1).padStart(2, "0");
   const endDay = String(end.getUTCDate()).padStart(2, "0");
   return `${endYear}-${endMonth}-${endDay}`;
+}
+
+function deriveNextDate(dateText: string) {
+  if (!dateText) {
+    return "";
+  }
+
+  const [year, month, day] = dateText.split("-").map((value) => Number(value));
+  if (!year || !month || !day) {
+    return "";
+  }
+
+  const next = new Date(Date.UTC(year, month - 1, day));
+  next.setUTCDate(next.getUTCDate() + 1);
+
+  const nextYear = next.getUTCFullYear();
+  const nextMonth = String(next.getUTCMonth() + 1).padStart(2, "0");
+  const nextDay = String(next.getUTCDate()).padStart(2, "0");
+  return `${nextYear}-${nextMonth}-${nextDay}`;
 }
 </script>
