@@ -4,7 +4,7 @@ import {
   NotFoundException,
 } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
-import { Repository } from "typeorm";
+import { QueryFailedError, Repository } from "typeorm";
 import { Contract, ContractStatus } from "../contracts/contract.entity";
 import { UtilityMeterConfig } from "../utilities/utility-meter-config.entity";
 import { CreateUnitDto, UpdateUnitDto } from "./units.dto";
@@ -66,7 +66,7 @@ export class UnitsService {
       code: dto.code.trim(),
       location: dto.location.trim(),
     });
-    const created = await this.unitsRepository.save(entity);
+    const created = await this.saveUnitEntity(entity);
     return this.getDetail(created.id);
   }
 
@@ -78,7 +78,7 @@ export class UnitsService {
 
     unit.code = dto.code.trim();
     unit.location = dto.location.trim();
-    await this.unitsRepository.save(unit);
+    await this.saveUnitEntity(unit);
     return this.getDetail(id);
   }
 
@@ -105,6 +105,29 @@ export class UnitsService {
     if (existing && existing.id !== excludeId) {
       throw new BadRequestException("厂房编号已存在");
     }
+  }
+
+  private async saveUnitEntity(unit: FactoryUnit) {
+    try {
+      return await this.unitsRepository.save(unit);
+    } catch (error) {
+      if (this.isUniqueCodeViolation(error)) {
+        throw new BadRequestException("厂房编号已存在");
+      }
+      throw error;
+    }
+  }
+
+  private isUniqueCodeViolation(error: unknown) {
+    if (!(error instanceof QueryFailedError)) {
+      return false;
+    }
+
+    const driverError = error.driverError as { code?: string; constraint?: string } | undefined;
+    return (
+      driverError?.code === "23505" &&
+      (driverError.constraint === "IDX_factory_units_code" || driverError.constraint === "factory_units_code_key")
+    );
   }
 
   private serializeUnit(unit: FactoryUnit) {

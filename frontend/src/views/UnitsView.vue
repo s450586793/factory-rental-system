@@ -609,6 +609,7 @@ async function saveUnit() {
       code: unitForm.code.trim(),
       location: unitForm.location.trim(),
     };
+    validateUnitForm(payload.code, payload.location);
     if (unitForm.id) {
       await unitsApi.update(unitForm.id, payload);
       ElMessage.success("厂房已更新");
@@ -706,6 +707,25 @@ function downloadPreviewFile() {
 
 function handleUnitContractStartDateChange() {
   unitContractForm.endDate = deriveContractEndDate(unitContractForm.startDate);
+}
+
+function validateUnitForm(code: string, location: string) {
+  if (!code) {
+    throw new Error("厂房编号不能为空");
+  }
+
+  if (!location) {
+    throw new Error("位置不能为空");
+  }
+
+  const normalizedCode = code.toLowerCase();
+  const duplicated = units.value.some(
+    (item) => item.id !== unitForm.id && item.code.trim().toLowerCase() === normalizedCode,
+  );
+
+  if (duplicated) {
+    throw new Error("厂房编号已存在");
+  }
 }
 
 function hasInitialContractInput() {
