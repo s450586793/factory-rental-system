@@ -62,11 +62,10 @@
             {{ row.activeContract ? formatCurrency(row.activeContract.annualRent) : "--" }}
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="240" fixed="right">
+        <el-table-column label="操作" width="180" fixed="right">
           <template #default="{ row }">
             <el-space wrap>
-              <el-button text type="primary" @click="openDetail(row.id)">详情</el-button>
-              <el-button text @click="openEditUnit(row)">编辑</el-button>
+              <el-button text type="primary" @click="openDetail(row.id)">管理</el-button>
               <el-button text type="danger" @click="confirmRemoveUnit(row.id)">删除</el-button>
             </el-space>
           </template>
@@ -119,6 +118,7 @@
                     type="date"
                     value-format="YYYY-MM-DD"
                     style="width: 100%"
+                    @change="handleUnitContractStartDateChange"
                   />
                 </el-form-item>
               </el-col>
@@ -185,9 +185,9 @@
     <el-drawer v-model="detailDrawerVisible" size="72%" :with-header="false">
       <div v-if="selectedUnit" class="detail-grid">
         <section class="detail-section">
-          <div class="page-header" style="margin-bottom: 0">
+          <div class="page-header">
             <div>
-              <h2>{{ selectedUnit.code }} / {{ selectedUnit.location }}</h2>
+              <h2>厂房基础信息</h2>
               <p>
                 当前状态：
                 {{ selectedUnit.status === "occupied" ? "在租" : "空置" }}
@@ -196,7 +196,28 @@
                 </span>
               </p>
             </div>
+            <div class="toolbar-row">
+              <el-button @click="refreshSelectedUnit">刷新</el-button>
+              <el-button type="primary" :loading="submittingDetailUnit" @click="saveDetailUnit">
+                保存基础信息
+              </el-button>
+            </div>
           </div>
+
+          <el-form label-position="top">
+            <el-row :gutter="14">
+              <el-col :span="12">
+                <el-form-item label="厂房编号">
+                  <el-input v-model="detailUnitForm.code" placeholder="例如 A-01" />
+                </el-form-item>
+              </el-col>
+              <el-col :span="12">
+                <el-form-item label="位置">
+                  <el-input v-model="detailUnitForm.location" placeholder="例如 东区 1 号车间" />
+                </el-form-item>
+              </el-col>
+            </el-row>
+          </el-form>
         </section>
 
         <section class="detail-section">
@@ -434,6 +455,12 @@ const loading = ref(false);
 const units = ref<UnitSummary[]>([]);
 const selectedUnit = ref<UnitSummary | null>(null);
 const detailDrawerVisible = ref(false);
+const submittingDetailUnit = ref(false);
+const detailUnitForm = reactive({
+  id: "",
+  code: "",
+  location: "",
+});
 
 const unitDialogVisible = ref(false);
 const submittingUnit = ref(false);
@@ -537,14 +564,6 @@ function openCreateUnit() {
   unitDialogVisible.value = true;
 }
 
-function openEditUnit(unit: UnitSummary) {
-  unitForm.id = unit.id;
-  unitForm.code = unit.code;
-  unitForm.location = unit.location;
-  resetUnitContractForm();
-  unitDialogVisible.value = true;
-}
-
 async function saveUnit() {
   try {
     submittingUnit.value = true;
@@ -617,6 +636,10 @@ function onUnitAttachmentFilesChange(event: Event) {
   unitAttachmentUploads.value = Array.from(target.files ?? []);
 }
 
+function handleUnitContractStartDateChange() {
+  unitContractForm.endDate = deriveContractEndDate(unitContractForm.startDate);
+}
+
 function hasInitialContractInput() {
   return Boolean(
     unitContractForm.tenantName.trim() ||
@@ -647,6 +670,7 @@ function validateInitialContractForm() {
 async function openDetail(unitId: string) {
   try {
     selectedUnit.value = await unitsApi.detail(unitId);
+    syncDetailUnitForm(selectedUnit.value);
     detailDrawerVisible.value = true;
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : "加载详情失败");
@@ -658,6 +682,27 @@ async function refreshSelectedUnit() {
     return;
   }
   selectedUnit.value = await unitsApi.detail(selectedUnit.value.id);
+  syncDetailUnitForm(selectedUnit.value);
+}
+
+async function saveDetailUnit() {
+  if (!selectedUnit.value) {
+    return;
+  }
+
+  try {
+    submittingDetailUnit.value = true;
+    await unitsApi.update(selectedUnit.value.id, {
+      code: detailUnitForm.code.trim(),
+      location: detailUnitForm.location.trim(),
+    });
+    ElMessage.success("厂房基础信息已更新");
+    await Promise.all([refreshSelectedUnit(), loadUnits()]);
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : "更新厂房基础信息失败");
+  } finally {
+    submittingDetailUnit.value = false;
+  }
 }
 
 async function confirmRemoveUnit(unitId: string) {
@@ -875,5 +920,30 @@ function contractTagType(status: Contract["status"]) {
   if (status === "active") return "success";
   if (status === "future") return "warning";
   return "info";
+}
+
+function syncDetailUnitForm(unit: UnitSummary) {
+  detailUnitForm.id = unit.id;
+  detailUnitForm.code = unit.code;
+  detailUnitForm.location = unit.location;
+}
+
+function deriveContractEndDate(startDate: string) {
+  if (!startDate) {
+    return "";
+  }
+
+  const [year, month, day] = startDate.split("-").map((value) => Number(value));
+  if (!year || !month || !day) {
+    return "";
+  }
+
+  const end = new Date(Date.UTC(year + 1, month - 1, day));
+  end.setUTCDate(end.getUTCDate() - 1);
+
+  const endYear = end.getUTCFullYear();
+  const endMonth = String(end.getUTCMonth() + 1).padStart(2, "0");
+  const endDay = String(end.getUTCDate()).padStart(2, "0");
+  return `${endYear}-${endMonth}-${endDay}`;
 }
 </script>
