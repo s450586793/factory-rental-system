@@ -604,13 +604,17 @@ async function saveUnit() {
           });
           ElMessage.success("厂房和初始合同已新增");
         } catch (contractError) {
-          await loadUnits();
           unitDialogVisible.value = false;
           ElMessage.warning(
             contractError instanceof Error
               ? `厂房已新增，但初始合同保存失败：${contractError.message}`
               : "厂房已新增，但初始合同保存失败，请在详情里补录合同",
           );
+          try {
+            await loadUnits();
+          } catch {
+            // Keep the original contract-save failure visible instead of masking it with a refresh error.
+          }
           return;
         }
       } else {
