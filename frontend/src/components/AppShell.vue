@@ -53,19 +53,6 @@
             <span />
           </button>
         </div>
-
-        <div class="sidebar-mode-switch" aria-label="导航模式">
-          <button
-            v-for="option in sidebarModeOptions"
-            :key="option.value"
-            type="button"
-            class="sidebar-mode-button"
-            :class="{ 'is-active': sidebarMode === option.value }"
-            @click="setSidebarMode(option.value)"
-          >
-            {{ option.label }}
-          </button>
-        </div>
       </div>
 
       <nav class="nav-stack">
@@ -161,12 +148,6 @@ const navItems = [
     caption: "收据开具与查询",
     description: "按房租和水电缴费记录生成收据，支持查询、预览和管理。",
   },
-];
-
-const sidebarModeOptions: Array<{ label: string; value: SidebarMode }> = [
-  { label: "自动", value: "auto" },
-  { label: "固定", value: "fixed" },
-  { label: "隐藏", value: "hidden" },
 ];
 
 const SIDEBAR_STORAGE_KEY = "factory-rental-sidebar-mode";
