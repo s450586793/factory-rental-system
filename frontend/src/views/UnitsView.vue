@@ -74,14 +74,107 @@
       </el-table>
     </section>
 
-    <el-dialog v-model="unitDialogVisible" :title="unitForm.id ? '编辑厂房' : '新增厂房'" width="460px">
+    <el-dialog v-model="unitDialogVisible" :title="unitForm.id ? '编辑厂房' : '新增厂房'" width="760px">
       <el-form label-position="top">
-        <el-form-item label="厂房编号">
-          <el-input v-model="unitForm.code" placeholder="例如 A-01" />
-        </el-form-item>
-        <el-form-item label="位置">
-          <el-input v-model="unitForm.location" placeholder="例如 东区 1 号车间" />
-        </el-form-item>
+        <el-row :gutter="14">
+          <el-col :span="12">
+            <el-form-item label="厂房编号">
+              <el-input v-model="unitForm.code" placeholder="例如 A-01" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="位置">
+              <el-input v-model="unitForm.location" placeholder="例如 东区 1 号车间" />
+            </el-form-item>
+          </el-col>
+        </el-row>
+
+        <template v-if="!unitForm.id">
+          <div class="detail-section">
+            <div class="page-header" style="margin-bottom: 12px">
+              <div>
+                <h3>初始合同信息</h3>
+                <p>如果厂房当前已出租，可在新增厂房时一并录入租户、年租金、合同日期和附件。</p>
+              </div>
+            </div>
+
+            <el-row :gutter="14">
+              <el-col :span="12">
+                <el-form-item label="租户名称">
+                  <el-input v-model="unitContractForm.tenantName" placeholder="为空则视为空置" />
+                </el-form-item>
+              </el-col>
+              <el-col :span="12">
+                <el-form-item label="联系电话">
+                  <el-input v-model="unitContractForm.tenantPhone" placeholder="例如 13800000000" />
+                </el-form-item>
+              </el-col>
+            </el-row>
+
+            <el-row :gutter="14">
+              <el-col :span="12">
+                <el-form-item label="合同开始">
+                  <el-date-picker
+                    v-model="unitContractForm.startDate"
+                    type="date"
+                    value-format="YYYY-MM-DD"
+                    style="width: 100%"
+                  />
+                </el-form-item>
+              </el-col>
+              <el-col :span="12">
+                <el-form-item label="合同结束">
+                  <el-date-picker
+                    v-model="unitContractForm.endDate"
+                    type="date"
+                    value-format="YYYY-MM-DD"
+                    style="width: 100%"
+                  />
+                </el-form-item>
+              </el-col>
+            </el-row>
+
+            <el-form-item label="年租金">
+              <el-input-number
+                v-model="unitContractForm.annualRent"
+                :min="0"
+                :precision="2"
+                style="width: 100%"
+              />
+            </el-form-item>
+
+            <el-form-item label="营业执照">
+              <div class="detail-grid">
+                <div v-if="unitBusinessLicenseUpload" class="file-chip-list">
+                  <span class="file-chip">{{ unitBusinessLicenseUpload.name }}</span>
+                </div>
+                <input
+                  ref="unitBusinessLicenseInput"
+                  type="file"
+                  accept=".pdf,image/*"
+                  @change="onUnitBusinessLicenseChange"
+                />
+              </div>
+            </el-form-item>
+
+            <el-form-item label="合同附件">
+              <div class="detail-grid">
+                <div v-if="unitAttachmentUploads.length" class="file-chip-list">
+                  <span v-for="file in unitAttachmentUploads" :key="file.name + file.size" class="file-chip">
+                    {{ file.name }}
+                  </span>
+                </div>
+                <input
+                  ref="unitAttachmentInput"
+                  type="file"
+                  accept=".pdf,image/*"
+                  multiple
+                  @change="onUnitAttachmentFilesChange"
+                />
+              </div>
+            </el-form-item>
+          </div>
+        </template>
       </el-form>
       <template #footer>
         <el-button @click="unitDialogVisible = false">取消</el-button>
@@ -349,6 +442,17 @@ const unitForm = reactive({
   code: "",
   location: "",
 });
+const unitContractForm = reactive({
+  tenantName: "",
+  tenantPhone: "",
+  startDate: "",
+  endDate: "",
+  annualRent: 0,
+});
+const unitBusinessLicenseUpload = ref<File | null>(null);
+const unitAttachmentUploads = ref<File[]>([]);
+const unitBusinessLicenseInput = ref<HTMLInputElement | null>(null);
+const unitAttachmentInput = ref<HTMLInputElement | null>(null);
 
 const contractDialogVisible = ref(false);
 const submittingContract = ref(false);
@@ -409,6 +513,23 @@ function resetUnitForm() {
   unitForm.id = "";
   unitForm.code = "";
   unitForm.location = "";
+  resetUnitContractForm();
+}
+
+function resetUnitContractForm() {
+  unitContractForm.tenantName = "";
+  unitContractForm.tenantPhone = "";
+  unitContractForm.startDate = "";
+  unitContractForm.endDate = "";
+  unitContractForm.annualRent = 0;
+  unitBusinessLicenseUpload.value = null;
+  unitAttachmentUploads.value = [];
+  if (unitBusinessLicenseInput.value) {
+    unitBusinessLicenseInput.value.value = "";
+  }
+  if (unitAttachmentInput.value) {
+    unitAttachmentInput.value.value = "";
+  }
 }
 
 function openCreateUnit() {
@@ -420,6 +541,7 @@ function openEditUnit(unit: UnitSummary) {
   unitForm.id = unit.id;
   unitForm.code = unit.code;
   unitForm.location = unit.location;
+  resetUnitContractForm();
   unitDialogVisible.value = true;
 }
 
@@ -434,8 +556,47 @@ async function saveUnit() {
       await unitsApi.update(unitForm.id, payload);
       ElMessage.success("厂房已更新");
     } else {
-      await unitsApi.create(payload);
-      ElMessage.success("厂房已新增");
+      const shouldCreateInitialContract = hasInitialContractInput();
+      if (shouldCreateInitialContract) {
+        validateInitialContractForm();
+      }
+
+      const createdUnit = await unitsApi.create(payload);
+
+      if (shouldCreateInitialContract) {
+        try {
+          const businessLicenseFileId = unitBusinessLicenseUpload.value
+            ? (await filesApi.upload([unitBusinessLicenseUpload.value], "business-license"))[0].id
+            : "";
+
+          const attachmentFileIds = unitAttachmentUploads.value.length
+            ? (await filesApi.upload(unitAttachmentUploads.value, "contract-attachment")).map((item) => item.id)
+            : [];
+
+          await contractsApi.create({
+            unitId: createdUnit.id,
+            tenantName: unitContractForm.tenantName.trim(),
+            tenantPhone: unitContractForm.tenantPhone.trim(),
+            startDate: unitContractForm.startDate,
+            endDate: unitContractForm.endDate,
+            annualRent: Number(unitContractForm.annualRent),
+            businessLicenseFileId,
+            attachmentFileIds,
+          });
+          ElMessage.success("厂房和初始合同已新增");
+        } catch (contractError) {
+          await loadUnits();
+          unitDialogVisible.value = false;
+          ElMessage.warning(
+            contractError instanceof Error
+              ? `厂房已新增，但初始合同保存失败：${contractError.message}`
+              : "厂房已新增，但初始合同保存失败，请在详情里补录合同",
+          );
+          return;
+        }
+      } else {
+        ElMessage.success("厂房已新增");
+      }
     }
     unitDialogVisible.value = false;
     await loadUnits();
@@ -443,6 +604,43 @@ async function saveUnit() {
     ElMessage.error(error instanceof Error ? error.message : "保存厂房失败");
   } finally {
     submittingUnit.value = false;
+  }
+}
+
+function onUnitBusinessLicenseChange(event: Event) {
+  const target = event.target as HTMLInputElement;
+  unitBusinessLicenseUpload.value = target.files?.[0] ?? null;
+}
+
+function onUnitAttachmentFilesChange(event: Event) {
+  const target = event.target as HTMLInputElement;
+  unitAttachmentUploads.value = Array.from(target.files ?? []);
+}
+
+function hasInitialContractInput() {
+  return Boolean(
+    unitContractForm.tenantName.trim() ||
+      unitContractForm.tenantPhone.trim() ||
+      unitContractForm.startDate ||
+      unitContractForm.endDate ||
+      Number(unitContractForm.annualRent) > 0 ||
+      unitBusinessLicenseUpload.value ||
+      unitAttachmentUploads.value.length,
+  );
+}
+
+function validateInitialContractForm() {
+  if (!unitContractForm.tenantName.trim()) {
+    throw new Error("新增初始合同时，租户名称不能为空");
+  }
+  if (!unitContractForm.startDate) {
+    throw new Error("新增初始合同时，合同开始日期不能为空");
+  }
+  if (!unitContractForm.endDate) {
+    throw new Error("新增初始合同时，合同结束日期不能为空");
+  }
+  if (Number(unitContractForm.annualRent) <= 0) {
+    throw new Error("新增初始合同时，年租金必须大于 0");
   }
 }
 
