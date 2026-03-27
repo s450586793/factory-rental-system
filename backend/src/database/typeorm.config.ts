@@ -4,8 +4,12 @@ import { DataSourceOptions } from "typeorm";
 import type { DatabaseConfig } from "../config/database.config";
 import { databaseEntities } from "./entities";
 import { InitialSchema1711600000000 } from "./migrations/1711600000000-initial-schema";
+import { ReconcileContractSchema1711700000000 } from "./migrations/1711700000000-reconcile-contract-schema";
 
-export const databaseMigrations = [InitialSchema1711600000000];
+export const databaseMigrations = [
+  InitialSchema1711600000000,
+  ReconcileContractSchema1711700000000,
+];
 
 export function buildTypeOrmOptions(database: DatabaseConfig): DataSourceOptions {
   return {
