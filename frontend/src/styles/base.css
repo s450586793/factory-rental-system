@@ -729,7 +729,7 @@ button.file-chip {
   }
 }
 
-@media (max-width: 1200px) {
+@media (max-width: 1200px) and (min-width: 901px) {
   .page-header {
     flex-wrap: wrap;
   }
