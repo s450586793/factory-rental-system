@@ -48,6 +48,7 @@ export type UnitSummary = {
   id: string;
   code: string;
   location: string;
+  area: number | null;
   status: "occupied" | "vacant";
   activeContract: {
     id: string;

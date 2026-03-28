@@ -28,12 +28,12 @@ export const authApi = {
 export const unitsApi = {
   list: () => apiFetch<UnitSummary[]>("/units"),
   detail: (id: string) => apiFetch<UnitSummary>(`/units/${id}`),
-  create: (payload: { code: string; location: string }) =>
+  create: (payload: { code: string; location: string; area: number | null }) =>
     apiFetch<UnitSummary>("/units", {
       method: "POST",
       body: JSON.stringify(payload),
     }),
-  update: (id: string, payload: { code: string; location: string }) =>
+  update: (id: string, payload: { code: string; location: string; area: number | null }) =>
     apiFetch<UnitSummary>(`/units/${id}`, {
       method: "PATCH",
       body: JSON.stringify(payload),

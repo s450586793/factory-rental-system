@@ -65,6 +65,7 @@ export class UnitsService {
     const entity = this.unitsRepository.create({
       code: dto.code.trim(),
       location: dto.location.trim(),
+      area: dto.area ?? null,
     });
     const created = await this.saveUnitEntity(entity);
     return this.getDetail(created.id);
@@ -78,6 +79,7 @@ export class UnitsService {
 
     unit.code = dto.code.trim();
     unit.location = dto.location.trim();
+    unit.area = dto.area ?? null;
     await this.saveUnitEntity(unit);
     return this.getDetail(id);
   }
@@ -136,6 +138,7 @@ export class UnitsService {
       id: unit.id,
       code: unit.code,
       location: unit.location,
+      area: unit.area ?? null,
       status: activeContract ? "occupied" : "vacant",
       activeContract: activeContract
         ? {

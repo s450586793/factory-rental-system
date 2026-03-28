@@ -58,6 +58,7 @@ export class InitialSchema1711600000000 implements MigrationInterface {
         "deletedAt" TIMESTAMPTZ,
         "code" character varying NOT NULL,
         "location" character varying NOT NULL,
+        "area" numeric(12,2),
         CONSTRAINT "PK_factory_units_id" PRIMARY KEY ("id")
       )
     `);

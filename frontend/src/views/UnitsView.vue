@@ -36,6 +36,11 @@
       <el-table :data="units" v-loading="loading">
         <el-table-column prop="code" label="编号" min-width="120" />
         <el-table-column prop="location" label="位置" min-width="180" />
+        <el-table-column label="面积(㎡)" min-width="140">
+          <template #default="{ row }">
+            {{ formatArea(row.area) }}
+          </template>
+        </el-table-column>
         <el-table-column label="状态" width="110">
           <template #default="{ row }">
             <el-tag :type="row.status === 'occupied' ? 'success' : 'info'">
@@ -84,6 +89,20 @@
           <el-col :span="12">
             <el-form-item label="位置">
               <el-input v-model="unitForm.location" placeholder="例如 东区 1 号车间" />
+            </el-form-item>
+          </el-col>
+        </el-row>
+        <el-row :gutter="14">
+          <el-col :span="12">
+            <el-form-item label="面积(平方米)">
+              <el-input-number
+                v-model="unitForm.area"
+                :min="0"
+                :precision="2"
+                controls-position="right"
+                placeholder="例如 500"
+                style="width: 100%"
+              />
             </el-form-item>
           </el-col>
         </el-row>
@@ -218,6 +237,20 @@
               <el-col :span="12">
                 <el-form-item label="位置">
                   <el-input v-model="detailUnitForm.location" placeholder="例如 东区 1 号车间" />
+                </el-form-item>
+              </el-col>
+            </el-row>
+            <el-row :gutter="14">
+              <el-col :span="12">
+                <el-form-item label="面积(平方米)">
+                  <el-input-number
+                    v-model="detailUnitForm.area"
+                    :min="0"
+                    :precision="2"
+                    controls-position="right"
+                    placeholder="例如 500"
+                    style="width: 100%"
+                  />
                 </el-form-item>
               </el-col>
             </el-row>
@@ -501,6 +534,7 @@ const detailUnitForm = reactive({
   id: "",
   code: "",
   location: "",
+  area: null as number | null,
 });
 
 const unitDialogVisible = ref(false);
@@ -509,6 +543,7 @@ const unitForm = reactive({
   id: "",
   code: "",
   location: "",
+  area: null as number | null,
 });
 const unitContractForm = reactive({
   tenantName: "",
@@ -584,6 +619,7 @@ function resetUnitForm() {
   unitForm.id = "";
   unitForm.code = "";
   unitForm.location = "";
+  unitForm.area = null;
   resetUnitContractForm();
 }
 
@@ -614,8 +650,9 @@ async function saveUnit() {
     const payload = {
       code: unitForm.code.trim(),
       location: unitForm.location.trim(),
+      area: normalizeArea(unitForm.area),
     };
-    validateUnitForm(payload.code, payload.location);
+    validateUnitForm(payload.code, payload.location, payload.area);
     if (unitForm.id) {
       await unitsApi.update(unitForm.id, payload);
       ElMessage.success("厂房已更新");
@@ -715,13 +752,17 @@ function handleUnitContractStartDateChange() {
   unitContractForm.endDate = deriveContractEndDate(unitContractForm.startDate);
 }
 
-function validateUnitForm(code: string, location: string) {
+function validateUnitForm(code: string, location: string, area: number | null) {
   if (!code) {
     throw new Error("厂房编号不能为空");
   }
 
   if (!location) {
     throw new Error("位置不能为空");
+  }
+
+  if (area !== null && Number(area) < 0) {
+    throw new Error("面积不能小于 0");
   }
 
   const normalizedCode = code.toLowerCase();
@@ -789,6 +830,7 @@ async function saveDetailUnit() {
     await unitsApi.update(selectedUnit.value.id, {
       code: detailUnitForm.code.trim(),
       location: detailUnitForm.location.trim(),
+      area: normalizeArea(detailUnitForm.area),
     });
     ElMessage.success("厂房基础信息已更新");
     await Promise.all([refreshSelectedUnit(), loadUnits()]);
@@ -1033,6 +1075,19 @@ function syncDetailUnitForm(unit: UnitSummary) {
   detailUnitForm.id = unit.id;
   detailUnitForm.code = unit.code;
   detailUnitForm.location = unit.location;
+  detailUnitForm.area = unit.area ?? null;
+}
+
+function normalizeArea(area: number | null) {
+  return area === null || area === undefined ? null : Number(area);
+}
+
+function formatArea(area: number | null | undefined) {
+  if (area === null || area === undefined) {
+    return "--";
+  }
+
+  return `${new Intl.NumberFormat("zh-CN", { maximumFractionDigits: 2 }).format(Number(area))} ㎡`;
 }
 
 function deriveContractEndDate(startDate: string) {
