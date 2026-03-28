@@ -579,6 +579,10 @@ button.file-chip {
 }
 
 @media (max-width: 900px) {
+  .app-shell:not(.has-pinned-sidebar) .app-shell-body {
+    padding-top: 56px;
+  }
+
   .page-header > :first-child {
     flex-basis: 100%;
   }
@@ -592,6 +596,16 @@ button.file-chip {
     flex: 1 1 calc(50% - 6px);
     min-width: 0;
     margin-left: 0 !important;
+    justify-content: center;
+  }
+
+  .toolbar-row .el-button > span {
+    display: inline-flex;
+    width: 100%;
+    justify-content: center;
+    align-items: center;
+    white-space: normal;
+    text-align: center;
   }
 
   .detail-section {
@@ -648,6 +662,10 @@ button.file-chip {
     gap: 12px;
   }
 
+  .app-shell:not(.has-pinned-sidebar) .app-shell-body {
+    padding-top: 52px;
+  }
+
   .app-sidebar {
     top: 12px;
     left: 12px;
@@ -677,12 +695,24 @@ button.file-chip {
     font-size: 22px;
   }
 
+  .page-header p {
+    margin-top: 6px;
+    font-size: 14px;
+    line-height: 1.6;
+  }
+
   .brand-title {
     font-size: 26px;
   }
 
+  .toolbar-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
   .toolbar-row .el-button {
     flex-basis: 100%;
+    width: 100%;
   }
 
   .detail-section {
