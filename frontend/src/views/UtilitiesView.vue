@@ -60,7 +60,7 @@
             {{ row.recordedAt }}
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="260" fixed="right">
+        <el-table-column label="操作" width="260" :fixed="actionColumnFixed">
           <template #default="{ row }">
             <el-space wrap>
               <el-button text type="primary" @click="openViewRecord(row)">查看</el-button>
@@ -247,6 +247,7 @@ import { computed, onMounted, reactive, ref } from "vue";
 import { ElMessage, ElMessageBox } from "element-plus";
 import AppShell from "../components/AppShell.vue";
 import { receiptsApi, unitsApi, utilitiesApi } from "../api";
+import { useViewportWidth } from "../composables/useViewportWidth";
 import type { Contract, UnitSummary, UtilityChargeRecord } from "../types/models";
 import { formatCurrency, todayIso } from "../utils/format";
 
@@ -266,6 +267,7 @@ const dialogVisible = ref(false);
 const dialogMode = ref<"create" | "edit" | "view">("create");
 const units = ref<UnitSummary[]>([]);
 const records = ref<UtilityChargeRecord[]>([]);
+const viewportWidth = useViewportWidth();
 
 const form = reactive({
   id: "",
@@ -281,6 +283,7 @@ const form = reactive({
 const selectedUnit = computed(() => units.value.find((item) => item.id === form.unitId) || null);
 const selectedContracts = computed<Contract[]>(() => selectedUnit.value?.contracts ?? []);
 const isViewMode = computed(() => dialogMode.value === "view");
+const actionColumnFixed = computed<false | "right">(() => (viewportWidth.value < 768 ? false : "right"));
 const dialogTitle = computed(() => {
   if (dialogMode.value === "view") return "查看水电收费";
   return form.id ? "编辑水电收费" : "新增水电收费";

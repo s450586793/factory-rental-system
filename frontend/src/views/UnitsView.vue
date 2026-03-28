@@ -67,7 +67,7 @@
             {{ row.activeContract ? formatCurrency(row.activeContract.annualRent) : "--" }}
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="180" fixed="right">
+        <el-table-column label="操作" width="180" :fixed="actionColumnFixed">
           <template #default="{ row }">
             <el-space wrap>
               <el-button text type="primary" @click="openDetail(row.id)">管理</el-button>
@@ -205,7 +205,7 @@
       </template>
     </el-dialog>
 
-    <el-drawer v-model="detailDrawerVisible" size="72%" :with-header="false">
+    <el-drawer v-model="detailDrawerVisible" :size="detailDrawerSize" :with-header="false">
       <div v-if="selectedUnit" class="detail-grid">
         <section class="detail-section">
           <div class="page-header">
@@ -522,6 +522,7 @@ import { ElMessage, ElMessageBox } from "element-plus";
 import AppShell from "../components/AppShell.vue";
 import { apiFileUrl } from "../api/client";
 import { contractsApi, filesApi, unitsApi, utilitiesApi } from "../api";
+import { useViewportWidth } from "../composables/useViewportWidth";
 import type { Contract, MeterConfig, StoredFile, UnitSummary } from "../types/models";
 import { formatCurrency } from "../utils/format";
 
@@ -589,12 +590,15 @@ const meterForm = reactive({
 const filePreviewVisible = ref(false);
 const previewFile = ref<StoredFile | null>(null);
 const filePreviewTitle = ref("文件预览");
+const viewportWidth = useViewportWidth();
 
 const occupiedCount = computed(() => units.value.filter((item) => item.status === "occupied").length);
 const vacantCount = computed(() => units.value.filter((item) => item.status === "vacant").length);
 const activeRentSum = computed(() =>
   units.value.reduce((sum, item) => sum + Number(item.activeContract?.annualRent ?? 0), 0),
 );
+const actionColumnFixed = computed<false | "right">(() => (viewportWidth.value < 768 ? false : "right"));
+const detailDrawerSize = computed(() => (viewportWidth.value < 900 ? "100%" : "72%"));
 
 onMounted(loadUnits);
 
