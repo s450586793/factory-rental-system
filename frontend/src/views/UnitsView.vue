@@ -1,14 +1,17 @@
 <template>
   <AppShell>
+    <template #top-actions>
+      <div class="toolbar-row">
+        <el-button type="primary" @click="openCreateUnit">新增厂房</el-button>
+        <el-button @click="loadUnits">刷新</el-button>
+      </div>
+    </template>
+
     <section class="panel-card page-panel">
       <div class="page-header">
         <div>
           <h2>厂房管理</h2>
           <p>维护厂房基础资料、当前在租状态、合同历史和水电表配置。</p>
-        </div>
-        <div class="toolbar-row">
-          <el-button type="primary" @click="openCreateUnit">新增厂房</el-button>
-          <el-button @click="loadUnits">刷新</el-button>
         </div>
       </div>
 

@@ -1,14 +1,17 @@
 <template>
   <AppShell>
+    <template #top-actions>
+      <div class="toolbar-row">
+        <el-button type="primary" @click="openCreateRecord">新增水电收费</el-button>
+        <el-button @click="loadPageData">刷新</el-button>
+      </div>
+    </template>
+
     <section class="panel-card page-panel">
       <div class="page-header">
         <div>
           <h2>水电收费记录</h2>
           <p>按厂房和合同录入多电表/多水表抄表结果，系统自动汇总金额。</p>
-        </div>
-        <div class="toolbar-row">
-          <el-button type="primary" @click="openCreateRecord">新增水电收费</el-button>
-          <el-button @click="loadPageData">刷新</el-button>
         </div>
       </div>
 

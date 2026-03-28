@@ -1,14 +1,17 @@
 <template>
   <AppShell>
+    <template #top-actions>
+      <div class="toolbar-row">
+        <el-button type="primary" @click="openCreate">新增房租收费</el-button>
+        <el-button @click="loadPageData">刷新</el-button>
+      </div>
+    </template>
+
     <section class="panel-card page-panel">
       <div class="page-header">
         <div>
           <h2>房租收费记录</h2>
           <p>房租收款按手工录入，不自动生成账期，收据可从已收款记录中开具。</p>
-        </div>
-        <div class="toolbar-row">
-          <el-button type="primary" @click="openCreate">新增房租收费</el-button>
-          <el-button @click="loadPageData">刷新</el-button>
         </div>
       </div>
 

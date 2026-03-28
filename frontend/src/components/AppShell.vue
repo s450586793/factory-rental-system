@@ -16,18 +16,6 @@
       />
     </Transition>
 
-    <button
-      v-if="!showSidebar"
-      type="button"
-      class="sidebar-launcher"
-      aria-label="显示导航"
-      @click="toggleSidebar"
-    >
-      <span />
-      <span />
-      <span />
-    </button>
-
     <aside
       class="app-sidebar"
       :class="{
@@ -93,6 +81,26 @@
     </aside>
 
     <div class="app-shell-body">
+      <header v-if="showTopbar" class="panel-card app-topbar">
+        <div class="app-topbar-left">
+          <button
+            v-if="!showSidebar"
+            type="button"
+            class="topbar-icon-button sidebar-launcher"
+            aria-label="显示导航"
+            @click="toggleSidebar"
+          >
+            <span />
+            <span />
+            <span />
+          </button>
+        </div>
+
+        <div v-if="hasTopActions" class="app-topbar-actions">
+          <slot name="top-actions" />
+        </div>
+      </header>
+
       <main class="app-main">
         <slot />
       </main>
@@ -102,7 +110,7 @@
 
 <script setup lang="ts">
 import { ElMessage } from "element-plus";
-import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
+import { computed, onBeforeUnmount, onMounted, ref, useSlots, watch } from "vue";
 import { RouterLink, useRoute, useRouter } from "vue-router";
 import { useAuthStore } from "../stores/auth";
 
@@ -111,6 +119,7 @@ type SidebarMode = "fixed" | "hidden" | "auto";
 const route = useRoute();
 const router = useRouter();
 const authStore = useAuthStore();
+const slots = useSlots();
 
 const navItems = [
   {
@@ -163,6 +172,8 @@ const overlayOpen = ref(false);
 
 const currentUsername = computed(() => authStore.state.user?.username || "管理员");
 const userInitial = computed(() => currentUsername.value.slice(0, 1).toUpperCase());
+const hasTopActions = computed(() => Boolean(slots["top-actions"]));
+const showTopbar = computed(() => !showSidebar.value || hasTopActions.value);
 
 const isSidebarPinned = computed(() => {
   if (sidebarMode.value === "hidden") {

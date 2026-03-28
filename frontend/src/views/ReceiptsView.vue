@@ -1,13 +1,16 @@
 <template>
   <AppShell>
+    <template #top-actions>
+      <div class="toolbar-row">
+        <el-button @click="loadReceipts">刷新</el-button>
+      </div>
+    </template>
+
     <section class="panel-card page-panel">
       <div class="page-header">
         <div>
           <h2>收据中心</h2>
           <p>查看已生成的收据、打开 PDF、作废历史收据。</p>
-        </div>
-        <div class="toolbar-row">
-          <el-button @click="loadReceipts">刷新</el-button>
         </div>
       </div>
 

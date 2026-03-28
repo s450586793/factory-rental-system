@@ -1,14 +1,17 @@
 <template>
   <AppShell>
+    <template #top-actions>
+      <div class="toolbar-row">
+        <el-button type="primary" @click="openCreate">新增押金记录</el-button>
+        <el-button @click="loadPageData">刷新</el-button>
+      </div>
+    </template>
+
     <section class="panel-card page-panel">
       <div class="page-header">
         <div>
           <h2>押金记录</h2>
           <p>分别记录押金收取与退还，和合同留档关联。</p>
-        </div>
-        <div class="toolbar-row">
-          <el-button type="primary" @click="openCreate">新增押金记录</el-button>
-          <el-button @click="loadPageData">刷新</el-button>
         </div>
       </div>
 
