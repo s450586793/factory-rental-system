@@ -260,6 +260,7 @@ a {
   display: grid;
   gap: 18px;
   align-content: start;
+  width: 100%;
 }
 
 .app-topbar {
@@ -271,6 +272,7 @@ a {
   position: sticky;
   top: 12px;
   z-index: 18;
+  width: 100%;
 }
 
 .app-topbar-left {
@@ -364,6 +366,7 @@ a {
   display: grid;
   gap: 18px;
   min-width: 0;
+  width: 100%;
 }
 
 .panel-card {
@@ -372,6 +375,7 @@ a {
   background: var(--panel);
   box-shadow: var(--shadow);
   backdrop-filter: blur(10px);
+  width: 100%;
 }
 
 .page-panel {
@@ -518,6 +522,14 @@ button.file-chip {
 
 .detail-section h3 {
   margin: 0 0 12px;
+}
+
+.unit-detail-dialog .el-dialog {
+  max-width: min(1180px, 92vw);
+}
+
+.unit-detail-dialog .el-dialog__body {
+  padding-top: 8px;
 }
 
 .login-shell {
@@ -688,14 +700,6 @@ button.file-chip {
   .page-panel .el-col {
     flex: 0 0 100% !important;
     max-width: 100% !important;
-  }
-
-  .el-drawer {
-    width: 100% !important;
-  }
-
-  .el-drawer__body {
-    padding: 14px;
   }
 
   .file-preview-frame {

@@ -208,7 +208,13 @@
       </template>
     </el-dialog>
 
-    <el-drawer v-model="detailDrawerVisible" :size="detailDrawerSize" :with-header="false">
+    <el-dialog
+      v-model="detailDrawerVisible"
+      width="min(1180px, 92vw)"
+      top="4vh"
+      :show-close="false"
+      class="unit-detail-dialog"
+    >
       <div v-if="selectedUnit" class="detail-grid">
         <section class="detail-section">
           <div class="page-header">
@@ -364,7 +370,7 @@
           </el-table>
         </section>
       </div>
-    </el-drawer>
+    </el-dialog>
 
     <el-dialog v-model="contractDialogVisible" :title="contractForm.id ? '编辑合同' : '新增合同'" width="760px">
       <el-form label-position="top">
@@ -605,7 +611,6 @@ const activeRentSum = computed(() =>
   units.value.reduce((sum, item) => sum + Number(item.activeContract?.annualRent ?? 0), 0),
 );
 const actionColumnFixed = computed<false | "right">(() => (viewportWidth.value < 768 ? false : "right"));
-const detailDrawerSize = computed(() => (viewportWidth.value < 900 ? "100%" : "72%"));
 
 onMounted(loadUnits);
 
