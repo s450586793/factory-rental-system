@@ -36,7 +36,8 @@
     </section>
 
     <section class="panel-card page-panel">
-      <el-table :data="units" v-loading="loading">
+      <div class="table-shell">
+        <el-table :data="units" v-loading="loading">
         <el-table-column prop="code" label="编号" min-width="120" />
         <el-table-column prop="location" label="位置" min-width="180" />
         <el-table-column label="面积(㎡)" min-width="140">
@@ -78,7 +79,8 @@
             </el-space>
           </template>
         </el-table-column>
-      </el-table>
+        </el-table>
+      </div>
     </section>
 
     <el-dialog v-model="unitDialogVisible" :title="unitForm.id ? '编辑厂房' : '新增厂房'" width="760px">
@@ -277,7 +279,8 @@
             </div>
           </div>
 
-          <el-table :data="selectedUnit.contracts">
+          <div class="table-shell">
+            <el-table :data="selectedUnit.contracts">
             <el-table-column prop="tenantName" label="租户" min-width="160" />
             <el-table-column label="合同周期" min-width="220">
               <template #default="{ row }">
@@ -327,7 +330,8 @@
                 </el-space>
               </template>
             </el-table-column>
-          </el-table>
+            </el-table>
+          </div>
         </section>
 
         <section class="detail-section">
@@ -341,7 +345,8 @@
             </div>
           </div>
 
-          <el-table :data="selectedUnit.meterConfigs">
+          <div class="table-shell">
+            <el-table :data="selectedUnit.meterConfigs">
             <el-table-column label="类型" width="120">
               <template #default="{ row }">
                 {{ row.type === "electric" ? "电表" : "水表" }}
@@ -367,7 +372,8 @@
                 </el-space>
               </template>
             </el-table-column>
-          </el-table>
+            </el-table>
+          </div>
         </section>
       </div>
     </el-dialog>

@@ -380,6 +380,8 @@ a {
 
 .page-panel {
   padding: 22px;
+  min-width: 0;
+  overflow: hidden;
 }
 
 .page-header {
@@ -430,6 +432,16 @@ a {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 14px;
+}
+
+.table-shell {
+  width: 100%;
+  min-width: 0;
+  overflow-x: auto;
+}
+
+.table-shell .el-table {
+  min-width: 100%;
 }
 
 .stat-item {
