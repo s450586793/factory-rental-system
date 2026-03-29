@@ -417,6 +417,11 @@ a {
   min-width: 0;
 }
 
+.section-toolbar-row {
+  width: auto;
+  max-width: 100%;
+}
+
 .stats-row {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -632,6 +637,12 @@ button.file-chip {
     align-items: center;
     white-space: normal;
     text-align: center;
+  }
+
+  .page-header > .section-toolbar-row {
+    width: auto;
+    max-width: min(220px, 44vw);
+    justify-content: flex-end;
   }
 
   .app-topbar-actions .toolbar-row {

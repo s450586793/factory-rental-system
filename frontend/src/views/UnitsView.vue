@@ -266,7 +266,9 @@
               <h3>合同历史</h3>
               <p>营业执照和合同附件都挂在具体合同记录下。</p>
             </div>
-            <el-button type="primary" @click="openCreateContract">新增合同</el-button>
+            <div class="toolbar-row section-toolbar-row">
+              <el-button type="primary" @click="openCreateContract">新增合同</el-button>
+            </div>
           </div>
 
           <el-table :data="selectedUnit.contracts">
@@ -328,7 +330,9 @@
               <h3>水电表配置</h3>
               <p>每个表计分别维护初始读数、倍率、单价和线损。</p>
             </div>
-            <el-button type="primary" @click="openCreateMeter">新增表计</el-button>
+            <div class="toolbar-row section-toolbar-row">
+              <el-button type="primary" @click="openCreateMeter">新增表计</el-button>
+            </div>
           </div>
 
           <el-table :data="selectedUnit.meterConfigs">
