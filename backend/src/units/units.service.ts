@@ -144,7 +144,9 @@ export class UnitsService {
         ? {
             id: activeContract.id,
             tenantName: activeContract.tenantName,
+            contactName: activeContract.contactName,
             tenantPhone: activeContract.tenantPhone,
+            licenseCode: activeContract.licenseCode,
             startDate: activeContract.startDate,
             endDate: activeContract.endDate,
             annualRent: activeContract.annualRent,

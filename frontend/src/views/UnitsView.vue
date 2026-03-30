@@ -37,27 +37,27 @@
 
     <section class="panel-card page-panel">
       <div class="table-shell">
-        <el-table :data="units" v-loading="loading">
-        <el-table-column prop="code" label="编号" min-width="120" />
-        <el-table-column prop="location" label="位置" min-width="180" />
-        <el-table-column label="面积(㎡)" min-width="140">
+        <el-table :data="units" v-loading="loading" size="small" class="units-table">
+        <el-table-column prop="code" label="编号" width="84" />
+        <el-table-column prop="location" label="位置" min-width="120" show-overflow-tooltip />
+        <el-table-column label="面积(㎡)" width="108">
           <template #default="{ row }">
             {{ formatArea(row.area) }}
           </template>
         </el-table-column>
-        <el-table-column label="状态" width="110">
+        <el-table-column label="状态" width="92">
           <template #default="{ row }">
             <el-tag :type="row.status === 'occupied' ? 'success' : 'info'">
               {{ row.status === "occupied" ? "在租" : "空置" }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="当前租户" min-width="180">
+        <el-table-column label="当前租户" min-width="120" show-overflow-tooltip>
           <template #default="{ row }">
             {{ row.activeContract?.tenantName || "--" }}
           </template>
         </el-table-column>
-        <el-table-column label="当前合同" min-width="220">
+        <el-table-column label="当前合同" min-width="180" show-overflow-tooltip>
           <template #default="{ row }">
             {{
               row.activeContract
@@ -66,12 +66,12 @@
             }}
           </template>
         </el-table-column>
-        <el-table-column label="当前年租金" min-width="160">
+        <el-table-column label="当前年租金" min-width="130">
           <template #default="{ row }">
             {{ row.activeContract ? formatCurrency(row.activeContract.annualRent) : "--" }}
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="180" :fixed="actionColumnFixed">
+        <el-table-column label="操作" width="148" :fixed="actionColumnFixed">
           <template #default="{ row }">
             <el-space wrap>
               <el-button text type="primary" @click="openDetail(row.id)">管理</el-button>
@@ -123,12 +123,25 @@
 
             <el-row :gutter="14">
               <el-col :span="12">
-                <el-form-item label="租户名称">
+                <el-form-item label="公司名称">
                   <el-input v-model="unitContractForm.tenantName" placeholder="为空则视为空置" />
                 </el-form-item>
               </el-col>
               <el-col :span="12">
-                <el-form-item label="联系电话">
+                <el-form-item label="营业执照代码">
+                  <el-input v-model="unitContractForm.licenseCode" placeholder="统一社会信用代码" />
+                </el-form-item>
+              </el-col>
+            </el-row>
+
+            <el-row :gutter="14">
+              <el-col :span="12">
+                <el-form-item label="负责人">
+                  <el-input v-model="unitContractForm.contactName" placeholder="例如 林建生" />
+                </el-form-item>
+              </el-col>
+              <el-col :span="12">
+                <el-form-item label="电话">
                   <el-input v-model="unitContractForm.tenantPhone" placeholder="例如 13800000000" />
                 </el-form-item>
               </el-col>
@@ -281,7 +294,9 @@
 
           <div class="table-shell">
             <el-table :data="selectedUnit.contracts">
-            <el-table-column prop="tenantName" label="租户" min-width="160" />
+            <el-table-column prop="tenantName" label="公司名称" min-width="160" show-overflow-tooltip />
+            <el-table-column prop="contactName" label="负责人" min-width="120" show-overflow-tooltip />
+            <el-table-column prop="tenantPhone" label="电话" min-width="140" show-overflow-tooltip />
             <el-table-column label="合同周期" min-width="220">
               <template #default="{ row }">
                 {{ row.startDate }} 至 {{ row.endDate }}
@@ -379,15 +394,28 @@
     </el-dialog>
 
     <el-dialog v-model="contractDialogVisible" :title="contractForm.id ? '编辑合同' : '新增合同'" width="760px">
-      <el-form label-position="top">
-        <el-row :gutter="14">
-          <el-col :span="12">
-            <el-form-item label="租户名称">
+        <el-form label-position="top">
+          <el-row :gutter="14">
+            <el-col :span="12">
+            <el-form-item label="公司名称">
               <el-input v-model="contractForm.tenantName" />
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item label="联系电话">
+            <el-form-item label="营业执照代码">
+              <el-input v-model="contractForm.licenseCode" />
+            </el-form-item>
+          </el-col>
+        </el-row>
+
+        <el-row :gutter="14">
+          <el-col :span="12">
+            <el-form-item label="负责人">
+              <el-input v-model="contractForm.contactName" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="电话">
               <el-input v-model="contractForm.tenantPhone" />
             </el-form-item>
           </el-col>
@@ -567,7 +595,9 @@ const unitForm = reactive({
 });
 const unitContractForm = reactive({
   tenantName: "",
+  contactName: "",
   tenantPhone: "",
+  licenseCode: "",
   startDate: "",
   endDate: "",
   annualRent: 0,
@@ -582,7 +612,9 @@ const submittingContract = ref(false);
 const contractForm = reactive({
   id: "",
   tenantName: "",
+  contactName: "",
   tenantPhone: "",
+  licenseCode: "",
   startDate: "",
   endDate: "",
   annualRent: 0,
@@ -647,7 +679,9 @@ function resetUnitForm() {
 
 function resetUnitContractForm() {
   unitContractForm.tenantName = "";
+  unitContractForm.contactName = "";
   unitContractForm.tenantPhone = "";
+  unitContractForm.licenseCode = "";
   unitContractForm.startDate = "";
   unitContractForm.endDate = "";
   unitContractForm.annualRent = 0;
@@ -699,7 +733,9 @@ async function saveUnit() {
           await contractsApi.create({
             unitId: createdUnit.id,
             tenantName: unitContractForm.tenantName.trim(),
+            contactName: unitContractForm.contactName.trim(),
             tenantPhone: unitContractForm.tenantPhone.trim(),
+            licenseCode: unitContractForm.licenseCode.trim(),
             startDate: unitContractForm.startDate,
             endDate: unitContractForm.endDate,
             annualRent: Number(unitContractForm.annualRent),
@@ -800,7 +836,9 @@ function validateUnitForm(code: string, location: string, area: number | null) {
 function hasInitialContractInput() {
   return Boolean(
     unitContractForm.tenantName.trim() ||
+      unitContractForm.contactName.trim() ||
       unitContractForm.tenantPhone.trim() ||
+      unitContractForm.licenseCode.trim() ||
       unitContractForm.startDate ||
       unitContractForm.endDate ||
       Number(unitContractForm.annualRent) > 0 ||
@@ -811,7 +849,13 @@ function hasInitialContractInput() {
 
 function validateInitialContractForm() {
   if (!unitContractForm.tenantName.trim()) {
-    throw new Error("新增初始合同时，租户名称不能为空");
+    throw new Error("新增初始合同时，公司名称不能为空");
+  }
+  if (!unitContractForm.contactName.trim()) {
+    throw new Error("新增初始合同时，负责人不能为空");
+  }
+  if (!unitContractForm.tenantPhone.trim()) {
+    throw new Error("新增初始合同时，电话不能为空");
   }
   if (!unitContractForm.startDate) {
     throw new Error("新增初始合同时，合同开始日期不能为空");
@@ -879,7 +923,9 @@ async function confirmRemoveUnit(unitId: string) {
 function resetContractForm() {
   contractForm.id = "";
   contractForm.tenantName = "";
+  contractForm.contactName = "";
   contractForm.tenantPhone = "";
+  contractForm.licenseCode = "";
   contractForm.startDate = "";
   contractForm.endDate = "";
   contractForm.annualRent = 0;
@@ -896,7 +942,9 @@ function openCreateContract() {
   const latestContract = selectedUnit.value?.contracts?.[0];
   if (latestContract) {
     contractForm.tenantName = latestContract.tenantName;
+    contractForm.contactName = latestContract.contactName;
     contractForm.tenantPhone = latestContract.tenantPhone;
+    contractForm.licenseCode = latestContract.licenseCode;
     contractForm.startDate = deriveNextDate(latestContract.endDate);
     contractForm.endDate = deriveContractEndDate(contractForm.startDate);
   }
@@ -907,7 +955,9 @@ function openEditContract(contract: Contract) {
   resetContractForm();
   contractForm.id = contract.id;
   contractForm.tenantName = contract.tenantName;
+  contractForm.contactName = contract.contactName;
   contractForm.tenantPhone = contract.tenantPhone;
+  contractForm.licenseCode = contract.licenseCode;
   contractForm.startDate = contract.startDate;
   contractForm.endDate = contract.endDate;
   contractForm.annualRent = contract.annualRent;
@@ -934,6 +984,27 @@ function handleContractStartDateChange() {
   }
 }
 
+function validateContractForm() {
+  if (!contractForm.tenantName.trim()) {
+    throw new Error("公司名称不能为空");
+  }
+  if (!contractForm.contactName.trim()) {
+    throw new Error("负责人不能为空");
+  }
+  if (!contractForm.tenantPhone.trim()) {
+    throw new Error("电话不能为空");
+  }
+  if (!contractForm.startDate) {
+    throw new Error("合同开始日期不能为空");
+  }
+  if (!contractForm.endDate) {
+    throw new Error("合同结束日期不能为空");
+  }
+  if (Number(contractForm.annualRent) <= 0) {
+    throw new Error("年租金必须大于 0");
+  }
+}
+
 function removeBusinessLicense() {
   existingBusinessLicense.value = null;
   contractForm.businessLicenseFileId = "";
@@ -951,6 +1022,7 @@ async function saveContract() {
 
   try {
     submittingContract.value = true;
+    validateContractForm();
 
     let businessLicenseFileId = contractForm.businessLicenseFileId || "";
     if (businessLicenseUpload.value) {
@@ -967,7 +1039,9 @@ async function saveContract() {
     const payload = {
       unitId: selectedUnit.value.id,
       tenantName: contractForm.tenantName.trim(),
+      contactName: contractForm.contactName.trim(),
       tenantPhone: contractForm.tenantPhone.trim(),
+      licenseCode: contractForm.licenseCode.trim(),
       startDate: contractForm.startDate,
       endDate: contractForm.endDate,
       annualRent: Number(contractForm.annualRent),

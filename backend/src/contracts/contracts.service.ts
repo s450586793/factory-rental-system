@@ -59,7 +59,9 @@ export class ContractsService {
     const entity = this.contractsRepository.create({
       unitId: dto.unitId,
       tenantName: dto.tenantName.trim(),
+      contactName: dto.contactName?.trim() ?? "",
       tenantPhone: dto.tenantPhone?.trim() ?? "",
+      licenseCode: dto.licenseCode?.trim() ?? "",
       startDate: dto.startDate,
       endDate: dto.endDate,
       annualRent: dto.annualRent,
@@ -82,7 +84,9 @@ export class ContractsService {
 
     contract.unitId = dto.unitId;
     contract.tenantName = dto.tenantName.trim();
+    contract.contactName = dto.contactName?.trim() ?? "";
     contract.tenantPhone = dto.tenantPhone?.trim() ?? "";
+    contract.licenseCode = dto.licenseCode?.trim() ?? "";
     contract.startDate = dto.startDate;
     contract.endDate = dto.endDate;
     contract.annualRent = dto.annualRent;

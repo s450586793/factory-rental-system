@@ -34,7 +34,13 @@ export class Contract extends BaseEntityWithTimestamps {
   tenantName!: string;
 
   @Column({ default: "" })
+  contactName!: string;
+
+  @Column({ default: "" })
   tenantPhone!: string;
+
+  @Column({ default: "" })
+  licenseCode!: string;
 
   @Column({ type: "date" })
   startDate!: string;

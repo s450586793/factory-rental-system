@@ -444,6 +444,16 @@ a {
   min-width: 100%;
 }
 
+.units-table .el-table__cell {
+  padding-top: 9px;
+  padding-bottom: 9px;
+}
+
+.units-table .cell {
+  padding-left: 8px;
+  padding-right: 8px;
+}
+
 .stat-item {
   padding: 18px;
   border-radius: 18px;

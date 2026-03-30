@@ -22,7 +22,9 @@ export type Contract = {
   id: string;
   unitId: string;
   tenantName: string;
+  contactName: string;
   tenantPhone: string;
+  licenseCode: string;
   startDate: string;
   endDate: string;
   annualRent: number;
@@ -53,7 +55,9 @@ export type UnitSummary = {
   activeContract: {
     id: string;
     tenantName: string;
+    contactName: string;
     tenantPhone: string;
+    licenseCode: string;
     startDate: string;
     endDate: string;
     annualRent: number;

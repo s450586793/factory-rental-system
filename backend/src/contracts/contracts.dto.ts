@@ -22,8 +22,18 @@ export class CreateContractDto {
 
   @IsString()
   @IsOptional()
+  @MaxLength(120)
+  contactName?: string;
+
+  @IsString()
+  @IsOptional()
   @MaxLength(50)
   tenantPhone?: string;
+
+  @IsString()
+  @IsOptional()
+  @MaxLength(80)
+  licenseCode?: string;
 
   @IsDateString()
   startDate!: string;
