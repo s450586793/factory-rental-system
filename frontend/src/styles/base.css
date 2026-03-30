@@ -434,6 +434,10 @@ a {
   gap: 14px;
 }
 
+.units-stats-row {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
 .table-shell {
   width: 100%;
   min-width: 0;

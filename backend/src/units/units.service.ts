@@ -14,6 +14,17 @@ function today() {
   return new Date().toISOString().slice(0, 10);
 }
 
+const EXPIRING_DAYS_THRESHOLD = 45;
+
+function parseIsoDate(dateString: string) {
+  const [year, month, day] = dateString.split("-").map((value) => Number(value));
+  return Date.UTC(year, month - 1, day);
+}
+
+function daysUntil(dateString: string) {
+  return Math.floor((parseIsoDate(dateString) - parseIsoDate(today())) / 86400000);
+}
+
 @Injectable()
 export class UnitsService {
   constructor(
@@ -134,12 +145,13 @@ export class UnitsService {
 
   private serializeUnit(unit: FactoryUnit) {
     const activeContract = this.resolveActiveContract(unit.contracts ?? []);
+    const status = this.resolveUnitStatus(activeContract);
     return {
       id: unit.id,
       code: unit.code,
       location: unit.location,
       area: unit.area ?? null,
-      status: activeContract ? "occupied" : "vacant",
+      status,
       activeContract: activeContract
         ? {
             id: activeContract.id,
@@ -168,5 +180,13 @@ export class UnitsService {
     );
 
     return activeContracts.sort((a, b) => b.startDate.localeCompare(a.startDate))[0] ?? null;
+  }
+
+  private resolveUnitStatus(activeContract: Contract | null) {
+    if (!activeContract) {
+      return "vacant" as const;
+    }
+
+    return daysUntil(activeContract.endDate) <= EXPIRING_DAYS_THRESHOLD ? "expiring" as const : "occupied" as const;
   }
 }

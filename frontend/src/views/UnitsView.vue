@@ -15,7 +15,7 @@
         </div>
       </div>
 
-      <div class="stats-row">
+      <div class="stats-row units-stats-row">
         <div class="stat-item">
           <small>厂房总数</small>
           <strong>{{ units.length }}</strong>
@@ -27,6 +27,10 @@
         <div class="stat-item">
           <small>空置数量</small>
           <strong>{{ vacantCount }}</strong>
+        </div>
+        <div class="stat-item">
+          <small>即将到期</small>
+          <strong>{{ expiringCount }}</strong>
         </div>
         <div class="stat-item">
           <small>当前年租金合计</small>
@@ -47,8 +51,8 @@
         </el-table-column>
         <el-table-column label="状态" width="92">
           <template #default="{ row }">
-            <el-tag :type="row.status === 'occupied' ? 'success' : 'info'">
-              {{ row.status === "occupied" ? "在租" : "空置" }}
+            <el-tag :type="unitStatusTagType(row.status)">
+              {{ unitStatusLabel(row.status) }}
             </el-tag>
           </template>
         </el-table-column>
@@ -237,7 +241,7 @@
               <h2>厂房基础信息</h2>
               <p>
                 当前状态：
-                {{ selectedUnit.status === "occupied" ? "在租" : "空置" }}
+                {{ unitStatusLabel(selectedUnit.status) }}
                 <span v-if="selectedUnit.activeContract">
                   ，当前租户 {{ selectedUnit.activeContract.tenantName }}
                 </span>
@@ -643,8 +647,9 @@ const previewFile = ref<StoredFile | null>(null);
 const filePreviewTitle = ref("文件预览");
 const viewportWidth = useViewportWidth();
 
-const occupiedCount = computed(() => units.value.filter((item) => item.status === "occupied").length);
+const occupiedCount = computed(() => units.value.filter((item) => item.status !== "vacant").length);
 const vacantCount = computed(() => units.value.filter((item) => item.status === "vacant").length);
+const expiringCount = computed(() => units.value.filter((item) => item.status === "expiring").length);
 const activeRentSum = computed(() =>
   units.value.reduce((sum, item) => sum + Number(item.activeContract?.annualRent ?? 0), 0),
 );
@@ -1164,6 +1169,18 @@ function contractStatusLabel(status: Contract["status"]) {
 function contractTagType(status: Contract["status"]) {
   if (status === "active") return "success";
   if (status === "future") return "warning";
+  return "info";
+}
+
+function unitStatusLabel(status: UnitSummary["status"]) {
+  if (status === "occupied") return "在租";
+  if (status === "expiring") return "即将到期";
+  return "空置";
+}
+
+function unitStatusTagType(status: UnitSummary["status"]) {
+  if (status === "occupied") return "success";
+  if (status === "expiring") return "warning";
   return "info";
 }
 
