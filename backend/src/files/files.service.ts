@@ -35,7 +35,7 @@ export class FilesService {
     const saved: StoredFile[] = [];
 
     for (const file of files) {
-      const storageName = this.buildStorageName(file.originalname);
+      const storageName = this.buildStorageName(category, file.originalname);
       const storagePath = await this.writeFileToCategory(category, storageName, file.buffer);
       const entity = this.storedFilesRepository.create({
         originalName: file.originalname,
@@ -53,7 +53,7 @@ export class FilesService {
 
   async registerGeneratedFile(dto: GenerateStoredFileDto) {
     const stats = await stat(dto.sourcePath);
-    const storageName = this.buildStorageName(dto.filename);
+    const storageName = this.buildStorageName(dto.category, dto.filename);
     const targetPath = await this.copyIntoCategory(dto.category, storageName, dto.sourcePath);
     const entity = this.storedFilesRepository.create({
       originalName: dto.filename,
@@ -99,9 +99,36 @@ export class FilesService {
     }
   }
 
-  private buildStorageName(originalName: string) {
+  private buildStorageName(category: StoredFileCategory, originalName: string) {
     const suffix = extname(originalName);
-    return `${randomUUID()}${suffix}`;
+    const categoryPrefix = category.replace(/[^a-z0-9-]+/gi, "-");
+    const readableStem = this.buildReadableStem(originalName, suffix);
+    const timestamp = this.buildTimestamp();
+    const shortId = randomUUID().slice(0, 8);
+    return `${categoryPrefix}_${timestamp}_${readableStem}_${shortId}${suffix}`;
+  }
+
+  private buildReadableStem(originalName: string, suffix: string) {
+    const rawStem = suffix ? originalName.slice(0, -suffix.length) : originalName;
+    const normalized = rawStem
+      .normalize("NFKC")
+      .replace(/[^\p{L}\p{N}._-]+/gu, "-")
+      .replace(/-+/g, "-")
+      .replace(/^[-_.]+|[-_.]+$/g, "")
+      .slice(0, 48);
+
+    return normalized || "file";
+  }
+
+  private buildTimestamp() {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, "0");
+    const day = String(now.getDate()).padStart(2, "0");
+    const hour = String(now.getHours()).padStart(2, "0");
+    const minute = String(now.getMinutes()).padStart(2, "0");
+    const second = String(now.getSeconds()).padStart(2, "0");
+    return `${year}${month}${day}_${hour}${minute}${second}`;
   }
 
   private async writeFileToCategory(category: StoredFileCategory, storageName: string, buffer: Buffer) {
