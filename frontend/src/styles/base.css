@@ -466,6 +466,13 @@ a {
   border: 1px solid rgba(24, 71, 60, 0.08);
 }
 
+.stat-item-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
 .stat-item small {
   color: var(--muted);
 }
@@ -474,6 +481,16 @@ a {
   display: block;
   margin-top: 6px;
   font-size: 26px;
+}
+
+.stat-toggle-button {
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: var(--primary);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
 }
 
 .file-chip-list {

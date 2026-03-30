@@ -32,9 +32,14 @@
           <small>即将到期</small>
           <strong>{{ expiringCount }}</strong>
         </div>
-        <div class="stat-item">
-          <small>当前年租金合计</small>
-          <strong>{{ formatCurrency(activeRentSum) }}</strong>
+        <div class="stat-item stat-item-sensitive">
+          <div class="stat-item-head">
+            <small>当前年租金合计</small>
+            <button class="stat-toggle-button" type="button" @click="rentSumVisible = !rentSumVisible">
+              {{ rentSumVisible ? "隐藏" : "显示" }}
+            </button>
+          </div>
+          <strong>{{ rentSumVisible ? formatCurrency(activeRentSum) : "*****" }}</strong>
         </div>
       </div>
     </section>
@@ -646,6 +651,7 @@ const filePreviewVisible = ref(false);
 const previewFile = ref<StoredFile | null>(null);
 const filePreviewTitle = ref("文件预览");
 const viewportWidth = useViewportWidth();
+const rentSumVisible = ref(false);
 
 const occupiedCount = computed(() => units.value.filter((item) => item.status !== "vacant").length);
 const vacantCount = computed(() => units.value.filter((item) => item.status === "vacant").length);
