@@ -13,6 +13,12 @@ export class AddContractContactFields1712100000000 implements MigrationInterface
       ALTER TABLE "contracts"
       ADD COLUMN IF NOT EXISTS "licenseCode" character varying NOT NULL DEFAULT ''
     `);
+
+    await queryRunner.query(`
+      UPDATE "contracts"
+      SET "contactName" = "tenantName"
+      WHERE COALESCE("contactName", '') = ''
+    `);
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {

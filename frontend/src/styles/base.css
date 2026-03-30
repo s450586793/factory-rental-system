@@ -437,6 +437,7 @@ a {
 .table-shell {
   width: 100%;
   min-width: 0;
+  max-width: 100%;
   overflow-x: auto;
 }
 
@@ -533,6 +534,7 @@ button.file-chip {
 .detail-grid {
   display: grid;
   gap: 18px;
+  min-width: 0;
 }
 
 .detail-section {
@@ -540,6 +542,8 @@ button.file-chip {
   border-radius: 18px;
   border: 1px solid rgba(24, 71, 60, 0.08);
   background: rgba(255, 255, 255, 0.78);
+  min-width: 0;
+  overflow: hidden;
 }
 
 .detail-section h3 {
@@ -548,10 +552,12 @@ button.file-chip {
 
 .unit-detail-dialog .el-dialog {
   max-width: min(1180px, 92vw);
+  overflow: hidden;
 }
 
 .unit-detail-dialog .el-dialog__body {
   padding-top: 8px;
+  overflow-x: hidden;
 }
 
 .login-shell {
