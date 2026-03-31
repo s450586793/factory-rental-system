@@ -77,7 +77,11 @@
         </el-table-column>
         <el-table-column label="当前年租金" min-width="130">
           <template #default="{ row }">
-            {{ row.activeContract ? formatCurrency(row.activeContract.annualRent) : "--" }}
+            {{
+              row.activeContract
+                ? (rentSumVisible ? formatCurrency(row.activeContract.annualRent) : "*****")
+                : "--"
+            }}
           </template>
         </el-table-column>
         <el-table-column label="操作" width="148" :fixed="actionColumnFixed">
