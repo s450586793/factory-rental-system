@@ -43,7 +43,9 @@ export class UnitsService {
   async list() {
     const units = await this.unitsRepository.find({
       relations: {
-        contracts: true,
+        contracts: {
+          rentPayments: true,
+        },
         meterConfigs: true,
       },
       order: {
@@ -58,7 +60,9 @@ export class UnitsService {
     const unit = await this.unitsRepository.findOne({
       where: { id },
       relations: {
-        contracts: true,
+        contracts: {
+          rentPayments: true,
+        },
         meterConfigs: true,
       },
     });
@@ -150,6 +154,10 @@ export class UnitsService {
   private serializeUnit(unit: FactoryUnit) {
     const activeContract = this.resolveActiveContract(unit.contracts ?? []);
     const status = this.resolveUnitStatus(activeContract);
+    const serializedContracts = [...(unit.contracts ?? [])]
+      .sort((a, b) => b.startDate.localeCompare(a.startDate))
+      .map((contract) => this.serializeContract(contract));
+
     return {
       id: unit.id,
       code: unit.code,
@@ -166,12 +174,34 @@ export class UnitsService {
             startDate: activeContract.startDate,
             endDate: activeContract.endDate,
             annualRent: activeContract.annualRent,
+            paidAmount: this.resolvePaidAmount(activeContract),
+            outstandingAmount: this.resolveOutstandingAmount(activeContract),
             status: activeContract.status,
           }
         : null,
       contractCount: (unit.contracts ?? []).length,
       meterConfigs: [...(unit.meterConfigs ?? [])].sort((a, b) => a.type.localeCompare(b.type) || a.name.localeCompare(b.name)),
-      contracts: [...(unit.contracts ?? [])].sort((a, b) => b.startDate.localeCompare(a.startDate)),
+      contracts: serializedContracts,
+    };
+  }
+
+  private serializeContract(contract: Contract) {
+    return {
+      id: contract.id,
+      unitId: contract.unitId,
+      tenantName: contract.tenantName,
+      contactName: contract.contactName,
+      tenantPhone: contract.tenantPhone,
+      licenseCode: contract.licenseCode,
+      startDate: contract.startDate,
+      endDate: contract.endDate,
+      annualRent: contract.annualRent,
+      paidAmount: this.resolvePaidAmount(contract),
+      outstandingAmount: this.resolveOutstandingAmount(contract),
+      status: contract.status,
+      businessLicenseFileId: contract.businessLicenseFileId,
+      businessLicenseFile: contract.businessLicenseFile,
+      attachmentFiles: contract.attachmentFiles,
     };
   }
 
@@ -192,5 +222,18 @@ export class UnitsService {
     }
 
     return daysUntil(activeContract.endDate) <= EXPIRING_DAYS_THRESHOLD ? "expiring" as const : "occupied" as const;
+  }
+
+  private resolvePaidAmount(contract: Contract) {
+    return Number(
+      (contract.rentPayments ?? [])
+        .filter((payment) => payment.deletedAt === null || payment.deletedAt === undefined)
+        .reduce((sum, payment) => sum + Number(payment.amount ?? 0), 0)
+        .toFixed(2),
+    );
+  }
+
+  private resolveOutstandingAmount(contract: Contract) {
+    return Number(Math.max(Number(contract.annualRent) - this.resolvePaidAmount(contract), 0).toFixed(2));
   }
 }

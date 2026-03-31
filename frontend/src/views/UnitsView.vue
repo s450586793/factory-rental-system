@@ -41,32 +41,36 @@
           </div>
           <strong>{{ rentSumVisible ? formatCurrency(activeRentSum) : "*****" }}</strong>
         </div>
+        <div class="stat-item stat-item-sensitive">
+          <small>当前欠费合计</small>
+          <strong>{{ displayRentAmount(currentOutstandingSum) }}</strong>
+        </div>
       </div>
     </section>
 
     <section class="panel-card page-panel">
       <div class="table-shell">
         <el-table :data="units" v-loading="loading" size="small" class="units-table">
-        <el-table-column prop="code" label="编号" width="84" />
-        <el-table-column prop="location" label="位置" min-width="120" show-overflow-tooltip />
-        <el-table-column label="面积(㎡)" width="108">
+        <el-table-column prop="code" label="编号" width="74" />
+        <el-table-column prop="location" label="位置" min-width="110" show-overflow-tooltip />
+        <el-table-column label="面积(㎡)" width="96">
           <template #default="{ row }">
             {{ formatArea(row.area) }}
           </template>
         </el-table-column>
-        <el-table-column label="状态" width="92">
+        <el-table-column label="状态" width="86">
           <template #default="{ row }">
             <el-tag :type="unitStatusTagType(row.status)">
               {{ unitStatusLabel(row.status) }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="当前租户" min-width="120" show-overflow-tooltip>
+        <el-table-column label="当前租户" min-width="110" show-overflow-tooltip>
           <template #default="{ row }">
             {{ row.activeContract?.tenantName || "--" }}
           </template>
         </el-table-column>
-        <el-table-column label="当前合同" min-width="180" show-overflow-tooltip>
+        <el-table-column label="当前合同" min-width="168" show-overflow-tooltip>
           <template #default="{ row }">
             {{
               row.activeContract
@@ -75,16 +79,25 @@
             }}
           </template>
         </el-table-column>
-        <el-table-column label="当前年租金" min-width="130">
+        <el-table-column label="当前年租金" min-width="124">
           <template #default="{ row }">
             {{
               row.activeContract
-                ? (rentSumVisible ? formatCurrency(row.activeContract.annualRent) : "*****")
+                ? displayRentAmount(row.activeContract.annualRent)
                 : "--"
             }}
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="148" :fixed="actionColumnFixed">
+        <el-table-column label="当前合同欠费" min-width="124">
+          <template #default="{ row }">
+            {{
+              row.activeContract
+                ? displayRentAmount(row.activeContract.outstandingAmount)
+                : "--"
+            }}
+          </template>
+        </el-table-column>
+        <el-table-column label="操作" width="140" :fixed="actionColumnFixed">
           <template #default="{ row }">
             <el-space wrap>
               <el-button text type="primary" @click="openDetail(row.id)">管理</el-button>
@@ -307,17 +320,27 @@
 
           <div class="table-shell">
             <el-table :data="selectedUnit.contracts">
-            <el-table-column prop="tenantName" label="公司名称" min-width="160" show-overflow-tooltip />
-            <el-table-column prop="contactName" label="负责人" min-width="120" show-overflow-tooltip />
-            <el-table-column prop="tenantPhone" label="电话" min-width="140" show-overflow-tooltip />
-            <el-table-column label="合同周期" min-width="220">
+            <el-table-column prop="tenantName" label="公司名称" min-width="150" show-overflow-tooltip />
+            <el-table-column prop="contactName" label="负责人" min-width="110" show-overflow-tooltip />
+            <el-table-column prop="tenantPhone" label="电话" min-width="130" show-overflow-tooltip />
+            <el-table-column label="合同周期" min-width="210">
               <template #default="{ row }">
                 {{ row.startDate }} 至 {{ row.endDate }}
               </template>
             </el-table-column>
-            <el-table-column label="年租金" min-width="150">
+            <el-table-column label="应收" min-width="118">
               <template #default="{ row }">
-                {{ formatCurrency(row.annualRent) }}
+                {{ displayRentAmount(row.annualRent) }}
+              </template>
+            </el-table-column>
+            <el-table-column label="已收" min-width="118">
+              <template #default="{ row }">
+                {{ displayRentAmount(row.paidAmount) }}
+              </template>
+            </el-table-column>
+            <el-table-column label="欠费" min-width="118">
+              <template #default="{ row }">
+                {{ displayRentAmount(row.outstandingAmount) }}
               </template>
             </el-table-column>
             <el-table-column label="状态" width="120">
@@ -662,6 +685,9 @@ const vacantCount = computed(() => units.value.filter((item) => item.status === 
 const expiringCount = computed(() => units.value.filter((item) => item.status === "expiring").length);
 const activeRentSum = computed(() =>
   units.value.reduce((sum, item) => sum + Number(item.activeContract?.annualRent ?? 0), 0),
+);
+const currentOutstandingSum = computed(() =>
+  units.value.reduce((sum, item) => sum + Number(item.activeContract?.outstandingAmount ?? 0), 0),
 );
 const actionColumnFixed = computed<false | "right">(() => (viewportWidth.value < 768 ? false : "right"));
 
@@ -1211,6 +1237,14 @@ function formatArea(area: number | null | undefined) {
   }
 
   return `${new Intl.NumberFormat("zh-CN", { maximumFractionDigits: 2 }).format(Number(area))} ㎡`;
+}
+
+function displayRentAmount(amount: number | null | undefined) {
+  if (amount === null || amount === undefined) {
+    return "--";
+  }
+
+  return rentSumVisible.value ? formatCurrency(Number(amount)) : "*****";
 }
 
 function deriveContractEndDate(startDate: string) {

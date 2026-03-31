@@ -28,6 +28,8 @@ export type Contract = {
   startDate: string;
   endDate: string;
   annualRent: number;
+  paidAmount: number;
+  outstandingAmount: number;
   status: "future" | "active" | "expired";
   businessLicenseFileId: string | null;
   businessLicenseFile: StoredFile | null;
@@ -61,6 +63,8 @@ export type UnitSummary = {
     startDate: string;
     endDate: string;
     annualRent: number;
+    paidAmount: number;
+    outstandingAmount: number;
     status: "future" | "active" | "expired";
   } | null;
   contractCount: number;
