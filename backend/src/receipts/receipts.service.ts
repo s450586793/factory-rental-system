@@ -207,9 +207,8 @@ export class ReceiptsService {
   private async resolveFontPath() {
     const storage = this.configService.getOrThrow<StorageConfig>("storage");
     const candidates = [
-      storage.pdfFontPath,
-      "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
-      "/usr/share/fonts/truetype/noto/NotoSansCJK-Regular.ttc",
+      "/app/assets/fonts/NotoSansCJKsc-Regular.otf",
+      storage.pdfFontPath && !storage.pdfFontPath.toLowerCase().endsWith(".ttc") ? storage.pdfFontPath : null,
     ].filter(Boolean) as string[];
 
     for (const candidate of candidates) {

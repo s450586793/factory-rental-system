@@ -22,6 +22,7 @@ COPY package*.json ./
 RUN npm install --omit=dev
 
 COPY --from=build /app/dist ./dist
+COPY --from=build /app/assets ./assets
 COPY --from=build /app/storage ./storage
 COPY entrypoint.sh ./entrypoint.sh
 

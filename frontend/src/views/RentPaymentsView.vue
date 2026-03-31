@@ -44,7 +44,6 @@
             <el-space wrap size="small">
               <el-button text @click="openEdit(row)">编辑</el-button>
               <el-button text type="primary" @click="createReceipt(row.id)">开收据</el-button>
-              <el-button text type="danger" @click="confirmRemove(row.id)">删除</el-button>
             </el-space>
           </template>
         </el-table-column>
@@ -106,6 +105,7 @@
       </el-form>
 
       <template #footer>
+        <el-button v-if="form.id" type="danger" plain @click="confirmRemove(form.id, true)">删除</el-button>
         <el-button @click="dialogVisible = false">取消</el-button>
         <el-button type="primary" :loading="submitting" @click="save">保存</el-button>
       </template>
@@ -244,11 +244,14 @@ async function createReceipt(paymentId: string) {
   }
 }
 
-async function confirmRemove(paymentId: string) {
+async function confirmRemove(paymentId: string, closeDialog = false) {
   try {
     await ElMessageBox.confirm("确认删除这条房租收费记录吗？", "删除记录", { type: "warning" });
     await rentPaymentsApi.remove(paymentId);
     ElMessage.success("记录已删除");
+    if (closeDialog) {
+      dialogVisible.value = false;
+    }
     await loadPageData();
   } catch (error) {
     if (error !== "cancel") {
