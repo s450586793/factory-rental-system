@@ -15,33 +15,33 @@
         </div>
       </div>
 
-      <el-table :data="payments" v-loading="loading">
-        <el-table-column label="厂房" min-width="120">
+      <el-table :data="payments" v-loading="loading" class="rent-payments-table" size="small">
+        <el-table-column label="厂房" width="72">
           <template #default="{ row }">
             {{ row.unit.code }}
           </template>
         </el-table-column>
-        <el-table-column prop="tenantNameSnapshot" label="租户" min-width="180" />
-        <el-table-column label="合同周期" min-width="220">
+        <el-table-column prop="tenantNameSnapshot" label="租户" min-width="132" show-overflow-tooltip />
+        <el-table-column label="合同周期" min-width="164" show-overflow-tooltip>
           <template #default="{ row }">
             {{ row.contract.startDate }} 至 {{ row.contract.endDate }}
           </template>
         </el-table-column>
-        <el-table-column prop="paymentDate" label="付款日期" min-width="120" />
-        <el-table-column label="金额" min-width="140">
+        <el-table-column prop="paymentDate" label="付款日期" width="106" />
+        <el-table-column label="金额" width="106">
           <template #default="{ row }">
             {{ formatCurrency(row.amount) }}
           </template>
         </el-table-column>
-        <el-table-column prop="method" label="方式" min-width="120" />
-        <el-table-column label="备注" min-width="180">
+        <el-table-column prop="method" label="方式" width="72" show-overflow-tooltip />
+        <el-table-column label="备注" min-width="120" show-overflow-tooltip>
           <template #default="{ row }">
             {{ row.note || "--" }}
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="240" :fixed="actionColumnFixed">
+        <el-table-column label="操作" width="172" :fixed="actionColumnFixed">
           <template #default="{ row }">
-            <el-space wrap>
+            <el-space wrap size="small">
               <el-button text @click="openEdit(row)">编辑</el-button>
               <el-button text type="primary" @click="createReceipt(row.id)">开收据</el-button>
               <el-button text type="danger" @click="confirmRemove(row.id)">删除</el-button>
@@ -76,6 +76,9 @@
                   :value="contract.id"
                 />
               </el-select>
+              <div v-if="selectedContract" class="form-help-inline">
+                当前合同欠费：{{ formatCurrency(selectedContract.outstandingAmount) }}
+              </div>
             </el-form-item>
           </el-col>
         </el-row>
@@ -137,6 +140,7 @@ const form = reactive({
 });
 
 const selectedUnit = computed(() => units.value.find((item) => item.id === form.unitId) || null);
+const selectedContract = computed(() => selectedUnit.value?.contracts.find((item) => item.id === form.contractId) || null);
 const selectedContracts = computed<Contract[]>(() => {
   const contracts = selectedUnit.value?.contracts ?? [];
   return contracts.filter((contract) => {

@@ -464,6 +464,29 @@ a {
   font-size: 12px;
 }
 
+.rent-payments-table .el-table__cell {
+  padding-top: 7px;
+  padding-bottom: 7px;
+}
+
+.rent-payments-table .cell {
+  padding-left: 5px;
+  padding-right: 5px;
+}
+
+.rent-payments-table .el-button.is-text,
+.rent-payments-table .el-button.is-link {
+  padding-left: 0;
+  padding-right: 0;
+}
+
+.form-help-inline {
+  margin-top: 8px;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
 .stat-item {
   padding: 18px;
   border-radius: 18px;
