@@ -51,21 +51,21 @@
     <section class="panel-card page-panel">
       <div class="table-shell">
         <el-table :data="units" v-loading="loading" size="small" class="units-table">
-        <el-table-column prop="code" label="编号" width="74" />
-        <el-table-column prop="location" label="位置" min-width="110" show-overflow-tooltip />
-        <el-table-column label="面积(㎡)" width="96">
+        <el-table-column prop="code" label="编号" width="62" />
+        <el-table-column prop="location" label="位置" min-width="92" show-overflow-tooltip />
+        <el-table-column label="面积(㎡)" width="84">
           <template #default="{ row }">
             {{ formatArea(row.area) }}
           </template>
         </el-table-column>
-        <el-table-column label="状态" width="86">
+        <el-table-column label="状态" width="74">
           <template #default="{ row }">
             <el-tag :type="unitStatusTagType(row.status)">
               {{ unitStatusLabel(row.status) }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="当前租户" min-width="110" show-overflow-tooltip>
+        <el-table-column label="当前租户" min-width="102" show-overflow-tooltip>
           <template #default="{ row }">
             {{ row.activeContract?.tenantName || "--" }}
           </template>

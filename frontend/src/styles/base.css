@@ -450,13 +450,18 @@ a {
 }
 
 .units-table .el-table__cell {
-  padding-top: 9px;
-  padding-bottom: 9px;
+  padding-top: 7px;
+  padding-bottom: 7px;
 }
 
 .units-table .cell {
-  padding-left: 8px;
-  padding-right: 8px;
+  padding-left: 5px;
+  padding-right: 5px;
+}
+
+.units-table .el-tag {
+  padding-inline: 7px;
+  font-size: 12px;
 }
 
 .stat-item {
