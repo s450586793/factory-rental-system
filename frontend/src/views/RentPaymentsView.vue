@@ -137,7 +137,15 @@ const form = reactive({
 });
 
 const selectedUnit = computed(() => units.value.find((item) => item.id === form.unitId) || null);
-const selectedContracts = computed<Contract[]>(() => selectedUnit.value?.contracts ?? []);
+const selectedContracts = computed<Contract[]>(() => {
+  const contracts = selectedUnit.value?.contracts ?? [];
+  return contracts.filter((contract) => {
+    if (form.id && contract.id === form.contractId) {
+      return true;
+    }
+    return Number(contract.outstandingAmount ?? 0) > 0;
+  });
+});
 const actionColumnFixed = computed<false | "right">(() => (viewportWidth.value < 768 ? false : "right"));
 
 onMounted(loadPageData);
@@ -166,7 +174,12 @@ function resetForm() {
 }
 
 function handleUnitChange() {
-  form.contractId = selectedUnit.value?.activeContract?.id || selectedContracts.value[0]?.id || "";
+  const activeContract = selectedUnit.value?.activeContract;
+  if (activeContract && Number(activeContract.outstandingAmount ?? 0) > 0) {
+    form.contractId = activeContract.id;
+    return;
+  }
+  form.contractId = selectedContracts.value[0]?.id || "";
 }
 
 function openCreate() {
