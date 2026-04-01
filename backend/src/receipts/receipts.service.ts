@@ -204,9 +204,12 @@ export class ReceiptsService {
     const amountBoxHeight = 58;
     const amountBoxX = boxX + boxWidth - amountBoxWidth - 34;
     const amountBoxY = boxY + 58;
-    const paymentMethodLineStartX = boxX + 456;
+    const paymentMethodLineStartX = boxX + 458;
     const paymentMethodLineEndX = boxX + boxWidth - 22;
-    const reasonLineEndX = boxX + boxWidth - 20;
+    const dateTextWidth = 160;
+    const dateTextX = boxX + boxWidth - dateTextWidth - 24;
+    const dateTextY = boxY + boxHeight - 34;
+    const reasonLineEndX = dateTextX - 22;
 
     doc.fillColor("#111111");
     doc.fontSize(24).text("收    据", 0, 28, { align: "center" });
@@ -216,8 +219,8 @@ export class ReceiptsService {
       .lineWidth(1)
       .stroke("#222222");
 
-    doc.fillColor("#2c79c1").fontSize(20).text(payload.receiptNo, pageWidth - 214, 92, {
-      width: 178,
+    doc.fillColor("#2c79c1").fontSize(16).text(payload.receiptNo, pageWidth - 182, 84, {
+      width: 150,
       align: "right",
     });
 
@@ -241,9 +244,9 @@ export class ReceiptsService {
       .moveTo(paymentMethodLineStartX, boxY + 42)
       .lineTo(paymentMethodLineEndX, boxY + 42)
       .stroke("#222222");
-    doc.text(payload.paymentMethod, paymentMethodLineStartX + 4, boxY + 16, {
-      width: paymentMethodLineEndX - paymentMethodLineStartX - 8,
-      align: "center",
+    doc.text(payload.paymentMethod, paymentMethodLineStartX + 10, boxY + 16, {
+      width: paymentMethodLineEndX - paymentMethodLineStartX - 20,
+      align: "left",
     });
 
     doc.fontSize(15).text("人民币（大写）", boxX + 20, boxY + 82);
@@ -275,8 +278,8 @@ export class ReceiptsService {
       width: reasonLineEndX - boxX - 116,
     });
 
-    doc.fontSize(14).text(formatChineseDate(payload.issueDate), boxX + boxWidth - 168, boxY + boxHeight - 30, {
-      width: 140,
+    doc.fontSize(13).text(formatChineseDate(payload.issueDate), dateTextX, dateTextY, {
+      width: dateTextWidth,
       align: "right",
     });
 
