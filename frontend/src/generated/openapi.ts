@@ -53,7 +53,7 @@ export type UnitSummary = {
   code: string;
   location: string;
   area: number | null;
-  status: "occupied" | "vacant" | "expiring";
+  status: "occupied" | "vacant" | "expiring" | "expired";
   activeContract: {
     id: string;
     tenantName: string;

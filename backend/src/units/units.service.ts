@@ -152,8 +152,9 @@ export class UnitsService {
   }
 
   private serializeUnit(unit: FactoryUnit) {
-    const activeContract = this.resolveActiveContract(unit.contracts ?? []);
-    const status = this.resolveUnitStatus(activeContract);
+    const contracts = unit.contracts ?? [];
+    const activeContract = this.resolveActiveContract(contracts);
+    const status = this.resolveUnitStatus(contracts, activeContract);
     const serializedContracts = [...(unit.contracts ?? [])]
       .sort((a, b) => b.startDate.localeCompare(a.startDate))
       .map((contract) => this.serializeContract(contract));
@@ -216,9 +217,10 @@ export class UnitsService {
     return activeContracts.sort((a, b) => b.startDate.localeCompare(a.startDate))[0] ?? null;
   }
 
-  private resolveUnitStatus(activeContract: Contract | null) {
+  private resolveUnitStatus(contracts: Contract[], activeContract: Contract | null) {
     if (!activeContract) {
-      return "vacant" as const;
+      const hasExpiredContract = contracts.some((contract) => contract.endDate < today());
+      return hasExpiredContract ? "expired" as const : "vacant" as const;
     }
 
     return daysUntil(activeContract.endDate) <= EXPIRING_DAYS_THRESHOLD ? "expiring" as const : "occupied" as const;

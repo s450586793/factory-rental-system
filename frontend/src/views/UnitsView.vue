@@ -25,6 +25,10 @@
           <small>即将到期</small>
           <strong>{{ expiringCount }}</strong>
         </div>
+        <div class="stat-item">
+          <small>已到期</small>
+          <strong>{{ expiredCount }}</strong>
+        </div>
         <div class="stat-item stat-item-sensitive">
           <div class="stat-item-head">
             <small>当前年租金合计</small>
@@ -47,7 +51,7 @@
             {{ formatArea(row.area) }}
           </template>
         </el-table-column>
-        <el-table-column label="状态" width="74">
+        <el-table-column label="状态" width="92">
           <template #default="{ row }">
             <el-tag :type="unitStatusTagType(row.status)">
               {{ unitStatusLabel(row.status) }}
@@ -669,9 +673,12 @@ const filePreviewTitle = ref("文件预览");
 const viewportWidth = useViewportWidth();
 const rentSumVisible = ref(false);
 
-const occupiedCount = computed(() => units.value.filter((item) => item.status !== "vacant").length);
+const occupiedCount = computed(() =>
+  units.value.filter((item) => item.status === "occupied" || item.status === "expiring").length,
+);
 const vacantCount = computed(() => units.value.filter((item) => item.status === "vacant").length);
 const expiringCount = computed(() => units.value.filter((item) => item.status === "expiring").length);
+const expiredCount = computed(() => units.value.filter((item) => item.status === "expired").length);
 const activeRentSum = computed(() =>
   units.value.reduce((sum, item) => sum + Number(item.activeContract?.annualRent ?? 0), 0),
 );
@@ -1197,12 +1204,14 @@ function contractTagType(status: Contract["status"]) {
 function unitStatusLabel(status: UnitSummary["status"]) {
   if (status === "occupied") return "在租";
   if (status === "expiring") return "即将到期";
+  if (status === "expired") return "已到期";
   return "空置";
 }
 
 function unitStatusTagType(status: UnitSummary["status"]) {
   if (status === "occupied") return "success";
   if (status === "expiring") return "warning";
+  if (status === "expired") return "danger";
   return "info";
 }
 
