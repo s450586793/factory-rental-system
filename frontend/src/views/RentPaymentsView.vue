@@ -15,39 +15,69 @@
         </div>
       </div>
 
-      <el-table :data="payments" v-loading="loading" class="rent-payments-table" size="small">
-        <el-table-column label="厂房" width="72">
-          <template #default="{ row }">
-            {{ row.unit.code }}
-          </template>
-        </el-table-column>
-        <el-table-column prop="tenantNameSnapshot" label="租户" min-width="132" show-overflow-tooltip />
-        <el-table-column label="合同周期" min-width="164" show-overflow-tooltip>
-          <template #default="{ row }">
-            {{ row.contract.startDate }} 至 {{ row.contract.endDate }}
-          </template>
-        </el-table-column>
-        <el-table-column prop="paymentDate" label="付款日期" width="106" />
-        <el-table-column label="金额" width="106">
-          <template #default="{ row }">
-            {{ formatCurrency(row.amount) }}
-          </template>
-        </el-table-column>
-        <el-table-column prop="method" label="方式" width="72" show-overflow-tooltip />
-        <el-table-column label="备注" min-width="120" show-overflow-tooltip>
-          <template #default="{ row }">
-            {{ row.note || "--" }}
-          </template>
-        </el-table-column>
-        <el-table-column label="操作" width="172" :fixed="actionColumnFixed">
-          <template #default="{ row }">
-            <el-space wrap size="small">
-              <el-button text @click="openEdit(row)">编辑</el-button>
-              <el-button text type="primary" @click="createReceipt(row.id)">开收据</el-button>
-            </el-space>
-          </template>
-        </el-table-column>
-      </el-table>
+      <div class="page-filters compact-filters">
+        <el-select v-model="filters.unitId" clearable placeholder="筛选厂房">
+          <el-option v-for="unit in units" :key="unit.id" :label="`${unit.code} / ${unit.location}`" :value="unit.id" />
+        </el-select>
+        <el-select v-model="filters.receiptStatus" placeholder="收据状态">
+          <el-option label="全部收据状态" value="all" />
+          <el-option label="未开收据" value="pending" />
+          <el-option label="已开收据" value="issued" />
+        </el-select>
+        <el-input v-model="filters.keyword" clearable placeholder="搜索租户 / 备注 / 方式" />
+        <el-button @click="resetFilters">清空筛选</el-button>
+      </div>
+
+      <div class="table-shell">
+        <el-table :data="filteredPayments" v-loading="loading" class="rent-payments-table" size="small">
+          <el-table-column label="厂房" width="54">
+            <template #default="{ row }">
+              {{ row.unit.code }}
+            </template>
+          </el-table-column>
+          <el-table-column prop="tenantNameSnapshot" label="租户" min-width="118" show-overflow-tooltip />
+          <el-table-column label="合同周期" min-width="154" show-overflow-tooltip>
+            <template #default="{ row }">
+              {{ row.contract.startDate }} 至 {{ row.contract.endDate }}
+            </template>
+          </el-table-column>
+          <el-table-column prop="paymentDate" label="付款日期" width="102" />
+          <el-table-column label="金额" width="98">
+            <template #default="{ row }">
+              {{ formatCurrency(row.amount) }}
+            </template>
+          </el-table-column>
+          <el-table-column prop="method" label="方式" width="68" show-overflow-tooltip />
+          <el-table-column label="收据状态" width="88">
+            <template #default="{ row }">
+              <el-tag :type="row.activeReceipt ? 'success' : 'info'" size="small">
+                {{ row.activeReceipt ? "已开" : "未开" }}
+              </el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column label="备注" min-width="132" show-overflow-tooltip>
+            <template #default="{ row }">
+              {{ row.note || "--" }}
+            </template>
+          </el-table-column>
+          <el-table-column label="操作" width="146" :fixed="actionColumnFixed">
+            <template #default="{ row }">
+              <el-space wrap size="small">
+                <el-button text @click="openEdit(row)">编辑</el-button>
+                <el-button
+                  v-if="row.activeReceipt?.pdfFile"
+                  text
+                  type="primary"
+                  @click="openReceiptPreview(row.activeReceipt.pdfFile.id)"
+                >
+                  查看收据
+                </el-button>
+                <el-button v-else text type="primary" @click="createReceipt(row.id)">开收据</el-button>
+              </el-space>
+            </template>
+          </el-table-column>
+        </el-table>
+      </div>
     </section>
 
     <el-dialog v-model="dialogVisible" :title="form.id ? '编辑房租收费' : '新增房租收费'" width="620px">
@@ -110,6 +140,13 @@
         <el-button type="primary" :loading="submitting" @click="save">保存</el-button>
       </template>
     </el-dialog>
+
+    <el-dialog v-model="receiptPreviewVisible" title="收据预览" width="960px">
+      <iframe v-if="receiptPreviewFileId" class="file-preview-frame" :src="apiFileUrl(receiptPreviewFileId)" />
+      <template #footer>
+        <el-button @click="receiptPreviewVisible = false">关闭</el-button>
+      </template>
+    </el-dialog>
   </AppShell>
 </template>
 
@@ -117,9 +154,10 @@
 import { computed, onMounted, reactive, ref } from "vue";
 import { ElMessage, ElMessageBox } from "element-plus";
 import AppShell from "../components/AppShell.vue";
+import { apiFileUrl } from "../api/client";
 import { receiptsApi, rentPaymentsApi, unitsApi } from "../api";
 import { useViewportWidth } from "../composables/useViewportWidth";
-import type { Contract, RentPayment, UnitSummary } from "../types/models";
+import type { Contract, Receipt, RentPayment, UnitSummary } from "../types/models";
 import { formatCurrency, todayIso } from "../utils/format";
 
 const loading = ref(false);
@@ -127,6 +165,9 @@ const dialogVisible = ref(false);
 const submitting = ref(false);
 const units = ref<UnitSummary[]>([]);
 const payments = ref<RentPayment[]>([]);
+const receipts = ref<Receipt[]>([]);
+const receiptPreviewVisible = ref(false);
+const receiptPreviewFileId = ref("");
 const viewportWidth = useViewportWidth();
 
 const form = reactive({
@@ -139,6 +180,16 @@ const form = reactive({
   note: "",
 });
 
+const filters = reactive({
+  unitId: "",
+  receiptStatus: "all" as "all" | "pending" | "issued",
+  keyword: "",
+});
+
+type RentPaymentRow = RentPayment & {
+  activeReceipt: Receipt | null;
+};
+
 const selectedUnit = computed(() => units.value.find((item) => item.id === form.unitId) || null);
 const selectedContract = computed(() => selectedUnit.value?.contracts.find((item) => item.id === form.contractId) || null);
 const selectedContracts = computed<Contract[]>(() => {
@@ -150,6 +201,48 @@ const selectedContracts = computed<Contract[]>(() => {
     return Number(contract.outstandingAmount ?? 0) > 0;
   });
 });
+const activeReceiptMap = computed(() => {
+  const map = new Map<string, Receipt>();
+  receipts.value
+    .filter((receipt) => receipt.sourceType === "rent-payment" && receipt.status === "active")
+    .forEach((receipt) => {
+      map.set(receipt.sourceId, receipt);
+    });
+  return map;
+});
+const paymentRows = computed<RentPaymentRow[]>(() =>
+  payments.value.map((payment) => ({
+    ...payment,
+    activeReceipt: activeReceiptMap.value.get(payment.id) ?? null,
+  })),
+);
+const filteredPayments = computed(() => {
+  const keyword = filters.keyword.trim().toLowerCase();
+  return paymentRows.value.filter((payment) => {
+    if (filters.unitId && payment.unitId !== filters.unitId) {
+      return false;
+    }
+    if (filters.receiptStatus === "issued" && !payment.activeReceipt) {
+      return false;
+    }
+    if (filters.receiptStatus === "pending" && payment.activeReceipt) {
+      return false;
+    }
+    if (!keyword) {
+      return true;
+    }
+    return [
+      payment.tenantNameSnapshot,
+      payment.method,
+      payment.note || "",
+      payment.unit.code,
+      payment.unit.location,
+    ]
+      .join(" ")
+      .toLowerCase()
+      .includes(keyword);
+  });
+});
 const actionColumnFixed = computed<false | "right">(() => (viewportWidth.value < 768 ? false : "right"));
 
 onMounted(loadPageData);
@@ -157,9 +250,14 @@ onMounted(loadPageData);
 async function loadPageData() {
   try {
     loading.value = true;
-    const [unitList, paymentList] = await Promise.all([unitsApi.list(), rentPaymentsApi.list()]);
+    const [unitList, paymentList, receiptList] = await Promise.all([
+      unitsApi.list(),
+      rentPaymentsApi.list(),
+      receiptsApi.list(),
+    ]);
     units.value = unitList;
     payments.value = paymentList;
+    receipts.value = receiptList;
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : "加载房租记录失败");
   } finally {
@@ -190,6 +288,12 @@ function openCreate() {
   resetForm();
   handleUnitChange();
   dialogVisible.value = true;
+}
+
+function resetFilters() {
+  filters.unitId = "";
+  filters.receiptStatus = "all";
+  filters.keyword = "";
 }
 
 function openEdit(record: RentPayment) {
@@ -239,9 +343,15 @@ async function createReceipt(paymentId: string) {
       issueDate: todayIso(),
     });
     ElMessage.success("收据已生成");
+    await loadPageData();
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : "生成收据失败");
   }
+}
+
+function openReceiptPreview(fileId: string) {
+  receiptPreviewFileId.value = fileId;
+  receiptPreviewVisible.value = true;
 }
 
 async function confirmRemove(paymentId: string, closeDialog = false) {

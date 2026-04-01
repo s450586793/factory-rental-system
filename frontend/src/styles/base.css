@@ -428,6 +428,17 @@ a {
   max-width: 100%;
 }
 
+.page-filters {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin: 0 0 16px;
+}
+
+.compact-filters .el-button {
+  width: 100%;
+}
+
 .stats-row {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -476,6 +487,28 @@ a {
 
 .rent-payments-table .el-button.is-text,
 .rent-payments-table .el-button.is-link {
+  padding-left: 0;
+  padding-right: 0;
+}
+
+.rent-payments-table .el-tag,
+.receipts-table .el-tag {
+  padding-inline: 6px;
+  font-size: 12px;
+}
+
+.receipts-table .el-table__cell {
+  padding-top: 7px;
+  padding-bottom: 7px;
+}
+
+.receipts-table .cell {
+  padding-left: 4px;
+  padding-right: 4px;
+}
+
+.receipts-table .el-button.is-text,
+.receipts-table .el-button.is-link {
   padding-left: 0;
   padding-right: 0;
 }
@@ -732,6 +765,10 @@ button.file-chip {
     width: auto;
     max-width: min(220px, 44vw);
     justify-content: flex-end;
+  }
+
+  .page-filters {
+    grid-template-columns: 1fr;
   }
 
   .app-topbar-actions .toolbar-row {

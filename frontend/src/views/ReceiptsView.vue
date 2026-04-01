@@ -10,45 +10,54 @@
       <div class="page-header">
         <div>
           <h2>收据中心</h2>
-          <p>查看已生成的收据、打开 PDF、作废历史收据。</p>
+          <p>查看已生成的收据、预览 PDF、作废历史收据。</p>
         </div>
       </div>
 
-      <el-table :data="receipts" v-loading="loading">
-        <el-table-column prop="receiptNo" label="收据编号" min-width="180" />
-        <el-table-column prop="tenantNameSnapshot" label="租户" min-width="180" />
-        <el-table-column prop="unitCodeSnapshot" label="厂房" min-width="120" />
-        <el-table-column label="来源" min-width="140">
-          <template #default="{ row }">
-            {{ row.sourceType === "utility" ? "水电缴费" : "房租收款" }}
-          </template>
-        </el-table-column>
-        <el-table-column prop="issueDate" label="开具日期" min-width="120" />
-        <el-table-column label="金额" min-width="150">
-          <template #default="{ row }">
-            {{ formatCurrency(row.amountSnapshot) }}
-          </template>
-        </el-table-column>
-        <el-table-column prop="summary" label="摘要" min-width="240" />
-        <el-table-column label="状态" width="110">
-          <template #default="{ row }">
-            <el-tag :type="row.status === 'active' ? 'success' : 'info'">
-              {{ row.status === "active" ? "有效" : "已作废" }}
-            </el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column label="操作" width="190">
-          <template #default="{ row }">
-            <el-space wrap>
-              <el-button v-if="row.pdfFile" text type="primary" @click="previewReceipt(row.pdfFile.id)">查看 PDF</el-button>
-              <el-button v-if="row.status === 'active'" text type="danger" @click="voidReceipt(row.id)">
-                作废
-              </el-button>
-            </el-space>
-          </template>
-        </el-table-column>
-      </el-table>
+      <div class="table-shell">
+        <el-table :data="receipts" v-loading="loading" class="receipts-table" size="small">
+          <el-table-column prop="receiptNo" label="收据编号" min-width="138" />
+          <el-table-column prop="tenantNameSnapshot" label="租户" min-width="132" show-overflow-tooltip />
+          <el-table-column prop="unitCodeSnapshot" label="厂房" width="58" />
+          <el-table-column label="来源" width="86">
+            <template #default="{ row }">
+              {{ row.sourceType === "utility" ? "水电" : "房租" }}
+            </template>
+          </el-table-column>
+          <el-table-column prop="issueDate" label="开具日期" width="102" />
+          <el-table-column label="金额" width="104">
+            <template #default="{ row }">
+              {{ formatCurrency(row.amountSnapshot) }}
+            </template>
+          </el-table-column>
+          <el-table-column prop="summary" label="摘要" min-width="168" show-overflow-tooltip />
+          <el-table-column label="状态" width="74">
+            <template #default="{ row }">
+              <el-tag :type="row.status === 'active' ? 'success' : 'info'" size="small">
+                {{ row.status === "active" ? "有效" : "作废" }}
+              </el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column label="操作" width="126">
+            <template #default="{ row }">
+              <el-space wrap size="small">
+                <el-button v-if="row.pdfFile" text type="primary" @click="previewReceipt(row.pdfFile.id)">查看</el-button>
+                <el-button v-if="row.status === 'active'" text type="danger" @click="voidReceipt(row.id)">
+                  作废
+                </el-button>
+              </el-space>
+            </template>
+          </el-table-column>
+        </el-table>
+      </div>
     </section>
+
+    <el-dialog v-model="previewVisible" title="收据 PDF" width="960px">
+      <iframe v-if="previewFileId" class="file-preview-frame" :src="apiFileUrl(previewFileId)" />
+      <template #footer>
+        <el-button @click="previewVisible = false">关闭</el-button>
+      </template>
+    </el-dialog>
   </AppShell>
 </template>
 
@@ -63,6 +72,8 @@ import { formatCurrency } from "../utils/format";
 
 const loading = ref(false);
 const receipts = ref<Receipt[]>([]);
+const previewVisible = ref(false);
+const previewFileId = ref("");
 
 onMounted(loadReceipts);
 
@@ -78,7 +89,8 @@ async function loadReceipts() {
 }
 
 function previewReceipt(fileId: string) {
-  window.open(apiFileUrl(fileId), "_blank");
+  previewFileId.value = fileId;
+  previewVisible.value = true;
 }
 
 async function voidReceipt(receiptId: string) {
