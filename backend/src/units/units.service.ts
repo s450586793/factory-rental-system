@@ -5,17 +5,14 @@ import {
 } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
 import { QueryFailedError, Repository } from "typeorm";
+import { formatShanghaiDate } from "../common/date/shanghai-date";
 import { Contract, ContractStatus } from "../contracts/contract.entity";
 import { UtilityMeterConfig } from "../utilities/utility-meter-config.entity";
 import { CreateUnitDto, UpdateUnitDto } from "./units.dto";
 import { FactoryUnit } from "./factory-unit.entity";
 
 function today() {
-  const now = new Date();
-  const year = now.getFullYear();
-  const month = String(now.getMonth() + 1).padStart(2, "0");
-  const day = String(now.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
+  return formatShanghaiDate();
 }
 
 const EXPIRING_DAYS_THRESHOLD = 45;
@@ -27,6 +24,17 @@ function parseIsoDate(dateString: string) {
 
 function daysUntil(dateString: string) {
   return Math.floor((parseIsoDate(dateString) - parseIsoDate(today())) / 86400000);
+}
+
+function resolveContractStatus(startDate: string, endDate: string) {
+  const currentDate = today();
+  if (startDate > currentDate) {
+    return ContractStatus.FUTURE;
+  }
+  if (endDate < currentDate) {
+    return ContractStatus.EXPIRED;
+  }
+  return ContractStatus.ACTIVE;
 }
 
 @Injectable()
@@ -177,7 +185,7 @@ export class UnitsService {
             annualRent: activeContract.annualRent,
             paidAmount: this.resolvePaidAmount(activeContract),
             outstandingAmount: this.resolveOutstandingAmount(activeContract),
-            status: activeContract.status,
+            status: resolveContractStatus(activeContract.startDate, activeContract.endDate),
           }
         : null,
       contractCount: (unit.contracts ?? []).length,
@@ -199,7 +207,7 @@ export class UnitsService {
       annualRent: contract.annualRent,
       paidAmount: this.resolvePaidAmount(contract),
       outstandingAmount: this.resolveOutstandingAmount(contract),
-      status: contract.status,
+      status: resolveContractStatus(contract.startDate, contract.endDate),
       businessLicenseFileId: contract.businessLicenseFileId,
       businessLicenseFile: contract.businessLicenseFile,
       attachmentFiles: contract.attachmentFiles,
@@ -208,11 +216,7 @@ export class UnitsService {
 
   private resolveActiveContract(contracts: Contract[]) {
     const now = today();
-    const activeContracts = contracts.filter(
-      (contract) =>
-        contract.status === ContractStatus.ACTIVE ||
-        (contract.startDate <= now && contract.endDate >= now),
-    );
+    const activeContracts = contracts.filter((contract) => contract.startDate <= now && contract.endDate >= now);
 
     return activeContracts.sort((a, b) => b.startDate.localeCompare(a.startDate))[0] ?? null;
   }

@@ -8,6 +8,7 @@ import { InjectRepository } from "@nestjs/typeorm";
 import { mkdir, rm, writeFile } from "fs/promises";
 import { join } from "path";
 import { In, Repository } from "typeorm";
+import { formatShanghaiDate } from "../common/date/shanghai-date";
 import type { StorageConfig } from "../config/storage.config";
 import { FilesService } from "../files/files.service";
 import { StoredFileCategory } from "../files/stored-file.entity";
@@ -21,7 +22,7 @@ import { Contract, ContractStatus } from "./contract.entity";
 import { CreateContractDto, UpdateContractDto } from "./contracts.dto";
 
 function resolveContractStatus(startDate: string, endDate: string) {
-  const today = new Date().toISOString().slice(0, 10);
+  const today = formatShanghaiDate();
   if (startDate > today) {
     return ContractStatus.FUTURE;
   }
@@ -134,7 +135,7 @@ export class ContractsService {
     await mkdir(this.tempRoot, { recursive: true });
     const filename = buildGeneratedContractFilename(contract, unit);
     const tempPath = join(this.tempRoot, filename);
-    const generatedDate = new Date().toISOString().slice(0, 10);
+    const generatedDate = formatShanghaiDate();
     const content = buildContractDocumentHtml({
       contract,
       unit,
