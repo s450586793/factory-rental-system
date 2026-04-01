@@ -30,6 +30,11 @@ export class ContractsController {
     return this.contractsService.update(id, dto);
   }
 
+  @Post(":id/generate-document")
+  generateDocument(@Param("id") id: string) {
+    return this.contractsService.generateDocument(id);
+  }
+
   @Delete(":id")
   remove(@Param("id") id: string) {
     return this.contractsService.remove(id);

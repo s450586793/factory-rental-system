@@ -10,6 +10,7 @@ import { access, mkdir, rm } from "fs/promises";
 import { createWriteStream } from "fs";
 import { join } from "path";
 import { Repository } from "typeorm";
+import { toChineseCurrencyUppercase } from "../common/format/chinese-currency";
 import type { StorageConfig } from "../config/storage.config";
 import { StoredFileCategory } from "../files/stored-file.entity";
 import { FilesService } from "../files/files.service";
@@ -24,10 +25,17 @@ type ReceiptSourcePayload = {
   unitCode: string;
   summary: string;
   paymentDate: string;
+  paymentMethod: string;
+  reason: string;
 };
 
 function today() {
   return new Date().toISOString().slice(0, 10);
+}
+
+function formatChineseDate(value: string) {
+  const [year = "", month = "", day = ""] = value.split("-");
+  return `${year}年${Number(month || 0)}月${Number(day || 0)}日`;
 }
 
 @Injectable()
@@ -128,6 +136,8 @@ export class ReceiptsService {
         unitCode: record.unit.code,
         summary: `${record.type === "electric" ? "电费" : "水费"}，抄表日期 ${record.previousReadAt} 至 ${record.currentReadAt}`,
         paymentDate: record.paidAt ?? record.recordedAt,
+        paymentMethod: record.paymentMethod?.trim() || "未填写",
+        reason: `${record.type === "electric" ? "电费" : "水费"}结算（${record.previousReadAt} 至 ${record.currentReadAt}）`,
       };
     }
 
@@ -142,6 +152,8 @@ export class ReceiptsService {
       unitCode: rentPayment.unit.code,
       summary: `房租收款，付款方式 ${rentPayment.method}`,
       paymentDate: rentPayment.paymentDate,
+      paymentMethod: rentPayment.method.trim(),
+      reason: `房租收款（${rentPayment.contract.startDate} 至 ${rentPayment.contract.endDate}）`,
     };
   }
 
@@ -170,8 +182,9 @@ export class ReceiptsService {
     payload: ReceiptSourcePayload & { receiptNo: string; issueDate: string },
   ) {
     const doc = new PDFDocument({
-      size: "A4",
-      margin: 48,
+      size: "A5",
+      layout: "landscape",
+      margin: 36,
     });
     const stream = createWriteStream(targetPath);
     const fontPath = await this.resolveFontPath();
@@ -181,21 +194,88 @@ export class ReceiptsService {
       doc.font(fontPath);
     }
 
-    doc.fontSize(22).text("厂房出租管理收据", { align: "center" });
-    doc.moveDown(1.2);
-    doc.fontSize(12).text(`收据编号：${payload.receiptNo}`);
-    doc.text(`开具日期：${payload.issueDate}`);
-    doc.text(`厂房编号：${payload.unitCode}`);
-    doc.text(`租户：${payload.tenantName}`);
-    doc.text(`缴费日期：${payload.paymentDate}`);
-    doc.moveDown();
-    doc.text(`摘要：${payload.summary}`);
-    doc.moveDown();
-    doc.fontSize(18).text(`金额：人民币 ${payload.amount.toFixed(2)} 元`, {
-      align: "left",
+    const pageWidth = doc.page.width;
+    const boxX = 56;
+    const boxY = 132;
+    const boxWidth = pageWidth - boxX * 2;
+    const boxHeight = 176;
+    const amountBoxWidth = 176;
+    const amountBoxHeight = 58;
+    const amountBoxX = boxX + boxWidth - amountBoxWidth - 18;
+    const amountBoxY = boxY + 54;
+
+    doc.fillColor("#111111");
+    doc.fontSize(24).text("收    据", 0, 28, { align: "center" });
+    doc
+      .moveTo(boxX + 70, 66)
+      .lineTo(pageWidth - boxX - 140, 66)
+      .lineWidth(1)
+      .stroke("#222222");
+
+    doc.fillColor("#2c79c1").fontSize(28).text(payload.receiptNo, pageWidth - 170, 74, {
+      width: 120,
+      align: "right",
     });
-    doc.moveDown(2);
-    doc.fontSize(12).text("说明：本收据由系统根据已缴费记录生成，用于管理留档与打印。");
+
+    doc.fillColor("#111111").fontSize(15).text(`入账日期：${formatChineseDate(payload.issueDate)}`, 0, 95, {
+      align: "center",
+    });
+
+    doc.rect(boxX, boxY, boxWidth, boxHeight).lineWidth(1).stroke("#222222");
+
+    doc.fontSize(15).text("交款单位", boxX + 20, boxY + 22);
+    doc
+      .moveTo(boxX + 102, boxY + 42)
+      .lineTo(boxX + 334, boxY + 42)
+      .stroke("#222222");
+    doc.text(payload.tenantName, boxX + 110, boxY + 16, {
+      width: 220,
+    });
+
+    doc.fontSize(15).text("收款方式", boxX + 362, boxY + 22);
+    doc
+      .moveTo(boxX + 452, boxY + 42)
+      .lineTo(boxX + boxWidth - 20, boxY + 42)
+      .stroke("#222222");
+    doc.text(payload.paymentMethod, boxX + 462, boxY + 16, {
+      width: 130,
+      align: "center",
+    });
+
+    doc.fontSize(15).text("人民币（大写）", boxX + 20, boxY + 82);
+    doc
+      .moveTo(boxX + 134, boxY + 102)
+      .lineTo(amountBoxX - 16, boxY + 102)
+      .stroke("#222222");
+    doc.text(toChineseCurrencyUppercase(payload.amount), boxX + 145, boxY + 76, {
+      width: amountBoxX - boxX - 176,
+    });
+
+    doc.fontSize(20).fillColor("#111111").text("￥", amountBoxX - 24, amountBoxY + 16);
+    doc.rect(amountBoxX, amountBoxY, amountBoxWidth, amountBoxHeight).stroke("#d7d7d7");
+    for (let row = 1; row < 8; row += 1) {
+      const y = amountBoxY + row * (amountBoxHeight / 8);
+      doc.moveTo(amountBoxX, y).lineTo(amountBoxX + amountBoxWidth, y).stroke("#e9e9e9");
+    }
+    doc.fillColor("#df1e1e").fontSize(28).text(payload.amount.toFixed(2), amountBoxX + 16, amountBoxY + 14, {
+      width: amountBoxWidth - 24,
+      align: "center",
+    });
+
+    doc.fillColor("#111111").fontSize(15).text("收款事由", boxX + 20, boxY + 138);
+    doc
+      .moveTo(boxX + 102, boxY + 158)
+      .lineTo(boxX + boxWidth - 20, boxY + 158)
+      .stroke("#222222");
+    doc.text(payload.reason, boxX + 110, boxY + 132, {
+      width: boxWidth - 144,
+    });
+
+    doc.fontSize(18).text(formatChineseDate(payload.issueDate), boxX + boxWidth - 190, boxY + boxHeight - 42, {
+      width: 150,
+      align: "right",
+    });
+
     doc.end();
 
     await new Promise<void>((resolve, reject) => {

@@ -56,6 +56,10 @@ export const contractsApi = {
       method: "PATCH",
       body: JSON.stringify(payload),
     }),
+  generateDocument: (id: string) =>
+    apiFetch<{ file: StoredFile; contract: Contract }>(`/contracts/${id}/generate-document`, {
+      method: "POST",
+    }),
   remove: (id: string) =>
     apiFetch<{ success: boolean }>(`/contracts/${id}`, {
       method: "DELETE",

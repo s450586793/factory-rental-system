@@ -3,10 +3,20 @@ import {
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
 import { InjectRepository } from "@nestjs/typeorm";
+import { mkdir, rm, writeFile } from "fs/promises";
+import { join } from "path";
 import { In, Repository } from "typeorm";
+import type { StorageConfig } from "../config/storage.config";
 import { FilesService } from "../files/files.service";
+import { StoredFileCategory } from "../files/stored-file.entity";
 import { FactoryUnit } from "../units/factory-unit.entity";
+import {
+  buildContractDocumentHtml,
+  buildGeneratedContractFilename,
+  GENERATED_CONTRACT_PREFIX,
+} from "./contract-document";
 import { Contract, ContractStatus } from "./contract.entity";
 import { CreateContractDto, UpdateContractDto } from "./contracts.dto";
 
@@ -23,13 +33,19 @@ function resolveContractStatus(startDate: string, endDate: string) {
 
 @Injectable()
 export class ContractsService {
+  private readonly tempRoot: string;
+
   constructor(
     @InjectRepository(Contract)
     private readonly contractsRepository: Repository<Contract>,
     @InjectRepository(FactoryUnit)
     private readonly unitsRepository: Repository<FactoryUnit>,
     private readonly filesService: FilesService,
-  ) {}
+    configService: ConfigService,
+  ) {
+    const storageRoot = configService.getOrThrow<StorageConfig>("storage").root;
+    this.tempRoot = join(storageRoot, "tmp", "contracts");
+  }
 
   async list(unitId?: string) {
     return this.contractsRepository.find({
@@ -102,6 +118,58 @@ export class ContractsService {
     await this.findOneOrFail(id);
     await this.contractsRepository.softDelete(id);
     return { success: true };
+  }
+
+  async generateDocument(id: string) {
+    const contract = await this.findOneOrFail(id);
+    const unit = await this.unitsRepository.findOne({
+      where: { id: contract.unitId },
+      relations: { meterConfigs: true },
+    });
+
+    if (!unit) {
+      throw new BadRequestException("厂房不存在");
+    }
+
+    await mkdir(this.tempRoot, { recursive: true });
+    const filename = buildGeneratedContractFilename(contract, unit);
+    const tempPath = join(this.tempRoot, filename);
+    const generatedDate = new Date().toISOString().slice(0, 10);
+    const content = buildContractDocumentHtml({
+      contract,
+      unit,
+      generatedDate,
+    });
+
+    await writeFile(tempPath, Buffer.from(content, "utf8"));
+    const generatedFile = await this.filesService.registerGeneratedFile({
+      filename,
+      mimeType: "application/msword",
+      category: StoredFileCategory.CONTRACT_ATTACHMENT,
+      sourcePath: tempPath,
+    });
+    await rm(tempPath, { force: true });
+
+    const oldGeneratedFiles = contract.attachmentFiles.filter((file) =>
+      file.originalName.startsWith(GENERATED_CONTRACT_PREFIX),
+    );
+    contract.attachmentFiles = [
+      ...contract.attachmentFiles.filter((file) => !file.originalName.startsWith(GENERATED_CONTRACT_PREFIX)),
+      generatedFile,
+    ];
+
+    const savedContract = await this.contractsRepository.save(contract);
+
+    await Promise.all(
+      oldGeneratedFiles
+        .filter((file) => file.id !== generatedFile.id)
+        .map((file) => this.filesService.removeStoredFile(file.id).catch(() => undefined)),
+    );
+
+    return {
+      file: generatedFile,
+      contract: savedContract,
+    };
   }
 
   private async ensureUnitExists(unitId: string) {

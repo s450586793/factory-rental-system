@@ -510,6 +510,7 @@
 
       <template #footer>
         <el-button @click="contractDialogVisible = false">取消</el-button>
+        <el-button :loading="submittingContract" @click="saveContract(true)">保存并生成合同</el-button>
         <el-button type="primary" :loading="submittingContract" @click="saveContract">保存合同</el-button>
       </template>
     </el-dialog>
@@ -837,7 +838,17 @@ function downloadPreviewFile() {
     return;
   }
 
-  window.open(apiFileUrl(previewFile.value.id), "_self");
+  triggerFileDownload(previewFile.value.id, previewFile.value.originalName);
+}
+
+function triggerFileDownload(fileId: string, filename: string) {
+  const anchor = document.createElement("a");
+  anchor.href = apiFileUrl(fileId);
+  anchor.download = filename;
+  anchor.rel = "noopener";
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
 }
 
 function handleUnitContractStartDateChange() {
@@ -1049,13 +1060,14 @@ function removeAttachment(fileId: string) {
   contractForm.attachmentFileIds = contractForm.attachmentFileIds.filter((item) => item !== fileId);
 }
 
-async function saveContract() {
+async function saveContract(generateDocumentAfterSave = false) {
   if (!selectedUnit.value) {
     return;
   }
 
   try {
     submittingContract.value = true;
+    const isEditing = Boolean(contractForm.id);
     validateContractForm();
 
     let businessLicenseFileId = contractForm.businessLicenseFileId || "";
@@ -1083,16 +1095,38 @@ async function saveContract() {
       attachmentFileIds,
     };
 
-    if (contractForm.id) {
-      await contractsApi.update(contractForm.id, payload);
-      ElMessage.success("合同已更新");
+    let savedContract: Contract;
+    if (isEditing) {
+      savedContract = await contractsApi.update(contractForm.id, payload);
     } else {
-      await contractsApi.create(payload);
-      ElMessage.success("合同已新增");
+      savedContract = await contractsApi.create(payload);
+    }
+
+    let generatedFile: StoredFile | null = null;
+    if (generateDocumentAfterSave) {
+      try {
+        const generated = await contractsApi.generateDocument(savedContract.id);
+        generatedFile = generated.file;
+      } catch (error) {
+        contractDialogVisible.value = false;
+        await Promise.all([refreshSelectedUnit(), loadUnits()]);
+        ElMessage.warning(
+          error instanceof Error
+            ? `合同已保存，但 Word 合同生成失败：${error.message}`
+            : "合同已保存，但 Word 合同生成失败",
+        );
+        return;
+      }
     }
 
     contractDialogVisible.value = false;
     await Promise.all([refreshSelectedUnit(), loadUnits()]);
+    if (generatedFile) {
+      triggerFileDownload(generatedFile.id, generatedFile.originalName);
+      ElMessage.success(isEditing ? "合同已更新并已生成合同文件" : "合同已新增并已生成合同文件");
+    } else {
+      ElMessage.success(isEditing ? "合同已更新" : "合同已新增");
+    }
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : "保存合同失败");
   } finally {
