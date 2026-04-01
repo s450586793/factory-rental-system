@@ -8,13 +8,6 @@
     </template>
 
     <section class="panel-card page-panel">
-      <div class="page-header">
-        <div>
-          <h2>厂房管理</h2>
-          <p>维护厂房基础资料、当前在租状态、合同历史和水电表配置。</p>
-        </div>
-      </div>
-
       <div class="stats-row units-stats-row">
         <div class="stat-item">
           <small>厂房总数</small>
@@ -40,10 +33,6 @@
             </button>
           </div>
           <strong>{{ rentSumVisible ? formatCurrency(activeRentSum) : "*****" }}</strong>
-        </div>
-        <div class="stat-item stat-item-sensitive">
-          <small>当前欠费合计</small>
-          <strong>{{ displayRentAmount(currentOutstandingSum) }}</strong>
         </div>
       </div>
     </section>
@@ -685,9 +674,6 @@ const vacantCount = computed(() => units.value.filter((item) => item.status === 
 const expiringCount = computed(() => units.value.filter((item) => item.status === "expiring").length);
 const activeRentSum = computed(() =>
   units.value.reduce((sum, item) => sum + Number(item.activeContract?.annualRent ?? 0), 0),
-);
-const currentOutstandingSum = computed(() =>
-  units.value.reduce((sum, item) => sum + Number(item.activeContract?.outstandingAmount ?? 0), 0),
 );
 const actionColumnFixed = computed<false | "right">(() => (viewportWidth.value < 768 ? false : "right"));
 
