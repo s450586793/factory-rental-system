@@ -17,6 +17,7 @@ import { StoredFileCategory } from "../files/stored-file.entity";
 import { FilesService } from "../files/files.service";
 import { RentPayment } from "../rent-payments/rent-payment.entity";
 import { UtilityChargeRecord, UtilityChargeStatus } from "../utilities/utility-charge-record.entity";
+import { convertDocxToPdf, renderReceiptTemplateDocx } from "./receipt-template";
 import { CreateReceiptDto } from "./receipts.dto";
 import { Receipt, ReceiptSourceType, ReceiptStatus } from "./receipt.entity";
 
@@ -42,6 +43,7 @@ function formatChineseDate(value: string) {
 @Injectable()
 export class ReceiptsService {
   private readonly tempRoot: string;
+  private readonly templatePath: string;
 
   constructor(
     @InjectRepository(Receipt)
@@ -55,6 +57,7 @@ export class ReceiptsService {
   ) {
     const storageRoot = this.configService.getOrThrow<StorageConfig>("storage").root;
     this.tempRoot = join(storageRoot, "tmp");
+    this.templatePath = join(__dirname, "..", "..", "assets", "templates", "receipt-template.docx");
   }
 
   list() {
@@ -80,21 +83,37 @@ export class ReceiptsService {
     const source = await this.resolveSource(dto.sourceType, dto.sourceId);
     const receiptNo = await this.generateReceiptNo(issueDate);
 
-    await mkdir(this.tempRoot, { recursive: true });
-    const tempPath = join(this.tempRoot, `${receiptNo}.pdf`);
-    await this.generatePdf(tempPath, {
-      receiptNo,
-      issueDate,
-      ...source,
-    });
+    const tempDir = join(this.tempRoot, "receipts", receiptNo);
+    const tempDocxPath = join(tempDir, `${receiptNo}.docx`);
+    const tempPdfPath = join(tempDir, `${receiptNo}.pdf`);
+    const libreOfficeProfile = join(tempDir, "libreoffice-profile");
 
-    const pdfFile = await this.filesService.registerGeneratedFile({
-      filename: `${receiptNo}.pdf`,
-      mimeType: "application/pdf",
-      category: StoredFileCategory.RECEIPT,
-      sourcePath: tempPath,
-    });
-    await rm(tempPath, { force: true });
+    await mkdir(tempDir, { recursive: true });
+    let pdfFile;
+    try {
+      try {
+        await this.generateTemplatePdf(tempDocxPath, tempPdfPath, libreOfficeProfile, {
+          receiptNo,
+          issueDate,
+          ...source,
+        });
+      } catch {
+        await this.generateFallbackPdf(tempPdfPath, {
+          receiptNo,
+          issueDate,
+          ...source,
+        });
+      }
+
+      pdfFile = await this.filesService.registerGeneratedFile({
+        filename: `${receiptNo}.pdf`,
+        mimeType: "application/pdf",
+        category: StoredFileCategory.RECEIPT,
+        sourcePath: tempPdfPath,
+      });
+    } finally {
+      await rm(tempDir, { recursive: true, force: true });
+    }
 
     const entity = this.receiptsRepository.create({
       receiptNo,
@@ -178,7 +197,17 @@ export class ReceiptsService {
     return `RC${datePart}-${String(count + 1).padStart(3, "0")}`;
   }
 
-  private async generatePdf(
+  private async generateTemplatePdf(
+    targetDocxPath: string,
+    targetPdfPath: string,
+    libreOfficeProfile: string,
+    payload: ReceiptSourcePayload & { receiptNo: string; issueDate: string },
+  ) {
+    await renderReceiptTemplateDocx(this.templatePath, targetDocxPath, payload);
+    await convertDocxToPdf(targetDocxPath, targetPdfPath, libreOfficeProfile);
+  }
+
+  private async generateFallbackPdf(
     targetPath: string,
     payload: ReceiptSourcePayload & { receiptNo: string; issueDate: string },
   ) {
