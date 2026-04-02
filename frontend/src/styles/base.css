@@ -446,7 +446,20 @@ a {
 }
 
 .units-stats-row {
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.units-stats-row .stat-item {
+  padding: 16px 14px;
+}
+
+.units-stats-row .stat-item-head {
+  gap: 8px;
+}
+
+.units-stats-row .stat-item strong {
+  font-size: 22px;
 }
 
 .table-shell {

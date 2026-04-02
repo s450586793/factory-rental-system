@@ -25,6 +25,8 @@ export type ReceiptTemplatePayload = {
   summary: string;
 };
 
+const RECEIPT_OPERATOR_NAME = "吴孝斌";
+
 function formatChineseDate(value: string) {
   const [year = "", month = "", day = ""] = value.split("-");
   return `${year}年${Number(month || 0)}月${Number(day || 0)}日`;
@@ -115,44 +117,8 @@ function tableCell(table: XmlElement, rowIndex: number, cellIndex: number) {
   return cell;
 }
 
-function normalizePaymentMethod(value: string) {
-  const source = value.trim();
-
-  if (!source) {
-    return { selected: "other", otherLabel: "" };
-  }
-
-  if (source.includes("微信")) {
-    return { selected: "wechat", otherLabel: "" };
-  }
-  if (source.includes("支付宝")) {
-    return { selected: "alipay", otherLabel: "" };
-  }
-  if (source.includes("现金")) {
-    return { selected: "cash", otherLabel: "" };
-  }
-  if (source.includes("转账") || source.includes("银行") || source.includes("卡")) {
-    return { selected: "transfer", otherLabel: "" };
-  }
-
-  return { selected: "other", otherLabel: source };
-}
-
 function buildPaymentMethodText(value: string) {
-  const normalized = normalizePaymentMethod(value);
-  const option = (key: string, label: string) => `${normalized.selected === key ? "■" : "□"}${label}`;
-  const otherText =
-    normalized.selected === "other" && normalized.otherLabel
-      ? normalized.otherLabel
-      : "________";
-
-  return [
-    option("cash", "现金"),
-    option("transfer", "转账"),
-    option("alipay", "支付宝"),
-    option("wechat", "微信"),
-    `${option("other", "其他")}${otherText}`,
-  ].join("  ");
+  return value.trim() || "未填写";
 }
 
 function fillReceiptTemplate(document: XmlDocument, payload: ReceiptTemplatePayload) {
@@ -164,7 +130,7 @@ function fillReceiptTemplate(document: XmlDocument, payload: ReceiptTemplatePayl
 
   const footerParagraph = paragraphs.find((paragraph) => nodeText(paragraph).startsWith("收款单位："));
   if (footerParagraph) {
-    setParagraphText(document, footerParagraph, "收款单位：____________");
+    setParagraphText(document, footerParagraph, `收款单位：${RECEIPT_OPERATOR_NAME}`);
   }
 
   const table = document.getElementsByTagNameNS(WORD_NS, "tbl")[0];
@@ -177,7 +143,7 @@ function fillReceiptTemplate(document: XmlDocument, payload: ReceiptTemplatePayl
   setParagraphText(document, tableCell(table, 1, 1), payload.tenantName.trim());
   setParagraphText(document, tableCell(table, 2, 1), payload.reason.trim());
   setParagraphText(document, tableCell(table, 3, 1), buildPaymentMethodText(payload.paymentMethod));
-  setParagraphText(document, tableCell(table, 4, 1), "");
+  setParagraphText(document, tableCell(table, 4, 1), RECEIPT_OPERATOR_NAME);
   setParagraphText(document, tableCell(table, 4, 3), payload.amount.toFixed(2));
   setParagraphText(document, tableCell(table, 5, 1), toChineseCurrencyUppercase(payload.amount));
 }

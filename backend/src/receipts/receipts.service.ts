@@ -31,6 +31,8 @@ type ReceiptSourcePayload = {
   reason: string;
 };
 
+const RECEIPT_OPERATOR_NAME = "吴孝斌";
+
 function today() {
   return formatShanghaiDate();
 }
@@ -233,12 +235,17 @@ export class ReceiptsService {
     const amountBoxHeight = 58;
     const amountBoxX = boxX + boxWidth - amountBoxWidth - 34;
     const amountBoxY = boxY + 58;
-    const paymentMethodLineStartX = boxX + 458;
+    const paymentMethodLabelX = boxX + 332;
+    const paymentMethodLineStartX = paymentMethodLabelX + 92;
     const paymentMethodLineEndX = boxX + boxWidth - 22;
-    const dateTextWidth = 160;
-    const dateTextX = boxX + boxWidth - dateTextWidth - 24;
-    const dateTextY = boxY + boxHeight - 34;
-    const reasonLineEndX = dateTextX - 22;
+    const footerY = boxY + boxHeight + 18;
+    const footerLineWidth = 86;
+    const footerUnitTextX = boxX;
+    const footerUnitLineX = footerUnitTextX + 88;
+    const footerReceiverTextX = boxX + 200;
+    const footerReceiverLineX = footerReceiverTextX + 62;
+    const footerDateX = boxX + boxWidth - 136;
+    const reasonLineEndX = amountBoxX - 34;
 
     doc.fillColor("#111111");
     doc.fontSize(24).text("收    据", 0, 28, { align: "center" });
@@ -248,9 +255,10 @@ export class ReceiptsService {
       .lineWidth(1)
       .stroke("#222222");
 
-    doc.fillColor("#2c79c1").fontSize(16).text(payload.receiptNo, pageWidth - 182, 84, {
-      width: 150,
+    doc.fillColor("#2c79c1").fontSize(12).text(payload.receiptNo, pageWidth - 228, 92, {
+      width: 196,
       align: "right",
+      lineBreak: false,
     });
 
     doc.fillColor("#111111").fontSize(15).text(`入账日期：${formatChineseDate(payload.issueDate)}`, 0, 95, {
@@ -268,7 +276,7 @@ export class ReceiptsService {
       width: 220,
     });
 
-    doc.fontSize(15).text("收款方式", boxX + 362, boxY + 22);
+    doc.fontSize(15).text("收款方式", paymentMethodLabelX, boxY + 22);
     doc
       .moveTo(paymentMethodLineStartX, boxY + 42)
       .lineTo(paymentMethodLineEndX, boxY + 42)
@@ -276,6 +284,7 @@ export class ReceiptsService {
     doc.text(payload.paymentMethod, paymentMethodLineStartX + 10, boxY + 16, {
       width: paymentMethodLineEndX - paymentMethodLineStartX - 20,
       align: "left",
+      lineBreak: false,
     });
 
     doc.fontSize(15).text("人民币（大写）", boxX + 20, boxY + 82);
@@ -304,12 +313,30 @@ export class ReceiptsService {
       .lineTo(reasonLineEndX, boxY + 158)
       .stroke("#222222");
     doc.text(payload.reason, boxX + 110, boxY + 132, {
-      width: reasonLineEndX - boxX - 116,
+      width: reasonLineEndX - boxX - 122,
+      lineBreak: false,
     });
 
-    doc.fontSize(13).text(formatChineseDate(payload.issueDate), dateTextX, dateTextY, {
-      width: dateTextWidth,
+    doc.fontSize(13).text(`收款单位：${RECEIPT_OPERATOR_NAME}`, footerUnitTextX, footerY, {
+      width: 170,
+      lineBreak: false,
+    });
+    doc
+      .moveTo(footerUnitLineX, footerY + 17)
+      .lineTo(footerUnitLineX + footerLineWidth, footerY + 17)
+      .stroke("#222222");
+    doc.fontSize(13).text(`收款人：${RECEIPT_OPERATOR_NAME}`, footerReceiverTextX, footerY, {
+      width: 148,
+      lineBreak: false,
+    });
+    doc
+      .moveTo(footerReceiverLineX, footerY + 17)
+      .lineTo(footerReceiverLineX + footerLineWidth, footerY + 17)
+      .stroke("#222222");
+    doc.fontSize(13).text(formatChineseDate(payload.issueDate), footerDateX, footerY, {
+      width: 136,
       align: "right",
+      lineBreak: false,
     });
 
     doc.end();
