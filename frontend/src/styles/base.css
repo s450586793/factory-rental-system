@@ -447,19 +447,24 @@ a {
 
 .units-stats-row {
   grid-template-columns: repeat(6, minmax(0, 1fr));
-  gap: 10px;
-}
-
-.units-stats-row .stat-item {
-  padding: 16px 14px;
-}
-
-.units-stats-row .stat-item-head {
   gap: 8px;
 }
 
+.units-stats-row .stat-item {
+  min-width: 0;
+  padding: 14px 12px;
+}
+
+.units-stats-row .stat-item-head {
+  gap: 6px;
+}
+
+.units-stats-row .stat-item small {
+  font-size: 13px;
+}
+
 .units-stats-row .stat-item strong {
-  font-size: 22px;
+  font-size: 20px;
 }
 
 .table-shell {

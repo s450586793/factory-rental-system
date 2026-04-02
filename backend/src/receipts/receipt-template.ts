@@ -27,11 +27,6 @@ export type ReceiptTemplatePayload = {
 
 const RECEIPT_OPERATOR_NAME = "吴孝斌";
 
-function formatChineseDate(value: string) {
-  const [year = "", month = "", day = ""] = value.split("-");
-  return `${year}年${Number(month || 0)}月${Number(day || 0)}日`;
-}
-
 function elementChildren(node: XmlNode, localName?: string) {
   const children: XmlElement[] = [];
   for (let index = 0; index < node.childNodes.length; index += 1) {
@@ -45,6 +40,10 @@ function elementChildren(node: XmlNode, localName?: string) {
     }
   }
   return children;
+}
+
+function firstElementChild(node: XmlNode, localName: string) {
+  return elementChildren(node, localName)[0] ?? null;
 }
 
 function nodeText(node: XmlNode) {
@@ -80,7 +79,61 @@ function ensureParagraph(document: XmlDocument, cellOrParagraph: XmlElement) {
   return created;
 }
 
-function setParagraphText(document: XmlDocument, paragraphOrCell: XmlElement, value: string) {
+function ensureParagraphProps(document: XmlDocument, paragraph: XmlElement) {
+  let paragraphProps = firstElementChild(paragraph, "pPr");
+  if (!paragraphProps) {
+    paragraphProps = document.createElementNS(WORD_NS, "w:pPr");
+    if (paragraph.firstChild) {
+      paragraph.insertBefore(paragraphProps, paragraph.firstChild);
+    } else {
+      paragraph.appendChild(paragraphProps);
+    }
+  }
+  return paragraphProps;
+}
+
+function removeParagraphIndent(paragraph: XmlElement) {
+  const paragraphProps = firstElementChild(paragraph, "pPr");
+  if (!paragraphProps) {
+    return;
+  }
+  for (const child of elementChildren(paragraphProps, "ind")) {
+    paragraphProps.removeChild(child);
+  }
+}
+
+function ensureRunProps(document: XmlDocument, run: XmlElement) {
+  let runProps = firstElementChild(run, "rPr");
+  if (!runProps) {
+    runProps = document.createElementNS(WORD_NS, "w:rPr");
+    if (run.firstChild) {
+      run.insertBefore(runProps, run.firstChild);
+    } else {
+      run.appendChild(runProps);
+    }
+  }
+  return runProps;
+}
+
+function setRunFontSize(document: XmlDocument, run: XmlElement, size: number) {
+  const runProps = ensureRunProps(document, run);
+
+  for (const name of ["sz", "szCs"]) {
+    let node = firstElementChild(runProps, name);
+    if (!node) {
+      node = document.createElementNS(WORD_NS, `w:${name}`);
+      runProps.appendChild(node);
+    }
+    node.setAttributeNS(WORD_NS, "w:val", String(size));
+  }
+}
+
+function setParagraphText(
+  document: XmlDocument,
+  paragraphOrCell: XmlElement,
+  value: string,
+  options?: { fontSize?: number; removeIndent?: boolean },
+) {
   const paragraph = ensureParagraph(document, paragraphOrCell);
   const firstRun = elementChildren(paragraph, "r")[0];
   const runProps = firstRun ? elementChildren(firstRun, "rPr")[0]?.cloneNode(true) : null;
@@ -101,6 +154,25 @@ function setParagraphText(document: XmlDocument, paragraphOrCell: XmlElement, va
   textNode.appendChild(document.createTextNode(value));
   run.appendChild(textNode);
   paragraph.appendChild(run);
+
+  if (options?.removeIndent) {
+    removeParagraphIndent(paragraph);
+  }
+
+  if (options?.fontSize) {
+    setRunFontSize(document, run, options.fontSize);
+    const paragraphProps = ensureParagraphProps(document, paragraph);
+    for (const runProp of elementChildren(paragraphProps, "rPr")) {
+      for (const name of ["sz", "szCs"]) {
+        let node = firstElementChild(runProp, name);
+        if (!node) {
+          node = document.createElementNS(WORD_NS, `w:${name}`);
+          runProp.appendChild(node);
+        }
+        node.setAttributeNS(WORD_NS, "w:val", String(options.fontSize));
+      }
+    }
+  }
 }
 
 function tableCell(table: XmlElement, rowIndex: number, cellIndex: number) {
@@ -121,6 +193,11 @@ function buildPaymentMethodText(value: string) {
   return value.trim() || "未填写";
 }
 
+function buildInlineDateText(value: string) {
+  const [year = "", month = "", day = ""] = value.split("-");
+  return `${year} 年 ${Number(month || 0)} 月 ${Number(day || 0)} 日`;
+}
+
 function fillReceiptTemplate(document: XmlDocument, payload: ReceiptTemplatePayload) {
   const paragraphs = Array.from(document.getElementsByTagNameNS(WORD_NS, "p"));
   const noParagraph = paragraphs.find((paragraph) => nodeText(paragraph).startsWith("NO:"));
@@ -138,14 +215,20 @@ function fillReceiptTemplate(document: XmlDocument, payload: ReceiptTemplatePayl
     throw new Error("收据模板缺少内容表格");
   }
 
-  setParagraphText(document, tableCell(table, 0, 1), formatChineseDate(payload.issueDate));
+  setParagraphText(document, tableCell(table, 0, 1), buildInlineDateText(payload.issueDate), {
+    fontSize: 20,
+    removeIndent: true,
+  });
   setParagraphText(document, tableCell(table, 0, 3), payload.summary.trim());
   setParagraphText(document, tableCell(table, 1, 1), payload.tenantName.trim());
   setParagraphText(document, tableCell(table, 2, 1), payload.reason.trim());
   setParagraphText(document, tableCell(table, 3, 1), buildPaymentMethodText(payload.paymentMethod));
-  setParagraphText(document, tableCell(table, 4, 1), RECEIPT_OPERATOR_NAME);
-  setParagraphText(document, tableCell(table, 4, 3), payload.amount.toFixed(2));
-  setParagraphText(document, tableCell(table, 5, 1), toChineseCurrencyUppercase(payload.amount));
+  setParagraphText(document, tableCell(table, 4, 0), "金额（元）");
+  setParagraphText(document, tableCell(table, 4, 1), payload.amount.toFixed(2));
+  setParagraphText(document, tableCell(table, 4, 2), "人民币（大写）");
+  setParagraphText(document, tableCell(table, 4, 3), toChineseCurrencyUppercase(payload.amount));
+  setParagraphText(document, tableCell(table, 5, 0), "收款人");
+  setParagraphText(document, tableCell(table, 5, 1), RECEIPT_OPERATOR_NAME);
 }
 
 export async function renderReceiptTemplateDocx(
