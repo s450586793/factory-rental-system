@@ -195,7 +195,7 @@ function buildPaymentMethodText(value: string) {
 
 function buildInlineDateText(value: string) {
   const [year = "", month = "", day = ""] = value.split("-");
-  return `${year} 年 ${Number(month || 0)} 月 ${Number(day || 0)} 日`;
+  return `${year}年${Number(month || 0)}月${Number(day || 0)}日`;
 }
 
 function fillReceiptTemplate(document: XmlDocument, payload: ReceiptTemplatePayload) {
@@ -216,7 +216,7 @@ function fillReceiptTemplate(document: XmlDocument, payload: ReceiptTemplatePayl
   }
 
   setParagraphText(document, tableCell(table, 0, 1), buildInlineDateText(payload.issueDate), {
-    fontSize: 20,
+    fontSize: 18,
     removeIndent: true,
   });
   setParagraphText(document, tableCell(table, 0, 3), payload.summary.trim());

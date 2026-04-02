@@ -446,25 +446,34 @@ a {
 }
 
 .units-stats-row {
-  grid-template-columns: repeat(6, minmax(0, 1fr));
-  gap: 8px;
+  display: grid !important;
+  grid-template-columns: repeat(6, minmax(0, 1fr)) !important;
+  grid-auto-flow: row;
+  gap: 6px;
 }
 
 .units-stats-row .stat-item {
   min-width: 0;
-  padding: 14px 12px;
+  overflow: hidden;
+  padding: 12px 10px;
 }
 
 .units-stats-row .stat-item-head {
-  gap: 6px;
+  gap: 4px;
 }
 
 .units-stats-row .stat-item small {
-  font-size: 13px;
+  font-size: 12px;
+  white-space: nowrap;
 }
 
 .units-stats-row .stat-item strong {
-  font-size: 20px;
+  font-size: 18px;
+}
+
+.units-stats-row .stat-toggle-button {
+  white-space: nowrap;
+  font-size: 12px;
 }
 
 .table-shell {
