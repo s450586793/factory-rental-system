@@ -502,6 +502,30 @@ a {
   font-size: 12px;
 }
 
+.contracts-table .el-table__cell {
+  padding-top: 6px;
+  padding-bottom: 6px;
+}
+
+.contracts-table .cell {
+  padding-left: 4px;
+  padding-right: 4px;
+}
+
+.contracts-table .el-tag {
+  padding-inline: 6px;
+  font-size: 12px;
+}
+
+.contracts-table .file-chip-list {
+  gap: 4px;
+}
+
+.contracts-table .file-chip {
+  padding: 4px 8px;
+  font-size: 12px;
+}
+
 .rent-payments-table .el-table__cell {
   padding-top: 7px;
   padding-bottom: 7px;

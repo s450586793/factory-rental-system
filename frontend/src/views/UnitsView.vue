@@ -312,38 +312,38 @@
           </div>
 
           <div class="table-shell">
-            <el-table :data="selectedUnit.contracts">
-            <el-table-column prop="tenantName" label="公司名称" min-width="150" show-overflow-tooltip />
-            <el-table-column prop="contactName" label="负责人" min-width="110" show-overflow-tooltip />
-            <el-table-column prop="tenantPhone" label="电话" min-width="130" show-overflow-tooltip />
-            <el-table-column label="合同周期" min-width="210">
+            <el-table :data="selectedUnit.contracts" size="small" class="contracts-table">
+            <el-table-column prop="tenantName" label="公司名称" min-width="132" show-overflow-tooltip />
+            <el-table-column prop="contactName" label="负责人" width="92" show-overflow-tooltip />
+            <el-table-column prop="tenantPhone" label="电话" width="118" show-overflow-tooltip />
+            <el-table-column label="合同周期" min-width="176" show-overflow-tooltip>
               <template #default="{ row }">
-                {{ row.startDate }} 至 {{ row.endDate }}
+                {{ formatCompactContractPeriod(row.startDate, row.endDate) }}
               </template>
             </el-table-column>
-            <el-table-column label="应收" min-width="118">
+            <el-table-column label="应收" width="102">
               <template #default="{ row }">
                 {{ displayRentAmount(row.annualRent) }}
               </template>
             </el-table-column>
-            <el-table-column label="已收" min-width="118">
+            <el-table-column label="已收" width="102">
               <template #default="{ row }">
                 {{ displayRentAmount(row.paidAmount) }}
               </template>
             </el-table-column>
-            <el-table-column label="欠费" min-width="118">
+            <el-table-column label="欠费" width="102">
               <template #default="{ row }">
                 {{ displayRentAmount(row.outstandingAmount) }}
               </template>
             </el-table-column>
-            <el-table-column label="状态" width="120">
+            <el-table-column label="状态" width="92">
               <template #default="{ row }">
                 <el-tag :type="contractTagType(row.status)">
                   {{ contractStatusLabel(row.status) }}
                 </el-tag>
               </template>
             </el-table-column>
-            <el-table-column label="附件" min-width="220">
+            <el-table-column label="附件" min-width="148">
               <template #default="{ row }">
                 <div class="file-chip-list">
                   <button
@@ -366,7 +366,7 @@
                 </div>
               </template>
             </el-table-column>
-            <el-table-column label="操作" width="180">
+            <el-table-column label="操作" width="128">
               <template #default="{ row }">
                 <el-space wrap>
                   <el-button text @click="openEditContract(row)">编辑</el-button>
@@ -1266,6 +1266,11 @@ function formatArea(area: number | null | undefined) {
   }
 
   return `${new Intl.NumberFormat("zh-CN", { maximumFractionDigits: 2 }).format(Number(area))} ㎡`;
+}
+
+function formatCompactContractPeriod(startDate: string, endDate: string) {
+  const compact = (value: string) => value.replaceAll("-", ".");
+  return `${compact(startDate)}~${compact(endDate)}`;
 }
 
 function displayRentAmount(amount: number | null | undefined) {

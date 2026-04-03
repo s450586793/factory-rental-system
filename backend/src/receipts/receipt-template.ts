@@ -46,6 +46,14 @@ function firstElementChild(node: XmlNode, localName: string) {
   return elementChildren(node, localName)[0] ?? null;
 }
 
+function tableRow(table: XmlElement, rowIndex: number) {
+  const row = elementChildren(table, "tr")[rowIndex];
+  if (!row) {
+    throw new Error(`收据模板缺少第 ${rowIndex + 1} 行`);
+  }
+  return row;
+}
+
 function nodeText(node: XmlNode) {
   const segments: string[] = [];
   const collect = (current: XmlNode) => {
@@ -92,6 +100,32 @@ function ensureParagraphProps(document: XmlDocument, paragraph: XmlElement) {
   return paragraphProps;
 }
 
+function ensureTableRowProps(document: XmlDocument, row: XmlElement) {
+  let rowProps = firstElementChild(row, "trPr");
+  if (!rowProps) {
+    rowProps = document.createElementNS(WORD_NS, "w:trPr");
+    if (row.firstChild) {
+      row.insertBefore(rowProps, row.firstChild);
+    } else {
+      row.appendChild(rowProps);
+    }
+  }
+  return rowProps;
+}
+
+function ensureTableCellProps(document: XmlDocument, cell: XmlElement) {
+  let cellProps = firstElementChild(cell, "tcPr");
+  if (!cellProps) {
+    cellProps = document.createElementNS(WORD_NS, "w:tcPr");
+    if (cell.firstChild) {
+      cell.insertBefore(cellProps, cell.firstChild);
+    } else {
+      cell.appendChild(cellProps);
+    }
+  }
+  return cellProps;
+}
+
 function removeParagraphIndent(paragraph: XmlElement) {
   const paragraphProps = firstElementChild(paragraph, "pPr");
   if (!paragraphProps) {
@@ -126,6 +160,57 @@ function setRunFontSize(document: XmlDocument, run: XmlElement, size: number) {
     }
     node.setAttributeNS(WORD_NS, "w:val", String(size));
   }
+}
+
+function setParagraphSpacing(document: XmlDocument, paragraph: XmlElement, line: number) {
+  const paragraphProps = ensureParagraphProps(document, paragraph);
+  let spacing = firstElementChild(paragraphProps, "spacing");
+  if (!spacing) {
+    spacing = document.createElementNS(WORD_NS, "w:spacing");
+    paragraphProps.appendChild(spacing);
+  }
+  spacing.setAttributeNS(WORD_NS, "w:before", "0");
+  spacing.setAttributeNS(WORD_NS, "w:after", "0");
+  spacing.setAttributeNS(WORD_NS, "w:line", String(line));
+  spacing.setAttributeNS(WORD_NS, "w:lineRule", "auto");
+}
+
+function setTableRowHeight(document: XmlDocument, row: XmlElement, height: number) {
+  const rowProps = ensureTableRowProps(document, row);
+  let rowHeight = firstElementChild(rowProps, "trHeight");
+  if (!rowHeight) {
+    rowHeight = document.createElementNS(WORD_NS, "w:trHeight");
+    rowProps.appendChild(rowHeight);
+  }
+  rowHeight.setAttributeNS(WORD_NS, "w:val", String(height));
+  rowHeight.setAttributeNS(WORD_NS, "w:hRule", "atLeast");
+}
+
+function setTableCellVerticalAlign(document: XmlDocument, cell: XmlElement) {
+  const cellProps = ensureTableCellProps(document, cell);
+  let verticalAlign = firstElementChild(cellProps, "vAlign");
+  if (!verticalAlign) {
+    verticalAlign = document.createElementNS(WORD_NS, "w:vAlign");
+    cellProps.appendChild(verticalAlign);
+  }
+  verticalAlign.setAttributeNS(WORD_NS, "w:val", "center");
+}
+
+function normalizeTableTypography(document: XmlDocument, table: XmlElement, size: number) {
+  const rows = elementChildren(table, "tr");
+  rows.forEach((row, rowIndex) => {
+    setTableRowHeight(document, row, rowIndex === 0 ? 980 : 760);
+
+    for (const cell of elementChildren(row, "tc")) {
+      setTableCellVerticalAlign(document, cell);
+      for (const paragraph of elementChildren(cell, "p")) {
+        setParagraphSpacing(document, paragraph, 360);
+        for (const run of elementChildren(paragraph, "r")) {
+          setRunFontSize(document, run, size);
+        }
+      }
+    }
+  });
 }
 
 function setParagraphText(
@@ -173,13 +258,12 @@ function setParagraphText(
       }
     }
   }
+
+  setParagraphSpacing(document, paragraph, 360);
 }
 
 function tableCell(table: XmlElement, rowIndex: number, cellIndex: number) {
-  const row = elementChildren(table, "tr")[rowIndex];
-  if (!row) {
-    throw new Error(`收据模板缺少第 ${rowIndex + 1} 行`);
-  }
+  const row = tableRow(table, rowIndex);
 
   const cell = elementChildren(row, "tc")[cellIndex];
   if (!cell) {
@@ -215,20 +299,22 @@ function fillReceiptTemplate(document: XmlDocument, payload: ReceiptTemplatePayl
     throw new Error("收据模板缺少内容表格");
   }
 
+  normalizeTableTypography(document, table, 16);
+
   setParagraphText(document, tableCell(table, 0, 1), buildInlineDateText(payload.issueDate), {
-    fontSize: 18,
+    fontSize: 16,
     removeIndent: true,
   });
-  setParagraphText(document, tableCell(table, 0, 3), payload.summary.trim());
-  setParagraphText(document, tableCell(table, 1, 1), payload.tenantName.trim());
-  setParagraphText(document, tableCell(table, 2, 1), payload.reason.trim());
-  setParagraphText(document, tableCell(table, 3, 1), buildPaymentMethodText(payload.paymentMethod));
-  setParagraphText(document, tableCell(table, 4, 0), "金额（元）");
-  setParagraphText(document, tableCell(table, 4, 1), payload.amount.toFixed(2));
-  setParagraphText(document, tableCell(table, 4, 2), "人民币（大写）");
-  setParagraphText(document, tableCell(table, 4, 3), toChineseCurrencyUppercase(payload.amount));
-  setParagraphText(document, tableCell(table, 5, 0), "收款人");
-  setParagraphText(document, tableCell(table, 5, 1), RECEIPT_OPERATOR_NAME);
+  setParagraphText(document, tableCell(table, 0, 3), payload.summary.trim(), { fontSize: 16 });
+  setParagraphText(document, tableCell(table, 1, 1), payload.tenantName.trim(), { fontSize: 16 });
+  setParagraphText(document, tableCell(table, 2, 1), payload.reason.trim(), { fontSize: 16 });
+  setParagraphText(document, tableCell(table, 3, 1), buildPaymentMethodText(payload.paymentMethod), { fontSize: 16 });
+  setParagraphText(document, tableCell(table, 4, 0), "金额（元）", { fontSize: 16 });
+  setParagraphText(document, tableCell(table, 4, 1), payload.amount.toFixed(2), { fontSize: 16 });
+  setParagraphText(document, tableCell(table, 4, 2), "人民币（大写）", { fontSize: 16 });
+  setParagraphText(document, tableCell(table, 4, 3), toChineseCurrencyUppercase(payload.amount), { fontSize: 16 });
+  setParagraphText(document, tableCell(table, 5, 0), "收款人", { fontSize: 16 });
+  setParagraphText(document, tableCell(table, 5, 1), RECEIPT_OPERATOR_NAME, { fontSize: 16 });
 }
 
 export async function renderReceiptTemplateDocx(
