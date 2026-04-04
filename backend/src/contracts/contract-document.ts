@@ -4,6 +4,7 @@ import { UtilityMeterConfig } from "../utilities/utility-meter-config.entity";
 import { toChineseCurrencyUppercase } from "../common/format/chinese-currency";
 
 export const GENERATED_CONTRACT_PREFIX = "自动生成厂房租赁合同_";
+export const GENERATED_CONTRACT_VIRTUAL_FILE_PREFIX = "contract-document--";
 const LESSOR_NAME = "吴孝斌";
 const LESSOR_COMPANY = "吴孝斌";
 const FACTORY_ADDRESS = "江阴市澄江街道澄山路265号";
@@ -92,6 +93,18 @@ function buildUtilityClause(meters: UtilityMeterConfig[]) {
 export function buildGeneratedContractFilename(contract: Contract, unit: FactoryUnit) {
   const safeTenant = contract.tenantName.replace(/[\\/:*?"<>|]+/g, "-").trim() || "乙方";
   return `${GENERATED_CONTRACT_PREFIX}${unit.code}_${safeTenant}_${contract.startDate}_${contract.endDate}.doc`;
+}
+
+export function buildGeneratedContractVirtualFileId(contractId: string) {
+  return `${GENERATED_CONTRACT_VIRTUAL_FILE_PREFIX}${contractId}`;
+}
+
+export function parseGeneratedContractVirtualFileId(fileId: string) {
+  if (!fileId.startsWith(GENERATED_CONTRACT_VIRTUAL_FILE_PREFIX)) {
+    return null;
+  }
+
+  return fileId.slice(GENERATED_CONTRACT_VIRTUAL_FILE_PREFIX.length) || null;
 }
 
 export function buildContractDocumentHtml({ contract, unit, generatedDate }: ContractDocumentPayload) {

@@ -15,6 +15,7 @@ import { ApiTags } from "@nestjs/swagger";
 import { memoryStorage } from "multer";
 import { Response } from "express";
 import { JwtAuthGuard } from "../common/guards/jwt-auth.guard";
+import { parseGeneratedContractVirtualFileId } from "../contracts/contract-document";
 import { UploadFilesDto } from "./files.dto";
 import { FilesService } from "./files.service";
 
@@ -44,6 +45,11 @@ export class FilesController {
 
   @Get(":id/download")
   async download(@Param("id") id: string, @Res() response: Response) {
+    const generatedContractId = parseGeneratedContractVirtualFileId(id);
+    if (generatedContractId) {
+      return response.redirect(`/api/contracts/${generatedContractId}/generated-document`);
+    }
+
     const { file, absolutePath } = await this.filesService.getFileResponseMeta(id);
     response.setHeader("Content-Type", file.mimeType);
     response.setHeader(

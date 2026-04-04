@@ -861,18 +861,6 @@ function triggerFileDownload(fileId: string, filename: string) {
   anchor.remove();
 }
 
-function triggerBlobDownload(blob: Blob, filename: string) {
-  const url = URL.createObjectURL(blob);
-  const anchor = document.createElement("a");
-  anchor.href = url;
-  anchor.download = filename;
-  anchor.rel = "noopener";
-  document.body.appendChild(anchor);
-  anchor.click();
-  anchor.remove();
-  URL.revokeObjectURL(url);
-}
-
 function handleUnitContractStartDateChange() {
   unitContractForm.endDate = deriveContractEndDate(unitContractForm.startDate);
 }
@@ -1127,7 +1115,7 @@ async function saveContract(generateDocumentAfterSave = false) {
     if (generateDocumentAfterSave) {
       try {
         const generated = await contractsApi.generateDocument(savedContract.id);
-        triggerBlobDownload(generated.blob, generated.filename);
+        triggerFileDownload(generated.file.id, generated.file.originalName);
       } catch (error) {
         contractDialogVisible.value = false;
         await Promise.all([refreshSelectedUnit(), loadUnits()]);
@@ -1162,7 +1150,7 @@ async function downloadContractDocument(contractId: string) {
   try {
     downloadingContractId.value = contractId;
     const generated = await contractsApi.generateDocument(contractId);
-    triggerBlobDownload(generated.blob, generated.filename);
+    triggerFileDownload(generated.file.id, generated.file.originalName);
     ElMessage.success("合同已开始下载");
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : "下载合同失败");

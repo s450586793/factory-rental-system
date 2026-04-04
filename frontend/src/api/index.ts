@@ -10,7 +10,17 @@ import type {
   UtilityChargeRecord,
   UtilityPrefillMeter,
 } from "../types/models";
-import { apiDownload, apiFetch } from "./client";
+import { apiFetch } from "./client";
+
+type GeneratedContractDocumentPayload = {
+  file: {
+    id: string;
+    originalName: string;
+    mimeType: string;
+  };
+  filename: string;
+  mimeType: string;
+};
 
 export const authApi = {
   login: (payload: { username: string; password: string }) =>
@@ -57,7 +67,7 @@ export const contractsApi = {
       body: JSON.stringify(payload),
     }),
   generateDocument: (id: string) =>
-    apiDownload(`/contracts/${id}/generate-document`, {
+    apiFetch<GeneratedContractDocumentPayload>(`/contracts/${id}/generate-document`, {
       method: "POST",
     }),
   remove: (id: string) =>
