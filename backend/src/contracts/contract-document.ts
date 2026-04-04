@@ -89,43 +89,6 @@ function buildUtilityClause(meters: UtilityMeterConfig[]) {
   return `租赁期间，使用该厂房所发生的水、电等费用由乙方承担，${parts.join("，")}。`;
 }
 
-function buildMetersTable(meters: UtilityMeterConfig[]) {
-  const rows = meters
-    .filter((item) => item.enabled)
-    .map(
-      (item) => `
-        <tr>
-          <td>${escapeHtml(item.type === "electric" ? "电表" : "水表")}</td>
-          <td>${escapeHtml(item.name)}</td>
-          <td>${escapeHtml(formatMoney(item.initialReading))}</td>
-          <td>${escapeHtml(formatMoney(item.multiplier))}</td>
-          <td>${escapeHtml(formatMoney(item.unitPrice))}</td>
-          <td>${escapeHtml(item.type === "electric" ? `${formatMoney(item.lineLossPercent)}%` : "--")}</td>
-        </tr>`,
-    )
-    .join("");
-
-  if (!rows) {
-    return `<p class="muted">当前未配置启用中的水电表信息。</p>`;
-  }
-
-  return `
-    <table class="meter-table">
-      <thead>
-        <tr>
-          <th>类型</th>
-          <th>名称</th>
-          <th>初始读数</th>
-          <th>倍率</th>
-          <th>单价</th>
-          <th>线损</th>
-        </tr>
-      </thead>
-      <tbody>${rows}</tbody>
-    </table>
-  `;
-}
-
 export function buildGeneratedContractFilename(contract: Contract, unit: FactoryUnit) {
   const safeTenant = contract.tenantName.replace(/[\\/:*?"<>|]+/g, "-").trim() || "乙方";
   return `${GENERATED_CONTRACT_PREFIX}${unit.code}_${safeTenant}_${contract.startDate}_${contract.endDate}.doc`;
@@ -154,11 +117,8 @@ export function buildContractDocumentHtml({ contract, unit, generatedDate }: Con
     p { margin: 8pt 0; text-indent: 2em; }
     .plain { text-indent: 0; }
     .meta { margin-bottom: 6pt; }
-    .signature-table, .meter-table { width: 100%; border-collapse: collapse; margin-top: 12pt; }
+    .signature-table { width: 100%; border-collapse: collapse; margin-top: 12pt; }
     .signature-table td { width: 50%; padding-top: 30pt; vertical-align: top; }
-    .meter-table th, .meter-table td { border: 1px solid #222; padding: 6pt 8pt; text-align: left; }
-    .meter-table th { background: #f5f5f5; }
-    .muted { color: #666; text-indent: 0; }
     .page-break { page-break-before: always; }
   </style>
 </head>
@@ -203,9 +163,6 @@ export function buildContractDocumentHtml({ contract, unit, generatedDate }: Con
   <p>1、租赁合同签订后，如企业名称变更，可由甲乙双方签字确认，原租赁合同条款不变，继续执行至合同期满。</p>
   <p>2、本合同未尽事宜，甲、乙双方必须依法共同协商解决。</p>
   <p>3、本合同一式两份，双方各执一份，合同经签字后生效。</p>
-
-  <h2>附：当前水电表配置</h2>
-  ${buildMetersTable(unit.meterConfigs)}
 
   <table class="signature-table">
     <tr>

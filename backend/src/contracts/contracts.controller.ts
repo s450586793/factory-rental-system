@@ -1,5 +1,6 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, Query, UseGuards } from "@nestjs/common";
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query, Res, StreamableFile, UseGuards } from "@nestjs/common";
 import { ApiTags } from "@nestjs/swagger";
+import type { Response } from "express";
 import { JwtAuthGuard } from "../common/guards/jwt-auth.guard";
 import { CreateContractDto, UpdateContractDto } from "./contracts.dto";
 import { ContractsService } from "./contracts.service";
@@ -9,6 +10,11 @@ import { ContractsService } from "./contracts.service";
 @UseGuards(JwtAuthGuard)
 export class ContractsController {
   constructor(private readonly contractsService: ContractsService) {}
+
+  private buildAttachmentDisposition(filename: string) {
+    const asciiFallback = filename.replace(/[^\x20-\x7E]+/g, "_");
+    return `attachment; filename="${asciiFallback}"; filename*=UTF-8''${encodeURIComponent(filename)}`;
+  }
 
   @Get()
   list(@Query("unitId") unitId?: string) {
@@ -31,8 +37,12 @@ export class ContractsController {
   }
 
   @Post(":id/generate-document")
-  generateDocument(@Param("id") id: string) {
-    return this.contractsService.generateDocument(id);
+  async generateDocument(@Param("id") id: string, @Res({ passthrough: true }) response: Response) {
+    const generated = await this.contractsService.generateDocument(id);
+    response.setHeader("Content-Type", generated.mimeType);
+    response.setHeader("Content-Disposition", this.buildAttachmentDisposition(generated.filename));
+    response.setHeader("Content-Length", String(generated.buffer.length));
+    return new StreamableFile(generated.buffer);
   }
 
   @Delete(":id")

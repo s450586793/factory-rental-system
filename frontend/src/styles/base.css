@@ -571,6 +571,13 @@ a {
   line-height: 1.5;
 }
 
+.field-hint {
+  margin: 8px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
 .stat-item {
   padding: 18px;
   border-radius: 18px;

@@ -366,9 +366,17 @@
                 </div>
               </template>
             </el-table-column>
-            <el-table-column label="操作" width="128">
+            <el-table-column label="操作" width="188">
               <template #default="{ row }">
                 <el-space wrap>
+                  <el-button
+                    text
+                    type="primary"
+                    :loading="downloadingContractId === row.id"
+                    @click="downloadContractDocument(row.id)"
+                  >
+                    下载合同
+                  </el-button>
                   <el-button text @click="openEditContract(row)">编辑</el-button>
                   <el-button text type="danger" @click="confirmRemoveContract(row.id)">删除</el-button>
                 </el-space>
@@ -505,13 +513,14 @@
             </div>
             <input type="file" accept=".pdf,image/*" multiple @change="onAttachmentFilesChange" />
           </div>
+          <p class="field-hint">线下签字盖章后，请把已签署合同的 PDF 或照片上传到这里。</p>
         </el-form-item>
       </el-form>
 
       <template #footer>
         <el-button @click="contractDialogVisible = false">取消</el-button>
-        <el-button :loading="submittingContract" @click="saveContract(true)">保存并生成合同</el-button>
-        <el-button type="primary" :loading="submittingContract" @click="saveContract">保存合同</el-button>
+        <el-button :loading="submittingContract" @click="saveContract">保存合同</el-button>
+        <el-button type="primary" :loading="submittingContract" @click="saveContract(true)">保存并下载合同</el-button>
       </template>
     </el-dialog>
 
@@ -673,6 +682,7 @@ const previewFile = ref<StoredFile | null>(null);
 const filePreviewTitle = ref("文件预览");
 const viewportWidth = useViewportWidth();
 const rentSumVisible = ref(false);
+const downloadingContractId = ref("");
 
 const occupiedCount = computed(() =>
   units.value.filter((item) => item.status === "occupied" || item.status === "expiring").length,
@@ -849,6 +859,18 @@ function triggerFileDownload(fileId: string, filename: string) {
   document.body.appendChild(anchor);
   anchor.click();
   anchor.remove();
+}
+
+function triggerBlobDownload(blob: Blob, filename: string) {
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = filename;
+  anchor.rel = "noopener";
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  URL.revokeObjectURL(url);
 }
 
 function handleUnitContractStartDateChange() {
@@ -1102,11 +1124,10 @@ async function saveContract(generateDocumentAfterSave = false) {
       savedContract = await contractsApi.create(payload);
     }
 
-    let generatedFile: StoredFile | null = null;
     if (generateDocumentAfterSave) {
       try {
         const generated = await contractsApi.generateDocument(savedContract.id);
-        generatedFile = generated.file;
+        triggerBlobDownload(generated.blob, generated.filename);
       } catch (error) {
         contractDialogVisible.value = false;
         await Promise.all([refreshSelectedUnit(), loadUnits()]);
@@ -1121,16 +1142,32 @@ async function saveContract(generateDocumentAfterSave = false) {
 
     contractDialogVisible.value = false;
     await Promise.all([refreshSelectedUnit(), loadUnits()]);
-    if (generatedFile) {
-      triggerFileDownload(generatedFile.id, generatedFile.originalName);
-      ElMessage.success(isEditing ? "合同已更新并已生成合同文件" : "合同已新增并已生成合同文件");
-    } else {
-      ElMessage.success(isEditing ? "合同已更新" : "合同已新增");
-    }
+    ElMessage.success(
+      generateDocumentAfterSave
+        ? isEditing
+          ? "合同已更新并已下载合同文件"
+          : "合同已新增并已下载合同文件"
+        : isEditing
+          ? "合同已更新"
+          : "合同已新增",
+    );
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : "保存合同失败");
   } finally {
     submittingContract.value = false;
+  }
+}
+
+async function downloadContractDocument(contractId: string) {
+  try {
+    downloadingContractId.value = contractId;
+    const generated = await contractsApi.generateDocument(contractId);
+    triggerBlobDownload(generated.blob, generated.filename);
+    ElMessage.success("合同已开始下载");
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : "下载合同失败");
+  } finally {
+    downloadingContractId.value = "";
   }
 }
 
