@@ -9,7 +9,7 @@ import { formatShanghaiDate } from "../common/date/shanghai-date";
 import { FilesService } from "../files/files.service";
 import { FactoryUnit } from "../units/factory-unit.entity";
 import {
-  buildContractDocumentHtml,
+  buildContractDocumentPdf,
   buildGeneratedContractFilename,
 } from "./contract-document";
 import { Contract, ContractStatus } from "./contract.entity";
@@ -122,7 +122,7 @@ export class ContractsService {
 
     const filename = buildGeneratedContractFilename(contract, unit);
     const generatedDate = formatShanghaiDate();
-    const content = buildContractDocumentHtml({
+    const buffer = await buildContractDocumentPdf({
       contract,
       unit,
       generatedDate,
@@ -130,8 +130,8 @@ export class ContractsService {
 
     return {
       filename,
-      mimeType: "application/msword",
-      buffer: Buffer.from(content, "utf8"),
+      mimeType: "application/pdf",
+      buffer,
     };
   }
 

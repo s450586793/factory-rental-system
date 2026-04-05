@@ -15,7 +15,7 @@ FROM node:20-bookworm-slim
 WORKDIR /app
 
 RUN apt-get update \
-  && apt-get install -y --no-install-recommends fonts-noto-cjk libreoffice-writer \
+  && apt-get install -y --no-install-recommends fonts-noto-cjk libreoffice-writer python3 python3-pil \
   && rm -rf /var/lib/apt/lists/*
 
 COPY package*.json ./
@@ -23,6 +23,7 @@ RUN npm install --omit=dev
 
 COPY --from=build /app/dist ./dist
 COPY --from=build /app/assets ./assets
+COPY --from=build /app/scripts ./scripts
 COPY --from=build /app/storage ./storage
 COPY entrypoint.sh ./entrypoint.sh
 

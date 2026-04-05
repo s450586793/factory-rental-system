@@ -1121,8 +1121,8 @@ async function saveContract(generateDocumentAfterSave = false) {
         await Promise.all([refreshSelectedUnit(), loadUnits()]);
         ElMessage.warning(
           error instanceof Error
-            ? `合同已保存，但 Word 合同生成失败：${error.message}`
-            : "合同已保存，但 Word 合同生成失败",
+            ? `合同已保存，但合同文件生成失败：${error.message}`
+            : "合同已保存，但合同文件生成失败",
         );
         return;
       }
