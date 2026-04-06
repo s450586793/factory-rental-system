@@ -15,7 +15,7 @@ const LESSOR_NAME = "吴孝斌";
 const LESSOR_COMPANY = "吴孝斌";
 const FACTORY_ADDRESS = "江阴市澄江街道澄山路265号";
 const TEMPLATE_FILE = "厂房租赁协议+安全协议模板.pdf";
-const FONT_FILE = "NotoSansCJKsc-Regular.otf";
+const FONT_FILE = "Songti.ttc";
 const RENDER_SCRIPT = "render_text_overlays.py";
 
 type ContractDocumentPayload = {
