@@ -519,7 +519,7 @@
 
       <template #footer>
         <el-button @click="contractDialogVisible = false">取消</el-button>
-        <el-button :loading="submittingContract" @click="saveContract">保存合同</el-button>
+        <el-button :loading="submittingContract" @click="saveContract(false)">保存合同</el-button>
         <el-button type="primary" :loading="submittingContract" @click="saveContract(true)">保存并下载合同</el-button>
       </template>
     </el-dialog>
@@ -1077,6 +1077,7 @@ async function saveContract(generateDocumentAfterSave = false) {
 
   try {
     submittingContract.value = true;
+    const shouldGenerateDocument = generateDocumentAfterSave === true;
     const isEditing = Boolean(contractForm.id);
     validateContractForm();
 
@@ -1112,7 +1113,7 @@ async function saveContract(generateDocumentAfterSave = false) {
       savedContract = await contractsApi.create(payload);
     }
 
-    if (generateDocumentAfterSave) {
+    if (shouldGenerateDocument) {
       try {
         const generated = await contractsApi.generateDocument(savedContract.id);
         triggerFileDownload(generated.file.id, generated.file.originalName);
@@ -1131,7 +1132,7 @@ async function saveContract(generateDocumentAfterSave = false) {
     contractDialogVisible.value = false;
     await Promise.all([refreshSelectedUnit(), loadUnits()]);
     ElMessage.success(
-      generateDocumentAfterSave
+      shouldGenerateDocument
         ? isEditing
           ? "合同已更新并已下载合同文件"
           : "合同已新增并已下载合同文件"
