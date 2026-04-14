@@ -313,37 +313,37 @@
 
           <div class="table-shell">
             <el-table :data="selectedUnit.contracts" size="small" class="contracts-table">
-            <el-table-column prop="tenantName" label="公司名称" min-width="132" show-overflow-tooltip />
-            <el-table-column prop="contactName" label="负责人" width="92" show-overflow-tooltip />
-            <el-table-column prop="tenantPhone" label="电话" width="118" show-overflow-tooltip />
-            <el-table-column label="合同周期" min-width="176" show-overflow-tooltip>
+            <el-table-column prop="tenantName" label="公司名称" min-width="116" show-overflow-tooltip />
+            <el-table-column prop="contactName" label="负责人" width="78" show-overflow-tooltip />
+            <el-table-column prop="tenantPhone" label="电话" width="108" show-overflow-tooltip />
+            <el-table-column label="合同周期" min-width="148" show-overflow-tooltip>
               <template #default="{ row }">
                 {{ formatCompactContractPeriod(row.startDate, row.endDate) }}
               </template>
             </el-table-column>
-            <el-table-column label="应收" width="102">
+            <el-table-column label="应收" width="90">
               <template #default="{ row }">
                 {{ displayRentAmount(row.annualRent) }}
               </template>
             </el-table-column>
-            <el-table-column label="已收" width="102">
+            <el-table-column label="已收" width="90">
               <template #default="{ row }">
                 {{ displayRentAmount(row.paidAmount) }}
               </template>
             </el-table-column>
-            <el-table-column label="欠费" width="102">
+            <el-table-column label="欠费" width="90">
               <template #default="{ row }">
                 {{ displayRentAmount(row.outstandingAmount) }}
               </template>
             </el-table-column>
-            <el-table-column label="状态" width="92">
+            <el-table-column label="状态" width="80">
               <template #default="{ row }">
                 <el-tag :type="contractTagType(row.status)">
                   {{ contractStatusLabel(row.status) }}
                 </el-tag>
               </template>
             </el-table-column>
-            <el-table-column label="附件" min-width="148">
+            <el-table-column label="附件" min-width="120">
               <template #default="{ row }">
                 <div class="file-chip-list">
                   <button
@@ -366,9 +366,9 @@
                 </div>
               </template>
             </el-table-column>
-            <el-table-column label="操作" width="188">
+            <el-table-column label="操作" width="164">
               <template #default="{ row }">
-                <el-space wrap>
+                <el-space wrap size="small" class="contracts-actions">
                   <el-button
                     text
                     type="primary"
