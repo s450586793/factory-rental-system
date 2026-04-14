@@ -1294,7 +1294,7 @@ function formatArea(area: number | null | undefined) {
 }
 
 function formatCompactContractPeriod(startDate: string, endDate: string) {
-  const compact = (value: string) => value.replaceAll("-", ".");
+  const compact = (value: string) => value.split("-").join(".");
   return `${compact(startDate)}~${compact(endDate)}`;
 }
 
