@@ -172,7 +172,8 @@ a {
 }
 
 .app-version {
-  justify-self: start;
+  justify-self: end;
+  text-align: right;
   padding: 4px 10px;
   border-radius: 999px;
   background: rgba(15, 143, 113, 0.08);
