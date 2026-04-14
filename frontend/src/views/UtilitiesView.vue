@@ -453,7 +453,6 @@ async function createReceipt(recordId: string) {
     await receiptsApi.create({
       sourceType: "utility",
       sourceId: recordId,
-      issueDate: todayIso(),
     });
     ElMessage.success("收据已生成");
   } catch (error) {

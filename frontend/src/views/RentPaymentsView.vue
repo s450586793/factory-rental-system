@@ -340,7 +340,6 @@ async function createReceipt(paymentId: string) {
     await receiptsApi.create({
       sourceType: "rent-payment",
       sourceId: paymentId,
-      issueDate: todayIso(),
     });
     ElMessage.success("收据已生成");
     await loadPageData();

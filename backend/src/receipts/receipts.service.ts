@@ -80,9 +80,9 @@ export class ReceiptsService {
   }
 
   async create(dto: CreateReceiptDto) {
-    const issueDate = dto.issueDate ?? today();
-    await this.ensureNoDuplicate(dto.sourceType, dto.sourceId);
     const source = await this.resolveSource(dto.sourceType, dto.sourceId);
+    const issueDate = dto.issueDate ?? source.paymentDate ?? today();
+    await this.ensureNoDuplicate(dto.sourceType, dto.sourceId);
     const receiptNo = await this.generateReceiptNo(issueDate);
 
     const tempDir = join(this.tempRoot, "receipts", receiptNo);
