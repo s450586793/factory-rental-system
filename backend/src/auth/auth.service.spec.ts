@@ -3,6 +3,10 @@ import * as bcrypt from "bcrypt";
 import type { Response } from "express";
 import { AuthService } from "./auth.service";
 
+jest.mock("bcrypt", () => ({
+  compare: jest.fn(),
+}));
+
 describe("AuthService", () => {
   const authConfig = {
     jwtSecret: "secret",
@@ -45,12 +49,21 @@ describe("AuthService", () => {
   }
 
   afterEach(() => {
-    jest.restoreAllMocks();
+    jest.clearAllMocks();
   });
+
+  function mockCompare(result: boolean) {
+    const compareMock = bcrypt.compare as unknown as jest.Mock<
+      Promise<boolean>,
+      [string, string]
+    >;
+    compareMock.mockResolvedValue(result);
+    return compareMock;
+  }
 
   it("writes login cookie when credentials are valid", async () => {
     const { service, jwtService } = createService();
-    const compareSpy = jest.spyOn(bcrypt, "compare").mockResolvedValue(true);
+    const compareSpy = mockCompare(true);
     const response = {
       cookie: jest.fn(),
     } as unknown as Response;
@@ -73,7 +86,7 @@ describe("AuthService", () => {
 
   it("rejects invalid credentials", async () => {
     const { service } = createService();
-    jest.spyOn(bcrypt, "compare").mockResolvedValue(false);
+    mockCompare(false);
 
     await expect(
       service.login(
