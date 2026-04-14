@@ -81,11 +81,11 @@
             }}
           </template>
         </el-table-column>
-        <el-table-column label="当前合同欠费" min-width="124">
+        <el-table-column label="合计欠费" min-width="124">
           <template #default="{ row }">
             {{
-              row.activeContract
-                ? displayRentAmount(row.activeContract.outstandingAmount)
+              row.contracts.length
+                ? displayRentAmount(resolveUnitOutstandingAmount(row))
                 : "--"
             }}
           </template>
@@ -1305,6 +1305,14 @@ function displayRentAmount(amount: number | null | undefined) {
   }
 
   return rentSumVisible.value ? formatCurrency(Number(amount)) : "*****";
+}
+
+function resolveUnitOutstandingAmount(unit: UnitSummary) {
+  return Number(
+    (unit.contracts ?? [])
+      .reduce((sum, contract) => sum + Number(contract.outstandingAmount ?? 0), 0)
+      .toFixed(2),
+  );
 }
 
 function deriveContractEndDate(startDate: string) {
