@@ -29,6 +29,10 @@ export class FilesController {
   @UseInterceptors(
     FilesInterceptor("files", 10, {
       storage: memoryStorage(),
+      limits: {
+        files: 10,
+        fileSize: 25 * 1024 * 1024,
+      },
     }),
   )
   upload(
