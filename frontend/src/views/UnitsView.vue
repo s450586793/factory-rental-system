@@ -519,7 +519,7 @@
 
       <template #footer>
         <el-button @click="contractDialogVisible = false">取消</el-button>
-        <el-button :loading="submittingContract" @click="saveContract(false)">保存合同</el-button>
+        <el-button :loading="submittingContract" @click="saveContract(false)">保存</el-button>
         <el-button type="primary" :loading="submittingContract" @click="saveContract(true)">保存并下载合同</el-button>
       </template>
     </el-dialog>
