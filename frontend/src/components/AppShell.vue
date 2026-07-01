@@ -77,7 +77,10 @@
             </el-dropdown-menu>
           </template>
         </el-dropdown>
-        <div class="app-version">版本 {{ APP_VERSION }}</div>
+        <div class="app-version">
+          <span>版本 {{ APP_VERSION }}</span>
+          <small>{{ APP_UPDATED_AT }}</small>
+        </div>
       </div>
     </aside>
 
@@ -113,7 +116,7 @@
 import { ElMessage } from "element-plus";
 import { computed, onBeforeUnmount, onMounted, ref, useSlots, watch } from "vue";
 import { RouterLink, useRoute, useRouter } from "vue-router";
-import { APP_VERSION } from "../config/app-meta";
+import { APP_UPDATED_AT, APP_VERSION } from "../config/app-meta";
 import { useAuthStore } from "../stores/auth";
 
 type SidebarMode = "fixed" | "hidden" | "auto";

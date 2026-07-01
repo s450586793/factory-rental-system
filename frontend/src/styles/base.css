@@ -175,12 +175,24 @@ a {
   justify-self: end;
   text-align: right;
   padding: 4px 10px;
-  border-radius: 999px;
+  border-radius: 8px;
   background: rgba(15, 143, 113, 0.08);
   color: rgba(25, 53, 47, 0.66);
   font-size: 12px;
   font-weight: 700;
-  letter-spacing: 0.04em;
+  letter-spacing: 0;
+}
+
+.app-version span,
+.app-version small {
+  display: block;
+  line-height: 1.35;
+}
+
+.app-version small {
+  font-size: 10px;
+  font-weight: 600;
+  color: rgba(25, 53, 47, 0.48);
 }
 
 .nav-link {

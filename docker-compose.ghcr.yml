@@ -38,8 +38,9 @@ services:
       PORT: "3000"
       JWT_SECRET: change-this-jwt-secret
       COOKIE_NAME: token
-      COOKIE_SECURE: "false"
-      FRONTEND_ORIGIN: http://your-synology-host-or-domain:8080
+      COOKIE_SECURE: "true"
+      FRONTEND_ORIGIN: https://your-domain.example.com
+      API_DOCS_ENABLED: "false"
       STORAGE_ROOT: /app/storage
       PDF_FONT_PATH: /usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc
       ADMIN_USERNAME: admin

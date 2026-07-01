@@ -1,6 +1,6 @@
 import { validateEnvironment } from "./env.validation";
 
-const validEnv = {
+const validEnv: Record<string, string> = {
   APP_NAME: "factory-rental-system",
   NODE_ENV: "test",
   PORT: "3000",
@@ -41,5 +41,25 @@ describe("validateEnvironment", () => {
         JWT_SECRET: "",
       }),
     ).toThrow("JWT_SECRET");
+  });
+
+  it("defaults production cookies to secure", () => {
+    const env: Record<string, string> = {
+      ...validEnv,
+      NODE_ENV: "production",
+    };
+    delete env.COOKIE_SECURE;
+
+    expect(validateEnvironment(env).COOKIE_SECURE).toBe("true");
+  });
+
+  it("defaults production API docs to disabled", () => {
+    const env: Record<string, string> = {
+      ...validEnv,
+      NODE_ENV: "production",
+    };
+    delete env.API_DOCS_ENABLED;
+
+    expect(validateEnvironment(env).API_DOCS_ENABLED).toBe("false");
   });
 });

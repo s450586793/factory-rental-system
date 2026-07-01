@@ -13,9 +13,10 @@ export const GENERATED_CONTRACT_VIRTUAL_FILE_PREFIX = "contract-document--";
 
 const LESSOR_NAME = "吴孝斌";
 const LESSOR_COMPANY = "吴孝斌";
-const FACTORY_ADDRESS = "江阴市澄江街道澄山路265号";
 const TEMPLATE_FILE = "厂房租赁协议+安全协议模板.pdf";
 const FONT_FILE = "Songti.ttc";
+const SONGTI_SC_REGULAR_INDEX = 6;
+const RASTER_SCALE = 4;
 const RENDER_SCRIPT = "render_text_overlays.py";
 
 type ContractDocumentPayload = {
@@ -30,7 +31,7 @@ type DateParts = {
   day: string;
 };
 
-type TemplateOverlay = {
+export type TemplateOverlay = {
   id: string;
   pageIndex: number;
   text: string;
@@ -42,6 +43,7 @@ type TemplateOverlay = {
   maxWidth?: number;
   lineHeight?: number;
   maxLines?: number;
+  fontIndex?: number;
   padding?: number;
   paddingX?: number;
   paddingY?: number;
@@ -180,6 +182,8 @@ function renderTextOverlays(fontPath: string, overlays: TemplateOverlay[]): Rast
           text: overlay.text,
           fontPath,
           fontSize: overlay.fontSize ?? 14,
+          fontIndex: overlay.fontIndex ?? SONGTI_SC_REGULAR_INDEX,
+          rasterScale: RASTER_SCALE,
           maxWidth: overlay.maxWidth ?? null,
           lineHeight: overlay.lineHeight ?? Math.ceil((overlay.fontSize ?? 14) * 1.4),
           maxLines: overlay.maxLines ?? 99,
@@ -198,7 +202,14 @@ function renderTextOverlays(fontPath: string, overlays: TemplateOverlay[]): Rast
   }
 
   const parsed = JSON.parse(result.stdout) as {
-    items: Array<{ id: string; width: number; height: number; pngBase64: string }>;
+    items: Array<{
+      id: string;
+      width: number;
+      height: number;
+      pixelWidth: number;
+      pixelHeight: number;
+      pngBase64: string;
+    }>;
   };
 
   return parsed.items.map((item) => ({
@@ -249,26 +260,17 @@ export function parseGeneratedContractVirtualFileId(fileId: string) {
   return fileId.slice(GENERATED_CONTRACT_VIRTUAL_FILE_PREFIX.length) || null;
 }
 
-export async function buildContractDocumentPdf({
+export function buildContractDocumentOverlays({
   contract,
   unit,
-  generatedDate,
-}: ContractDocumentPayload) {
-  const templatePath = resolveRuntimePath("assets", "templates", TEMPLATE_FILE);
-  const fontPath = resolveRuntimePath("assets", "fonts", FONT_FILE);
-  const templateBytes = await readFile(templatePath);
-
-  const pdf = await PDFDocument.load(templateBytes);
-  const pages = pdf.getPages();
-
+}: ContractDocumentPayload): TemplateOverlay[] {
   const startParts = splitDateParts(contract.startDate);
   const endParts = splitDateParts(contract.endDate);
-  const generatedParts = splitDateParts(generatedDate);
   const unitLabel = buildUnitLabel(unit);
   const annualRentUppercase = toChineseCurrencyUppercase(contract.annualRent);
   const annualRentText = formatMoney(contract.annualRent);
   const utilityClause = buildUtilityClause(unit.meterConfigs);
-  const signDate = formatDateForText(generatedParts);
+  const signDate = `${formatDateForText(startParts)}签订`;
 
   const overlays: TemplateOverlay[] = [
     {
@@ -280,6 +282,7 @@ export async function buildContractDocumentPdf({
       clearWidth: 260,
       clearHeight: 22,
       fontSize: 14,
+      fontIndex: SONGTI_SC_REGULAR_INDEX,
       maxWidth: 260,
     },
     {
@@ -291,6 +294,7 @@ export async function buildContractDocumentPdf({
       clearWidth: 320,
       clearHeight: 22,
       fontSize: 13,
+      fontIndex: SONGTI_SC_REGULAR_INDEX,
       maxWidth: 320,
     },
     {
@@ -302,6 +306,7 @@ export async function buildContractDocumentPdf({
       clearWidth: 450,
       clearHeight: 22,
       fontSize: 12,
+      fontIndex: SONGTI_SC_REGULAR_INDEX,
       maxWidth: 450,
     },
     {
@@ -313,20 +318,24 @@ export async function buildContractDocumentPdf({
       clearWidth: 430,
       clearHeight: 22,
       fontSize: 12,
+      fontIndex: SONGTI_SC_REGULAR_INDEX,
       maxWidth: 430,
     },
     {
       id: "page1-utility",
       pageIndex: 0,
       text: utilityClause,
-      x: 84,
-      top: 700,
-      clearWidth: 445,
-      clearHeight: 52,
+      x: 60,
+      top: 690,
+      clearWidth: 480,
+      clearHeight: 70,
       fontSize: 12,
+      fontIndex: SONGTI_SC_REGULAR_INDEX,
       maxWidth: 445,
       lineHeight: 18,
       maxLines: 3,
+      padding: 4,
+      paddingX: 24,
     },
     {
       id: "page4-lessor",
@@ -337,6 +346,7 @@ export async function buildContractDocumentPdf({
       clearWidth: 210,
       clearHeight: 22,
       fontSize: 12,
+      fontIndex: SONGTI_SC_REGULAR_INDEX,
       maxWidth: 210,
     },
     {
@@ -348,18 +358,22 @@ export async function buildContractDocumentPdf({
       clearWidth: 210,
       clearHeight: 22,
       fontSize: 12,
+      fontIndex: SONGTI_SC_REGULAR_INDEX,
       maxWidth: 210,
     },
     {
       id: "page4-sign-date",
       pageIndex: 3,
       text: signDate,
-      x: 214,
+      x: 204,
       top: 364,
-      clearWidth: 115,
+      clearWidth: 101,
       clearHeight: 22,
       fontSize: 11,
+      fontIndex: SONGTI_SC_REGULAR_INDEX,
       maxWidth: 115,
+      padding: 0,
+      paddingX: 10,
     },
     {
       id: "page10-lessor-contact",
@@ -370,6 +384,7 @@ export async function buildContractDocumentPdf({
       clearWidth: 46,
       clearHeight: 20,
       fontSize: 11,
+      fontIndex: SONGTI_SC_REGULAR_INDEX,
       maxWidth: 46,
     },
     {
@@ -381,6 +396,7 @@ export async function buildContractDocumentPdf({
       clearWidth: 48,
       clearHeight: 20,
       fontSize: 11,
+      fontIndex: SONGTI_SC_REGULAR_INDEX,
       maxWidth: 48,
     },
     {
@@ -392,9 +408,26 @@ export async function buildContractDocumentPdf({
       clearWidth: 195,
       clearHeight: 22,
       fontSize: 11,
+      fontIndex: SONGTI_SC_REGULAR_INDEX,
       maxWidth: 195,
     },
   ];
+
+  return overlays;
+}
+
+export async function buildContractDocumentPdf({
+  contract,
+  unit,
+  generatedDate,
+}: ContractDocumentPayload) {
+  const templatePath = resolveRuntimePath("assets", "templates", TEMPLATE_FILE);
+  const fontPath = resolveRuntimePath("assets", "fonts", FONT_FILE);
+  const templateBytes = await readFile(templatePath);
+
+  const pdf = await PDFDocument.load(templateBytes);
+  const pages = pdf.getPages();
+  const overlays = buildContractDocumentOverlays({ contract, unit, generatedDate });
 
   const rasterized = renderTextOverlays(fontPath, overlays);
   const rasterMap = new Map(rasterized.map((item) => [item.id, item]));

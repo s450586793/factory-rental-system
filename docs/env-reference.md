@@ -10,6 +10,8 @@
   后端监听端口，容器内固定建议 `3000`
 - `FRONTEND_ORIGIN`
   允许跨域的前端来源，多个地址可用英文逗号分隔
+- `API_DOCS_ENABLED`
+  是否暴露 Swagger/OpenAPI 文档。生产建议 `false`，本地联调可设为 `true`
 
 ## 鉴权层
 
@@ -18,7 +20,7 @@
 - `COOKIE_NAME`
   登录态 Cookie 名称，默认 `token`
 - `COOKIE_SECURE`
-  生产 HTTPS 场景建议设为 `true`
+  HTTPS 部署必须设为 `true`；仅本地 HTTP 调试可设为 `false`
 - `ADMIN_USERNAME`
   超级管理员用户名
 - `ADMIN_PASSWORD`

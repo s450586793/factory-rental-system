@@ -76,6 +76,11 @@ describe("AuthService", () => {
     expect(compareSpy).toHaveBeenCalled();
     expect(jwtService.signAsync).toHaveBeenCalled();
     expect((response.cookie as jest.Mock).mock.calls[0][0]).toBe("token");
+    expect((response.cookie as jest.Mock).mock.calls[0][2]).toMatchObject({
+      httpOnly: true,
+      sameSite: "lax",
+      secure: true,
+    });
     expect(result).toEqual({
       user: {
         id: "u1",

@@ -51,10 +51,12 @@ def render_overlay(draw, payload):
     align = payload.get("align", "left")
     padding_x = int(payload.get("paddingX", 0))
     padding_y = int(payload.get("paddingY", 0))
+    font_index = int(payload.get("fontIndex", 0))
+    raster_scale = int(payload.get("rasterScale", 4))
     font_path = payload["fontPath"]
     text = str(payload.get("text", ""))
 
-    font = ImageFont.truetype(font_path, font_size)
+    font = ImageFont.truetype(font_path, font_size, index=font_index)
     lines = split_lines(draw, text, font, max_width)
     lines = lines[:max_lines] if max_lines > 0 else lines
     widest = 0
@@ -66,14 +68,17 @@ def render_overlay(draw, payload):
         top_adjust = min(top_adjust, bbox[1])
         bottom_adjust = max(bottom_adjust, bbox[3])
 
-    image_width = (max_width or widest or font_size) + padding_x * 2
-    image_height = max(
+    display_width = (max_width or widest or font_size) + padding_x * 2
+    display_height = max(
         line_height * max(len(lines), 1) + padding_y * 2,
         (bottom_adjust - top_adjust) + padding_y * 2,
     )
+    image_width = display_width * raster_scale
+    image_height = display_height * raster_scale
 
     image = Image.new("RGBA", (image_width, image_height), (255, 255, 255, 0))
     image_draw = ImageDraw.Draw(image)
+    image_font = ImageFont.truetype(font_path, font_size * raster_scale, index=font_index)
 
     for index, line in enumerate(lines or [""]):
         bbox = text_bbox(image_draw, line, font)
@@ -87,14 +92,21 @@ def render_overlay(draw, payload):
         else:
             x = padding_x
 
-        image_draw.text((x, baseline_y), line, font=font, fill=(0, 0, 0, 255))
+        image_draw.text(
+            (x * raster_scale, baseline_y * raster_scale),
+            line,
+            font=image_font,
+            fill=(0, 0, 0, 255),
+        )
 
     buffer = io.BytesIO()
     image.save(buffer, format="PNG")
     return {
         "id": payload["id"],
-        "width": image_width,
-        "height": image_height,
+        "width": display_width,
+        "height": display_height,
+        "pixelWidth": image_width,
+        "pixelHeight": image_height,
         "pngBase64": base64.b64encode(buffer.getvalue()).decode("ascii"),
     }
 
