@@ -9,6 +9,7 @@ export type DeploymentUpdateConfig = {
   runnerImage: string;
   services: string[];
   containerName: string;
+  onlineVersionUrl: string;
 };
 
 export function resolveDeploymentUpdateConfig(env: NodeJS.ProcessEnv): DeploymentUpdateConfig {
@@ -28,6 +29,10 @@ export function resolveDeploymentUpdateConfig(env: NodeJS.ProcessEnv): Deploymen
     services: splitCsv(env.WEB_UPDATE_SERVICES || "backend,frontend"),
     containerName: readString(env, "WEB_UPDATE_CONTAINER_NAME", {
       defaultValue: "factory-rental-updater",
+    }),
+    onlineVersionUrl: readString(env, "WEB_UPDATE_ONLINE_VERSION_URL", {
+      defaultValue:
+        "https://raw.githubusercontent.com/s450586793/factory-rental-system/main/frontend/src/config/app-meta.ts",
     }),
   };
 }

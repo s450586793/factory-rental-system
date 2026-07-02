@@ -27,6 +27,9 @@ export type DeploymentUpdateStatus = {
   running: boolean;
   services: string[];
   composeFiles: string[];
+  onlineVersion: string | null;
+  onlineVersionCheckedAt: string | null;
+  onlineVersionError: string | null;
 };
 
 export type DeploymentUpdateStartResult = {

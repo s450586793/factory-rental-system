@@ -22,12 +22,14 @@ export class DeploymentUpdateService {
     const existingContainer = this.config.enabled
       ? await this.docker.inspectContainer(this.config.containerName)
       : null;
+    const onlineVersion = await this.fetchOnlineVersion();
 
     return {
       enabled: this.config.enabled,
       running: Boolean(existingContainer?.State?.Running),
       services: this.config.services,
       composeFiles: this.config.composeFiles,
+      ...onlineVersion,
     };
   }
 
@@ -95,6 +97,42 @@ export class DeploymentUpdateService {
         "factory-rental-system.role": "web-updater",
       },
     };
+  }
+
+  private async fetchOnlineVersion() {
+    if (!this.config.onlineVersionUrl) {
+      return {
+        onlineVersion: null,
+        onlineVersionCheckedAt: null,
+        onlineVersionError: null,
+      };
+    }
+
+    const checkedAt = new Date().toISOString();
+    try {
+      const response = await fetch(this.config.onlineVersionUrl);
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+
+      const content = await response.text();
+      const versionMatch = content.match(/APP_VERSION\s*=\s*["']([^"']+)["']/);
+      if (!versionMatch?.[1]) {
+        throw new Error("未找到版本号");
+      }
+
+      return {
+        onlineVersion: versionMatch[1],
+        onlineVersionCheckedAt: checkedAt,
+        onlineVersionError: null,
+      };
+    } catch (error) {
+      return {
+        onlineVersion: null,
+        onlineVersionCheckedAt: checkedAt,
+        onlineVersionError: error instanceof Error ? error.message : "查询失败",
+      };
+    }
   }
 }
 

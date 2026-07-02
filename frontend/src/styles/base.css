@@ -171,58 +171,28 @@ a {
   justify-content: flex-start;
 }
 
-.web-update-button {
-  width: 100%;
-  display: grid;
-  gap: 2px;
-  justify-items: start;
-  padding: 10px 12px;
-  border: 1px solid rgba(15, 143, 113, 0.2);
-  border-radius: 8px;
-  background: rgba(15, 143, 113, 0.08);
-  color: #0f5f4d;
-  cursor: pointer;
-  text-align: left;
-  transition:
-    background 0.2s ease,
-    border-color 0.2s ease,
-    transform 0.2s ease;
-}
-
-.web-update-button:hover:not(:disabled) {
-  transform: translateY(-1px);
-  background: rgba(15, 143, 113, 0.13);
-  border-color: rgba(15, 143, 113, 0.36);
-}
-
-.web-update-button:disabled {
-  cursor: not-allowed;
-  opacity: 0.52;
-}
-
-.web-update-button span {
-  font-size: 13px;
-  font-weight: 800;
-  line-height: 1.2;
-}
-
-.web-update-button small {
-  font-size: 11px;
-  font-weight: 600;
-  line-height: 1.25;
-  color: rgba(15, 95, 77, 0.62);
-}
-
 .app-version {
   justify-self: end;
   text-align: right;
   padding: 4px 10px;
+  border: 1px solid transparent;
   border-radius: 8px;
   background: rgba(15, 143, 113, 0.08);
   color: rgba(25, 53, 47, 0.66);
   font-size: 12px;
   font-weight: 700;
   letter-spacing: 0;
+  cursor: pointer;
+  transition:
+    background 0.2s ease,
+    border-color 0.2s ease,
+    transform 0.2s ease;
+}
+
+.app-version:hover {
+  transform: translateY(-1px);
+  background: rgba(15, 143, 113, 0.13);
+  border-color: rgba(15, 143, 113, 0.22);
 }
 
 .app-version span,
@@ -235,6 +205,138 @@ a {
   font-size: 10px;
   font-weight: 600;
   color: rgba(25, 53, 47, 0.48);
+}
+
+.version-update-dialog-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(12, 25, 22, 0.32);
+  backdrop-filter: blur(8px);
+}
+
+.version-update-dialog {
+  width: min(420px, 100%);
+  display: grid;
+  gap: 18px;
+  padding: 22px;
+  border: 1px solid rgba(15, 143, 113, 0.18);
+  border-radius: 8px;
+  background: rgba(252, 255, 253, 0.98);
+  box-shadow: 0 26px 60px rgba(12, 40, 34, 0.18);
+}
+
+.version-update-dialog-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.version-update-dialog-header small {
+  display: block;
+  margin-bottom: 4px;
+  color: rgba(25, 53, 47, 0.52);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.version-update-dialog-header h2 {
+  margin: 0;
+  color: #18352f;
+  font-size: 22px;
+  line-height: 1.15;
+}
+
+.version-update-close-button {
+  width: 36px;
+  height: 36px;
+  border: 1px solid rgba(25, 53, 47, 0.1);
+  border-radius: 8px;
+  background: rgba(15, 143, 113, 0.06);
+  color: rgba(25, 53, 47, 0.72);
+  cursor: pointer;
+  font-size: 22px;
+  line-height: 1;
+}
+
+.version-update-grid {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+}
+
+.version-update-grid div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 14px;
+  border: 1px solid rgba(15, 143, 113, 0.12);
+  border-radius: 8px;
+  background: rgba(15, 143, 113, 0.06);
+}
+
+.version-update-grid dt {
+  color: rgba(25, 53, 47, 0.58);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.version-update-grid dd {
+  margin: 0;
+  color: #18352f;
+  font-size: 15px;
+  font-weight: 800;
+}
+
+.version-update-error {
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px solid rgba(181, 79, 56, 0.18);
+  border-radius: 8px;
+  background: rgba(181, 79, 56, 0.08);
+  color: #8d3f2e;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.version-update-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.version-update-refresh-button,
+.version-update-start-button {
+  min-width: 96px;
+  height: 40px;
+  padding: 0 16px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.version-update-refresh-button {
+  border: 1px solid rgba(15, 143, 113, 0.2);
+  background: #fff;
+  color: #0f5f4d;
+}
+
+.version-update-start-button {
+  border: 1px solid rgba(15, 143, 113, 0.18);
+  background: linear-gradient(135deg, #0f8f71, #0d5b5d);
+  color: #fff;
+}
+
+.version-update-refresh-button:disabled,
+.version-update-start-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.54;
 }
 
 .nav-link {

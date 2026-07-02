@@ -61,16 +61,6 @@
       </nav>
 
       <div class="sidebar-user">
-        <button
-          type="button"
-          class="web-update-button"
-          :disabled="!deploymentUpdateStatus?.enabled || deploymentUpdateStatus.running || updateStarting"
-          @click="handleDeploymentUpdate"
-        >
-          <span>更新系统</span>
-          <small>{{ updateButtonCaption }}</small>
-        </button>
-
         <el-dropdown trigger="click" @command="handleUserCommand">
           <button type="button" class="user-trigger">
             <span class="user-avatar">{{ userInitial }}</span>
@@ -87,10 +77,10 @@
             </el-dropdown-menu>
           </template>
         </el-dropdown>
-        <div class="app-version">
+        <button type="button" class="app-version" @click="openVersionDialog">
           <span>版本 {{ APP_VERSION }}</span>
           <small>{{ APP_UPDATED_AT }}</small>
-        </div>
+        </button>
       </div>
     </aside>
 
@@ -118,6 +108,54 @@
       <main class="app-main">
         <slot />
       </main>
+    </div>
+
+    <div v-if="versionDialogVisible" class="version-update-dialog-backdrop" @click.self="versionDialogVisible = false">
+      <section class="version-update-dialog" role="dialog" aria-modal="true" aria-labelledby="version-update-title">
+        <div class="version-update-dialog-header">
+          <div>
+            <small>系统更新</small>
+            <h2 id="version-update-title">版本信息</h2>
+          </div>
+          <button type="button" class="version-update-close-button" aria-label="关闭" @click="versionDialogVisible = false">
+            ×
+          </button>
+        </div>
+
+        <dl class="version-update-grid">
+          <div>
+            <dt>当前版本</dt>
+            <dd>{{ APP_VERSION }}</dd>
+          </div>
+          <div>
+            <dt>线上版本</dt>
+            <dd>{{ onlineVersionText }}</dd>
+          </div>
+        </dl>
+
+        <p v-if="deploymentUpdateStatus?.onlineVersionError" class="version-update-error">
+          {{ deploymentUpdateStatus.onlineVersionError }}
+        </p>
+
+        <div class="version-update-actions">
+          <button
+            type="button"
+            class="version-update-refresh-button"
+            :disabled="updateStatusRefreshing"
+            @click="refreshDeploymentUpdateStatus"
+          >
+            {{ updateStatusRefreshing ? "查询中" : "刷新" }}
+          </button>
+          <button
+            type="button"
+            class="version-update-start-button"
+            :disabled="!canStartDeploymentUpdate"
+            @click="handleDeploymentUpdate"
+          >
+            {{ updateActionCaption }}
+          </button>
+        </div>
+      </section>
     </div>
   </div>
 </template>
@@ -187,14 +225,19 @@ const viewportWidth = ref(typeof window === "undefined" ? AUTO_BREAKPOINT : wind
 const overlayOpen = ref(false);
 const deploymentUpdateStatus = ref<DeploymentUpdateStatus | null>(null);
 const updateStarting = ref(false);
+const updateStatusRefreshing = ref(false);
+const versionDialogVisible = ref(false);
 
 const currentUsername = computed(() => authStore.state.user?.username || "管理员");
 const userInitial = computed(() => currentUsername.value.slice(0, 1).toUpperCase());
 const hasTopActions = computed(() => Boolean(slots["top-actions"]));
 const showTopbar = computed(() => !showSidebar.value || hasTopActions.value);
-const updateButtonCaption = computed(() => {
+const canStartDeploymentUpdate = computed(
+  () => Boolean(deploymentUpdateStatus.value?.enabled) && !deploymentUpdateStatus.value?.running && !updateStarting.value,
+);
+const updateActionCaption = computed(() => {
   if (!deploymentUpdateStatus.value) {
-    return "检查更新状态";
+    return "更新";
   }
 
   if (!deploymentUpdateStatus.value.enabled) {
@@ -211,6 +254,7 @@ const updateButtonCaption = computed(() => {
 
   return "拉取最新镜像";
 });
+const onlineVersionText = computed(() => deploymentUpdateStatus.value?.onlineVersion || "未查询到");
 
 const isSidebarPinned = computed(() => {
   if (sidebarMode.value === "hidden") {
@@ -323,12 +367,28 @@ async function loadDeploymentUpdateStatus() {
       running: false,
       services: [],
       composeFiles: [],
+      onlineVersion: null,
+      onlineVersionCheckedAt: null,
+      onlineVersionError: "查询失败",
     };
   }
 }
 
+function openVersionDialog() {
+  versionDialogVisible.value = true;
+}
+
+async function refreshDeploymentUpdateStatus() {
+  updateStatusRefreshing.value = true;
+  try {
+    await loadDeploymentUpdateStatus();
+  } finally {
+    updateStatusRefreshing.value = false;
+  }
+}
+
 async function handleDeploymentUpdate() {
-  if (!deploymentUpdateStatus.value?.enabled || deploymentUpdateStatus.value.running || updateStarting.value) {
+  if (!canStartDeploymentUpdate.value) {
     return;
   }
 

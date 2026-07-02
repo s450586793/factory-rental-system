@@ -11,6 +11,7 @@ function createConfig(overrides: Partial<DeploymentUpdateConfig> = {}): Deployme
     runnerImage: "docker:27-cli",
     services: ["backend", "frontend"],
     containerName: "factory-rental-updater",
+    onlineVersionUrl: "",
     ...overrides,
   };
 }
@@ -34,6 +35,9 @@ describe("DeploymentUpdateService", () => {
       running: false,
       services: ["backend", "frontend"],
       composeFiles: ["docker-compose.ghcr.yml", "docker-compose.web-update.yml"],
+      onlineVersion: null,
+      onlineVersionCheckedAt: null,
+      onlineVersionError: null,
     });
   });
 
@@ -47,6 +51,9 @@ describe("DeploymentUpdateService", () => {
       running: true,
       services: ["backend", "frontend"],
       composeFiles: ["docker-compose.ghcr.yml", "docker-compose.web-update.yml"],
+      onlineVersion: null,
+      onlineVersionCheckedAt: null,
+      onlineVersionError: null,
     });
   });
 

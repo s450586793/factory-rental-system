@@ -61,11 +61,15 @@ function mountShell() {
 
 describe("AppShell deployment update", () => {
   beforeEach(() => {
+    vi.clearAllMocks();
     vi.mocked(deploymentUpdateApi.status).mockResolvedValue({
       enabled: true,
       running: false,
       services: ["backend", "frontend"],
       composeFiles: ["docker-compose.ghcr.yml", "docker-compose.web-update.yml"],
+      onlineVersion: "V0.2.1",
+      onlineVersionCheckedAt: "2026-07-02T04:00:00.000Z",
+      onlineVersionError: null,
     });
     vi.mocked(deploymentUpdateApi.start).mockResolvedValue({
       started: true,
@@ -75,49 +79,102 @@ describe("AppShell deployment update", () => {
     vi.mocked(ElMessageBox.confirm).mockResolvedValue({} as Awaited<ReturnType<typeof ElMessageBox.confirm>>);
   });
 
-  it("shows an enabled web update button when backend updates are available", async () => {
+  it("does not show the old sidebar web update button", async () => {
     const wrapper = mountShell();
     await flushPromises();
 
-    const updateButton = wrapper.get("button.web-update-button");
-    expect(updateButton.text()).toContain("更新系统");
-    expect(updateButton.attributes("disabled")).toBeUndefined();
+    expect(wrapper.find("button.web-update-button").exists()).toBe(false);
   });
 
-  it("disables the web update button when backend updates are disabled", async () => {
+  it("opens a version update dialog from the current version badge", async () => {
+    const wrapper = mountShell();
+    await flushPromises();
+
+    await wrapper.get("button.app-version").trigger("click");
+
+    expect(wrapper.get(".version-update-dialog").text()).toContain("当前版本");
+    expect(wrapper.get(".version-update-dialog").text()).toContain("V0.2.0");
+    expect(wrapper.get(".version-update-dialog").text()).toContain("线上版本");
+    expect(wrapper.get(".version-update-dialog").text()).toContain("V0.2.1");
+    expect(wrapper.get("button.version-update-refresh-button").attributes("disabled")).toBeUndefined();
+    expect(wrapper.get("button.version-update-start-button").attributes("disabled")).toBeUndefined();
+  });
+
+  it("disables the dialog update button when backend updates are disabled", async () => {
     vi.mocked(deploymentUpdateApi.status).mockResolvedValue({
       enabled: false,
       running: false,
       services: ["backend", "frontend"],
       composeFiles: ["docker-compose.ghcr.yml", "docker-compose.web-update.yml"],
+      onlineVersion: "V0.2.1",
+      onlineVersionCheckedAt: "2026-07-02T04:00:00.000Z",
+      onlineVersionError: null,
     });
 
     const wrapper = mountShell();
     await flushPromises();
+    await wrapper.get("button.app-version").trigger("click");
 
-    expect(wrapper.get("button.web-update-button").attributes("disabled")).toBeDefined();
+    expect(wrapper.get("button.version-update-start-button").attributes("disabled")).toBeDefined();
+    expect(wrapper.get("button.version-update-start-button").text()).toContain("未启用");
   });
 
-  it("disables the web update button while an update is already running", async () => {
+  it("disables the dialog update button while an update is already running", async () => {
     vi.mocked(deploymentUpdateApi.status).mockResolvedValue({
       enabled: true,
       running: true,
       services: ["backend", "frontend"],
       composeFiles: ["docker-compose.ghcr.yml", "docker-compose.web-update.yml"],
+      onlineVersion: "V0.2.1",
+      onlineVersionCheckedAt: "2026-07-02T04:00:00.000Z",
+      onlineVersionError: null,
     });
 
     const wrapper = mountShell();
     await flushPromises();
+    await wrapper.get("button.app-version").trigger("click");
 
-    expect(wrapper.get("button.web-update-button").attributes("disabled")).toBeDefined();
-    expect(wrapper.get("button.web-update-button").text()).toContain("执行中");
+    expect(wrapper.get("button.version-update-start-button").attributes("disabled")).toBeDefined();
+    expect(wrapper.get("button.version-update-start-button").text()).toContain("执行中");
+  });
+
+  it("refreshes the online version from the dialog", async () => {
+    vi.mocked(deploymentUpdateApi.status)
+      .mockResolvedValueOnce({
+        enabled: true,
+        running: false,
+        services: ["backend", "frontend"],
+        composeFiles: ["docker-compose.ghcr.yml", "docker-compose.web-update.yml"],
+        onlineVersion: "V0.2.1",
+        onlineVersionCheckedAt: "2026-07-02T04:00:00.000Z",
+        onlineVersionError: null,
+      })
+      .mockResolvedValueOnce({
+        enabled: true,
+        running: false,
+        services: ["backend", "frontend"],
+        composeFiles: ["docker-compose.ghcr.yml", "docker-compose.web-update.yml"],
+        onlineVersion: "V0.2.2",
+        onlineVersionCheckedAt: "2026-07-02T04:10:00.000Z",
+        onlineVersionError: null,
+      });
+
+    const wrapper = mountShell();
+    await flushPromises();
+    await wrapper.get("button.app-version").trigger("click");
+    await wrapper.get("button.version-update-refresh-button").trigger("click");
+    await flushPromises();
+
+    expect(deploymentUpdateApi.status).toHaveBeenCalledTimes(2);
+    expect(wrapper.get(".version-update-dialog").text()).toContain("V0.2.2");
   });
 
   it("starts the backend update after operator confirmation", async () => {
     const wrapper = mountShell();
     await flushPromises();
+    await wrapper.get("button.app-version").trigger("click");
 
-    await wrapper.get("button.web-update-button").trigger("click");
+    await wrapper.get("button.version-update-start-button").trigger("click");
     await flushPromises();
 
     expect(ElMessageBox.confirm).toHaveBeenCalled();
