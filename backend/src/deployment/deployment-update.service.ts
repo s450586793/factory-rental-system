@@ -85,6 +85,7 @@ export class DeploymentUpdateService {
     return {
       Image: this.config.runnerImage,
       Cmd: ["sh", "-lc", updateCommand],
+      Env: this.buildUpdaterEnvironment(),
       WorkingDir: this.config.projectDir,
       HostConfig: {
         AutoRemove: true,
@@ -97,6 +98,17 @@ export class DeploymentUpdateService {
         "factory-rental-system.role": "web-updater",
       },
     };
+  }
+
+  private buildUpdaterEnvironment() {
+    const env: string[] = [];
+    if (this.config.proxyUrl) {
+      env.push(`HTTP_PROXY=${this.config.proxyUrl}`, `HTTPS_PROXY=${this.config.proxyUrl}`);
+    }
+    if (this.config.noProxy) {
+      env.push(`NO_PROXY=${this.config.noProxy}`);
+    }
+    return env;
   }
 
   private async fetchOnlineVersion() {

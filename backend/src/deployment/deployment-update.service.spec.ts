@@ -12,6 +12,8 @@ function createConfig(overrides: Partial<DeploymentUpdateConfig> = {}): Deployme
     services: ["backend", "frontend"],
     containerName: "factory-rental-updater",
     onlineVersionUrl: "",
+    proxyUrl: "",
+    noProxy: "",
     ...overrides,
   };
 }
@@ -124,5 +126,29 @@ describe("DeploymentUpdateService", () => {
       }),
     );
     expect(docker.startContainer).toHaveBeenCalledWith("updater-container-id");
+  });
+
+  it("passes proxy environment variables to the updater container", async () => {
+    const docker = createDockerClient();
+    const service = new DeploymentUpdateService(
+      createConfig({
+        proxyUrl: "http://192.168.0.6:7890",
+        noProxy: "localhost,127.0.0.1,postgres",
+      }),
+      docker,
+    );
+
+    await service.startUpdate();
+
+    expect(docker.createContainer).toHaveBeenCalledWith(
+      "factory-rental-updater",
+      expect.objectContaining({
+        Env: [
+          "HTTP_PROXY=http://192.168.0.6:7890",
+          "HTTPS_PROXY=http://192.168.0.6:7890",
+          "NO_PROXY=localhost,127.0.0.1,postgres",
+        ],
+      }),
+    );
   });
 });

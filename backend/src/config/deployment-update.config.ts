@@ -10,6 +10,8 @@ export type DeploymentUpdateConfig = {
   services: string[];
   containerName: string;
   onlineVersionUrl: string;
+  proxyUrl: string;
+  noProxy: string;
 };
 
 export function resolveDeploymentUpdateConfig(env: NodeJS.ProcessEnv): DeploymentUpdateConfig {
@@ -33,6 +35,14 @@ export function resolveDeploymentUpdateConfig(env: NodeJS.ProcessEnv): Deploymen
     onlineVersionUrl: readString(env, "WEB_UPDATE_ONLINE_VERSION_URL", {
       defaultValue:
         "https://raw.githubusercontent.com/s450586793/factory-rental-system/main/frontend/src/config/app-meta.ts",
+    }),
+    proxyUrl: readString(env, "WEB_UPDATE_PROXY_URL", {
+      defaultValue: env.HTTPS_PROXY || env.HTTP_PROXY || env.https_proxy || env.http_proxy || "",
+      allowEmpty: true,
+    }),
+    noProxy: readString(env, "WEB_UPDATE_NO_PROXY", {
+      defaultValue: env.NO_PROXY || env.no_proxy || "",
+      allowEmpty: true,
     }),
   };
 }

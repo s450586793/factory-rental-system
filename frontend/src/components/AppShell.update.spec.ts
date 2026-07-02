@@ -93,7 +93,7 @@ describe("AppShell deployment update", () => {
     await wrapper.get("button.app-version").trigger("click");
 
     expect(wrapper.get(".version-update-dialog").text()).toContain("当前版本");
-    expect(wrapper.get(".version-update-dialog").text()).toContain("V0.2.1");
+    expect(wrapper.get(".version-update-dialog").text()).toContain("V0.2.2");
     expect(wrapper.get(".version-update-dialog").text()).toContain("线上版本");
     expect(wrapper.get(".version-update-dialog").text()).toContain("V0.2.2");
     expect(wrapper.get("button.version-update-refresh-button").attributes("disabled")).toBeUndefined();

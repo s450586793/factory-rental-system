@@ -18,11 +18,20 @@ const FONT_FILE = "Songti.ttc";
 const SONGTI_SC_REGULAR_INDEX = 6;
 const RASTER_SCALE = 4;
 const RENDER_SCRIPT = "render_text_overlays.py";
+const STANDARD_CONTRACT_PAGE_WIDTH = 595.3;
+const STANDARD_CONTRACT_PAGE_HEIGHT = 841.9;
+const SAFETY_AGREEMENT_TEMPLATE_START_PAGE = 3;
+const STANDARD_CONTRACT_BODY_X = 58;
+const STANDARD_CONTRACT_BODY_WIDTH = 480;
 
 type ContractDocumentPayload = {
   contract: Contract;
   unit: FactoryUnit & { meterConfigs: UtilityMeterConfig[] };
   generatedDate: string;
+};
+
+export type StandardLeaseContractPage = {
+  sections: string[];
 };
 
 type DateParts = {
@@ -128,6 +137,132 @@ function buildUnitLabel(unit: FactoryUnit) {
     segments.push(`面积${formatArea(unit.area)}平方米`);
   }
   return segments.join("，");
+}
+
+function buildUnitFullAddress(unit: FactoryUnit) {
+  return `江阴市澄江街道澄山路265号，${buildUnitLabel(unit)}`;
+}
+
+function normalizeOptionalText(value: string | null | undefined, fallback = "未填写") {
+  return value?.trim() || fallback;
+}
+
+function stripClauseNumber(value: string) {
+  return value.replace(/^\d+、/, "");
+}
+
+function buildStandardLeaseSignatureText(startParts: DateParts) {
+  const signDate = formatDateForText(startParts);
+  return [
+    "甲方（出租方）：吴孝斌                         乙方（承租方）：",
+    "",
+    "签字/盖章：                                  签字/盖章：",
+    "",
+    `日期：${signDate}                            日期：${signDate}`,
+  ].join("\n");
+}
+
+export function buildStandardLeaseContractPages({
+  contract,
+  unit,
+}: ContractDocumentPayload): StandardLeaseContractPage[] {
+  const startParts = splitDateParts(contract.startDate);
+  const endParts = splitDateParts(contract.endDate);
+  const annualRentUppercase = toChineseCurrencyUppercase(contract.annualRent);
+  const annualRentText = formatMoney(contract.annualRent);
+  const depositText = formatMoney((contract.annualRent || 0) / 12);
+  const utilityText = stripClauseNumber(buildUtilityClause(unit.meterConfigs));
+  const unitAddress = buildUnitFullAddress(unit);
+  const tenantContact = normalizeOptionalText(contract.contactName || contract.tenantName);
+  const tenantPhone = normalizeOptionalText(contract.tenantPhone);
+  const licenseCode = normalizeOptionalText(contract.licenseCode);
+
+  return [
+    {
+      sections: [
+        `出租方（甲方）：${LESSOR_COMPANY}`,
+        `承租方（乙方）：${contract.tenantName}`,
+        `乙方联系人：${tenantContact}    联系电话：${tenantPhone}    证照号码：${licenseCode}`,
+        "根据《中华人民共和国民法典》及有关法律法规，甲、乙双方在平等、自愿、诚实信用的基础上，就甲方将合法拥有或有权出租的厂房出租给乙方使用事宜，订立本合同。本合同正文与附件《入驻厂区企业安全生产管理协议书》共同构成双方完整约定。",
+        "一、租赁标的及交付",
+        `1. 甲方出租给乙方的厂房位于${unitAddress}。租赁范围以现场交付、双方确认的边界及附属设施为准。`,
+        "2. 甲方应在乙方按约支付首期租金、押金并完成入驻资料提交后，将厂房按现状交付乙方使用。乙方接收厂房即视为认可交付状态；发现影响安全或正常使用的问题，应在接收后三日内书面提出。",
+        "3. 乙方知悉厂房及园区为工业生产经营场所，应自行核实其拟经营项目、工艺、消防、环保、用电负荷、设备安装及行政许可要求是否适合入驻。",
+        "二、租赁期限",
+        `1. 租赁期限自${formatDateForText(startParts)}起至${formatDateForText(endParts)}止。`,
+        "2. 租赁期满，甲方有权收回厂房。乙方需续租的，应至少提前三个月向甲方提出书面申请；经甲方同意后，双方另行签订租赁合同或补充协议。",
+      ],
+    },
+    {
+      sections: [
+        "三、租金支付、押金及逾期违约",
+        `1. 双方约定年租金为人民币${annualRentText}元，大写：${annualRentUppercase}。租金按年支付，先付后用；首期租金应于合同签署或起租日前支付，后续租金应于每个租赁年度开始前七日内支付。`,
+        `2. 乙方应向甲方支付履约保证金，标准暂按一个月租金计人民币${depositText}元；双方另有书面约定或系统押金记录、甲方收款凭证载明金额不一致的，以实际书面确认和收款凭证为准。押金不计利息。`,
+        "3. 乙方逾期支付租金、押金、水电费、公摊费或其他应付款项的，每逾期一日，应按逾期未付金额的万分之五向甲方支付违约金；逾期超过十五日的，甲方有权暂停相关服务并要求乙方限期补足。",
+        "4. 乙方逾期超过三十日仍未付清的，甲方有权解除合同、收回厂房，并要求乙方承担欠付款项、违约金、恢复原状费用、清场费用及由此造成的损失。",
+        "5. 押金用于担保乙方履行本合同项下付款、使用、维修、恢复原状、交还厂房、安全环保等义务。合同期满且乙方结清全部费用、迁出并完成交还后，甲方在扣除应由乙方承担的费用和损失后无息退还剩余押金。",
+        "四、水电、公摊、税费及其他费用",
+        `1. ${utilityText}`,
+        "2. 园区公共能耗、公共设施维护、垃圾清运、物业管理、门禁安防、消防维保等因乙方使用厂房和园区公共资源产生的费用，由乙方按甲方公示、通知或双方书面确认的标准承担。",
+        "3. 乙方应按甲方要求及时提供抄表、计量、结算所需资料，不得私接、转供、破坏或绕越水电表计。因乙方原因导致计量失准、损坏或无法抄表的，甲方可按历史平均用量、设备额定功率或合理方式核算费用。",
+        "4. 因本合同履行产生的税费，法律法规有明确承担主体的从其规定；无明确规定的，由产生该费用或取得相应收益的一方承担。乙方需要开具发票的，应提前向甲方提供完整开票资料并配合税务处理。",
+      ],
+    },
+    {
+      sections: [
+        "五、用途限制与转租限制",
+        "1. 乙方承租厂房仅限用于合法合规的生产、仓储、办公或双方书面确认的用途，不得从事违法建设、违法生产经营、危险化学品违规储存使用、高污染高风险或政府及园区禁止、限制准入的项目。",
+        "2. 未经甲方事先书面同意，乙方不得将厂房全部或部分转租、分租、出借、承包、联营、托管、改变实际使用人，亦不得以合作经营、设备租赁、代加工等形式变相转租。",
+        "3. 乙方确需变更经营主体、经营项目、生产工艺、主要设备、用电容量、仓储品类或实际控制人的，应提前向甲方提交书面申请和相关证照，经甲方确认并按监管要求完成告知、备案或审批后方可实施。",
+        "4. 乙方应自行办理并持续保持营业执照、生产经营许可、环保、消防、特种设备、职业健康等依法应取得的资质、许可、备案或验收手续。因乙方手续不全导致停产、处罚、整改或损失的，由乙方自行承担。",
+        "六、维修、保养与日常管理",
+        "1. 甲方负责出租厂房主体结构及依法应由出租方维护的公共设施设备的维修；因乙方使用不当、装修施工、设备安装、超负荷使用、擅自改造或第三方原因造成损坏的，由乙方负责修复并承担费用。",
+        "2. 乙方负责承租区域内门窗、地坪、墙面、照明、线路、管道、排水、消防器材、生产设备及乙方增设设施的日常维护和安全管理，并保持通道、消防设施、配电设施、排水设施可正常使用。",
+        "3. 甲方为检查、维修、安全巡查、抄表、应急处置、政府检查或处理相邻关系需要进入承租区域的，乙方应予配合。紧急情况下甲方可先行采取必要措施，事后及时通知乙方。",
+      ],
+    },
+    {
+      sections: [
+        "七、装修审批与恢复原状",
+        "1. 乙方进行装修、隔断、开孔、搭建、设备基础、管线改造、增加用电容量、安装起重或压力等特种设备、改变消防设施或建筑结构的，应事先向甲方提交书面方案、施工单位资质、安全措施和必要审批材料，经甲方书面同意后方可施工。",
+        "2. 乙方装修施工不得破坏主体结构、承重构件、消防分区、疏散通道、防火间距、屋面防水、公共管网及相邻租户正常使用。施工期间发生安全事故、环境污染、噪声扰民、财产损坏或行政处罚的，由乙方承担责任。",
+        "3. 未经甲方书面同意形成的装修、附属设施、设备基础、管线、隔断、搭建物等，甲方有权要求乙方限期拆除、恢复原状或保留但不予补偿。合同终止或期满交还时，乙方应按甲方要求完成清场、修复和恢复。",
+        "八、消防、环保与安全责任边界",
+        "1. 甲方负责园区公共区域和依法应由出租方承担的安全、消防、环保协调管理职责，并按附件安全生产管理协议约定开展公共区域管理、巡查、告知和协调。",
+        "2. 乙方是承租区域内生产经营、安全生产、消防安全、环境保护、职业健康、特种设备、危险作业和员工管理的直接责任主体，应建立并执行相应制度，配备人员和器材，接受甲方和主管部门检查。",
+        "3. 乙方不得占用、堵塞、封闭疏散通道、安全出口、消防车通道，不得擅自停用、拆除、遮挡消防设施，不得违规住宿、违规充电、违规动火、违规用电或超负荷使用线路。",
+        "4. 乙方开展动火、临时用电、高处、吊装、有限空间、检维修、外包施工等危险作业的，应依法履行审批、告知、监护和防护义务；需要甲方协调或向属地部门告知的，应提前向甲方提交材料。",
+      ],
+    },
+    {
+      sections: [
+        "九、财产损坏、保险与不可抗力",
+        "1. 乙方对其人员、设备、物料、产品、车辆、装修及其他财产自行负责保管。除因甲方故意或重大过失造成外，承租区域内乙方财产毁损、灭失、被盗、停产停业或第三方索赔，由乙方自行承担。",
+        "2. 因乙方或乙方人员、客户、承包商、供应商原因造成甲方、其他租户、园区公共设施或第三方人身、财产损失的，乙方应负责赔偿并使甲方免受损失。",
+        "3. 甲方建议并有权要求乙方根据经营风险购买财产保险、公众责任保险、安全生产责任保险、雇主责任保险或其他必要保险。依法或监管要求必须投保的，乙方应按要求投保并向甲方提供凭证。",
+        "4. 因地震、洪水、台风、火灾等不可抗力，或政府征收征用、市政建设、政策调整、监管整改等非任一方可合理控制的原因导致合同无法继续履行的，双方可协商变更或解除合同，并按实际使用期间结算费用；依法应由责任方承担的除外。",
+        "十、提前解除及违约责任",
+        "1. 乙方需提前解除合同的，应至少提前三十日书面通知甲方并取得甲方书面同意，同时结清租金、水电费、公摊费、违约金、修复费及其他应付款项；给甲方造成损失的，应予赔偿。",
+        "2. 乙方存在逾期付款、擅自转租、擅自改变用途、违法违规生产经营、重大安全环保隐患拒不整改、破坏房屋结构、严重影响园区管理或其他根本违约情形的，甲方有权解除合同、收回厂房并要求乙方承担违约责任。",
+        "3. 甲方因自身原因无法继续提供厂房且不属于不可抗力、政府行为或乙方原因的，应退还乙方已支付但未实际使用期间对应的租金，并按法律规定或双方书面约定承担相应责任。",
+      ],
+    },
+    {
+      sections: [
+        "十一、期满交还、留置物与续租",
+        "1. 合同终止或期满后，乙方应在甲方要求期限内搬离人员、设备、物料、产品、垃圾和危险废物，结清全部费用，将厂房及附属设施按交付状态或甲方认可状态交还甲方。",
+        "2. 乙方逾期交还厂房的，应按日向甲方支付相当于年租金千分之五的占用使用费；不足以弥补甲方损失的，乙方仍应赔偿。逾期交还期间发生的水电、公摊、安全环保及第三方责任由乙方承担。",
+        "3. 乙方遗留物品经甲方书面通知后仍未清理的，甲方有权进行清理、搬运、保管、处置，由此产生的费用和损失由乙方承担；依法需要特殊处置的危险废物、污染物、压力容器、危化品等由乙方负责合规处置。",
+        "十二、争议解决及法院管辖",
+        "1. 本合同履行过程中发生争议，双方应先友好协商；协商不成的，任一方可向厂房所在地有管辖权的人民法院提起诉讼。",
+        "2. 争议处理期间，除争议事项外，双方仍应继续履行本合同中不受影响的其他条款。守约方为实现债权支出的诉讼费、保全费、担保费、律师费、评估费、鉴定费、执行费等合理费用，由违约方承担。",
+        "十三、其他",
+        "1. 本合同未尽事宜，双方可另行签订书面补充协议。补充协议、交付确认、费用通知、整改通知、安全生产管理协议及双方确认的附件，与本合同具有同等法律效力。",
+        "2. 本合同一式两份，甲、乙双方各执一份，自双方签字或盖章之日起生效。",
+        buildStandardLeaseSignatureText(startParts),
+      ],
+    },
+  ];
 }
 
 function resolveRuntimePath(type: "assets" | "scripts", ...segments: string[]) {
@@ -378,42 +513,120 @@ export function buildContractDocumentOverlays({
     {
       id: "page10-lessor-contact",
       pageIndex: 9,
-      text: LESSOR_NAME,
+      text: `${LESSOR_NAME}同志`,
       x: 178,
       top: 155,
-      clearWidth: 46,
+      clearWidth: 72,
       clearHeight: 20,
       fontSize: 11,
       fontIndex: SONGTI_SC_REGULAR_INDEX,
-      maxWidth: 46,
+      maxWidth: 72,
     },
     {
       id: "page10-tenant-contact",
       pageIndex: 9,
-      text: contract.contactName || contract.tenantName,
+      text: `${contract.contactName || contract.tenantName}同志`,
       x: 301,
       top: 186,
-      clearWidth: 48,
+      clearWidth: 72,
       clearHeight: 20,
       fontSize: 11,
       fontIndex: SONGTI_SC_REGULAR_INDEX,
-      maxWidth: 48,
+      maxWidth: 72,
     },
     {
       id: "page10-period",
       pageIndex: 9,
-      text: `${formatDateForText(startParts)}至${formatDateForText(endParts)}`,
+      text: `${formatDateForText(startParts)}至${formatDateForText(endParts)}；有效`,
       x: 230,
       top: 592,
-      clearWidth: 195,
+      clearWidth: 240,
       clearHeight: 22,
       fontSize: 11,
       fontIndex: SONGTI_SC_REGULAR_INDEX,
       maxWidth: 195,
+      padding: 2,
     },
   ];
 
   return overlays;
+}
+
+function buildStandardLeaseBodyOverlays(pages: StandardLeaseContractPage[]): TemplateOverlay[] {
+  return pages.flatMap((page, index) => {
+    const pageNumber = index + 1;
+    const isFirstPage = index === 0;
+    const top = isFirstPage ? 88 : 58;
+    const bodyClearHeight = isFirstPage ? 665 : 695;
+
+    const overlays: TemplateOverlay[] = [];
+    if (isFirstPage) {
+      overlays.push({
+        id: `standard-contract-title-${pageNumber}`,
+        pageIndex: index,
+        text: "厂房租赁合同",
+        x: 238,
+        top: 42,
+        clearWidth: 140,
+        clearHeight: 30,
+        fontSize: 20,
+        fontIndex: SONGTI_SC_REGULAR_INDEX,
+        maxWidth: 140,
+        lineHeight: 28,
+        maxLines: 1,
+        padding: 0,
+      });
+    }
+
+    overlays.push(
+      {
+        id: `standard-contract-body-${pageNumber}`,
+        pageIndex: index,
+        text: page.sections.join("\n\n"),
+        x: STANDARD_CONTRACT_BODY_X,
+        top,
+        clearWidth: STANDARD_CONTRACT_BODY_WIDTH,
+        clearHeight: bodyClearHeight,
+        fontSize: 10,
+        fontIndex: SONGTI_SC_REGULAR_INDEX,
+        maxWidth: STANDARD_CONTRACT_BODY_WIDTH,
+        lineHeight: 15,
+        maxLines: isFirstPage ? 43 : 46,
+        padding: 0,
+      },
+      {
+        id: `standard-contract-footer-${pageNumber}`,
+        pageIndex: index,
+        text: `第 ${pageNumber} 页`,
+        x: 280,
+        top: 800,
+        clearWidth: 60,
+        clearHeight: 16,
+        fontSize: 9,
+        fontIndex: SONGTI_SC_REGULAR_INDEX,
+        maxWidth: 60,
+        lineHeight: 13,
+        maxLines: 1,
+        padding: 0,
+      },
+    );
+
+    return overlays;
+  });
+}
+
+function shiftSafetyAgreementOverlays(
+  overlays: TemplateOverlay[],
+  standardLeasePageCount: number,
+): TemplateOverlay[] {
+  return overlays
+    .filter((overlay) => overlay.pageIndex >= SAFETY_AGREEMENT_TEMPLATE_START_PAGE)
+    .map((overlay) => ({
+      ...overlay,
+      id: `safety-agreement-${overlay.id}`,
+      pageIndex:
+        overlay.pageIndex - SAFETY_AGREEMENT_TEMPLATE_START_PAGE + standardLeasePageCount,
+    }));
 }
 
 export async function buildContractDocumentPdf({
@@ -424,10 +637,31 @@ export async function buildContractDocumentPdf({
   const templatePath = resolveRuntimePath("assets", "templates", TEMPLATE_FILE);
   const fontPath = resolveRuntimePath("assets", "fonts", FONT_FILE);
   const templateBytes = await readFile(templatePath);
+  const templatePdf = await PDFDocument.load(templateBytes);
+  const pdf = await PDFDocument.create();
+  const standardLeasePages = buildStandardLeaseContractPages({ contract, unit, generatedDate });
 
-  const pdf = await PDFDocument.load(templateBytes);
+  for (let index = 0; index < standardLeasePages.length; index += 1) {
+    pdf.addPage([STANDARD_CONTRACT_PAGE_WIDTH, STANDARD_CONTRACT_PAGE_HEIGHT]);
+  }
+
+  const safetyPageIndices = Array.from(
+    { length: templatePdf.getPageCount() - SAFETY_AGREEMENT_TEMPLATE_START_PAGE },
+    (_, index) => SAFETY_AGREEMENT_TEMPLATE_START_PAGE + index,
+  );
+  const safetyPages = await pdf.copyPages(templatePdf, safetyPageIndices);
+  for (const page of safetyPages) {
+    pdf.addPage(page);
+  }
+
   const pages = pdf.getPages();
-  const overlays = buildContractDocumentOverlays({ contract, unit, generatedDate });
+  const overlays = [
+    ...buildStandardLeaseBodyOverlays(standardLeasePages),
+    ...shiftSafetyAgreementOverlays(
+      buildContractDocumentOverlays({ contract, unit, generatedDate }),
+      standardLeasePages.length,
+    ),
+  ];
 
   const rasterized = renderTextOverlays(fontPath, overlays);
   const rasterMap = new Map(rasterized.map((item) => [item.id, item]));

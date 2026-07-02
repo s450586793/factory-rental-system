@@ -1,6 +1,11 @@
 import { spawnSync } from "node:child_process";
 import path from "node:path";
-import { buildContractDocumentOverlays } from "./contract-document";
+import { PDFDocument } from "pdf-lib";
+import {
+  buildContractDocumentPdf,
+  buildContractDocumentOverlays,
+  buildStandardLeaseContractPages,
+} from "./contract-document";
 import { Contract, ContractStatus } from "./contract.entity";
 import { FactoryUnit } from "../units/factory-unit.entity";
 import { UtilityMeterConfig, UtilityType } from "../utilities/utility-meter-config.entity";
@@ -96,6 +101,39 @@ function renderOverlayWithScript() {
 }
 
 describe("buildContractDocumentOverlays", () => {
+  it("builds a standard factory lease body with core commercial clauses", () => {
+    const pages = buildStandardLeaseContractPages({
+      contract: buildContractFixture(),
+      unit: buildUnitFixture(),
+      generatedDate: "2026-07-01",
+    });
+    const bodyText = pages.map((page) => page.sections.join("\n")).join("\n");
+
+    expect(pages.length).toBeGreaterThanOrEqual(5);
+    expect(pages.length).toBeLessThanOrEqual(8);
+    expect(bodyText).toContain("租金支付、押金及逾期违约");
+    expect(bodyText).toContain("水电、公摊、税费及其他费用");
+    expect(bodyText).toContain("用途限制与转租限制");
+    expect(bodyText).toContain("提前解除及违约责任");
+    expect(bodyText).toContain("装修审批与恢复原状");
+    expect(bodyText).toContain("消防、环保与安全责任边界");
+    expect(bodyText).toContain("财产损坏、保险与不可抗力");
+    expect(bodyText).toContain("争议解决及法院管辖");
+  });
+
+  it("appends the existing safety production agreement after the standard lease body", async () => {
+    const payload = {
+      contract: buildContractFixture(),
+      unit: buildUnitFixture(),
+      generatedDate: "2026-07-01",
+    };
+
+    const buffer = await buildContractDocumentPdf(payload);
+    const pdf = await PDFDocument.load(buffer);
+
+    expect(pdf.getPageCount()).toBe(buildStandardLeaseContractPages(payload).length + 7);
+  }, 20000);
+
   it("uses contract start date in the safety agreement and fully clears replaced template text", () => {
     const overlays = buildContractDocumentOverlays({
       contract: buildContractFixture(),
@@ -125,6 +163,47 @@ describe("buildContractDocumentOverlays", () => {
     expect(utilityClause?.x).toBeLessThanOrEqual(64);
     expect(utilityClause.x + (utilityClause.paddingX ?? 0)).toBe(84);
     expect(utilityClause?.clearHeight).toBeGreaterThanOrEqual(70);
+  });
+
+  it("keeps the safety contact title text complete when filling contact names", () => {
+    const overlays = buildContractDocumentOverlays({
+      contract: buildContractFixture(),
+      unit: buildUnitFixture(),
+      generatedDate: "2026-07-01",
+    });
+
+    expect(overlays).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: "page10-lessor-contact",
+          text: "吴孝斌同志",
+        }),
+        expect.objectContaining({
+          id: "page10-tenant-contact",
+          text: "曹忠同志",
+        }),
+      ]),
+    );
+  });
+
+  it("fully clears the safety agreement validity period placeholder", () => {
+    const overlays = buildContractDocumentOverlays({
+      contract: buildContractFixture(),
+      unit: buildUnitFixture(),
+      generatedDate: "2026-07-01",
+    });
+    const safetyPeriod = overlays.find((item) => item.id === "page10-period");
+
+    expect(safetyPeriod).toBeDefined();
+    if (!safetyPeriod) {
+      throw new Error("安全协议有效期覆盖层缺失");
+    }
+
+    expect(safetyPeriod.text).toBe("2025年7月1日至2026年6月30日；有效");
+    expect(safetyPeriod.x - (safetyPeriod.padding ?? 2)).toBeLessThanOrEqual(230);
+    expect(safetyPeriod.x + safetyPeriod.clearWidth + (safetyPeriod.padding ?? 2)).toBeGreaterThanOrEqual(
+      470,
+    );
   });
 
   it("renders replacement text with the regular Songti face instead of the black face", () => {
