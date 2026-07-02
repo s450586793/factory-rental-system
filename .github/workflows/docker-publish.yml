@@ -102,6 +102,7 @@ jobs:
           name: github-deploy-bundle
           path: |
             docker-compose.ghcr.yml
+            docker-compose.web-update.yml
             docker-compose.yml
             .env.example
             .env.ghcr.example

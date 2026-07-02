@@ -171,6 +171,48 @@ a {
   justify-content: flex-start;
 }
 
+.web-update-button {
+  width: 100%;
+  display: grid;
+  gap: 2px;
+  justify-items: start;
+  padding: 10px 12px;
+  border: 1px solid rgba(15, 143, 113, 0.2);
+  border-radius: 8px;
+  background: rgba(15, 143, 113, 0.08);
+  color: #0f5f4d;
+  cursor: pointer;
+  text-align: left;
+  transition:
+    background 0.2s ease,
+    border-color 0.2s ease,
+    transform 0.2s ease;
+}
+
+.web-update-button:hover:not(:disabled) {
+  transform: translateY(-1px);
+  background: rgba(15, 143, 113, 0.13);
+  border-color: rgba(15, 143, 113, 0.36);
+}
+
+.web-update-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.52;
+}
+
+.web-update-button span {
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1.2;
+}
+
+.web-update-button small {
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.25;
+  color: rgba(15, 95, 77, 0.62);
+}
+
 .app-version {
   justify-self: end;
   text-align: right;

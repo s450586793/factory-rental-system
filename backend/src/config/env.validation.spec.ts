@@ -62,4 +62,13 @@ describe("validateEnvironment", () => {
 
     expect(validateEnvironment(env).API_DOCS_ENABLED).toBe("false");
   });
+
+  it("rejects invalid web update boolean values", () => {
+    expect(() =>
+      validateEnvironment({
+        ...validEnv,
+        WEB_UPDATE_ENABLED: "yes",
+      }),
+    ).toThrow("WEB_UPDATE_ENABLED");
+  });
 });

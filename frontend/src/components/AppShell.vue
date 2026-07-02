@@ -61,6 +61,16 @@
       </nav>
 
       <div class="sidebar-user">
+        <button
+          type="button"
+          class="web-update-button"
+          :disabled="!deploymentUpdateStatus?.enabled || deploymentUpdateStatus.running || updateStarting"
+          @click="handleDeploymentUpdate"
+        >
+          <span>更新系统</span>
+          <small>{{ updateButtonCaption }}</small>
+        </button>
+
         <el-dropdown trigger="click" @command="handleUserCommand">
           <button type="button" class="user-trigger">
             <span class="user-avatar">{{ userInitial }}</span>
@@ -113,9 +123,10 @@
 </template>
 
 <script setup lang="ts">
-import { ElMessage } from "element-plus";
+import { ElMessage, ElMessageBox } from "element-plus";
 import { computed, onBeforeUnmount, onMounted, ref, useSlots, watch } from "vue";
 import { RouterLink, useRoute, useRouter } from "vue-router";
+import { deploymentUpdateApi, type DeploymentUpdateStatus } from "../api";
 import { APP_UPDATED_AT, APP_VERSION } from "../config/app-meta";
 import { useAuthStore } from "../stores/auth";
 
@@ -174,11 +185,32 @@ const lastExpandedMode = ref<Exclude<SidebarMode, "hidden">>(
 );
 const viewportWidth = ref(typeof window === "undefined" ? AUTO_BREAKPOINT : window.innerWidth);
 const overlayOpen = ref(false);
+const deploymentUpdateStatus = ref<DeploymentUpdateStatus | null>(null);
+const updateStarting = ref(false);
 
 const currentUsername = computed(() => authStore.state.user?.username || "管理员");
 const userInitial = computed(() => currentUsername.value.slice(0, 1).toUpperCase());
 const hasTopActions = computed(() => Boolean(slots["top-actions"]));
 const showTopbar = computed(() => !showSidebar.value || hasTopActions.value);
+const updateButtonCaption = computed(() => {
+  if (!deploymentUpdateStatus.value) {
+    return "检查更新状态";
+  }
+
+  if (!deploymentUpdateStatus.value.enabled) {
+    return "未启用";
+  }
+
+  if (deploymentUpdateStatus.value.running) {
+    return "执行中";
+  }
+
+  if (updateStarting.value) {
+    return "启动中";
+  }
+
+  return "拉取最新镜像";
+});
 
 const isSidebarPinned = computed(() => {
   if (sidebarMode.value === "hidden") {
@@ -211,6 +243,7 @@ watch(isSidebarPinned, (pinned) => {
 onMounted(() => {
   syncViewport();
   window.addEventListener("resize", syncViewport);
+  loadDeploymentUpdateStatus();
 });
 
 onBeforeUnmount(() => {
@@ -279,5 +312,48 @@ async function handleLogout() {
   await authStore.logout();
   ElMessage.success("已退出登录");
   router.push("/login");
+}
+
+async function loadDeploymentUpdateStatus() {
+  try {
+    deploymentUpdateStatus.value = await deploymentUpdateApi.status();
+  } catch {
+    deploymentUpdateStatus.value = {
+      enabled: false,
+      running: false,
+      services: [],
+      composeFiles: [],
+    };
+  }
+}
+
+async function handleDeploymentUpdate() {
+  if (!deploymentUpdateStatus.value?.enabled || deploymentUpdateStatus.value.running || updateStarting.value) {
+    return;
+  }
+
+  try {
+    await ElMessageBox.confirm(
+      "系统会在后台拉取最新镜像并重建服务，页面可能短暂断开。确认现在更新？",
+      "更新系统",
+      {
+        confirmButtonText: "开始更新",
+        cancelButtonText: "取消",
+        type: "warning",
+      },
+    );
+  } catch {
+    return;
+  }
+
+  updateStarting.value = true;
+  try {
+    const result = await deploymentUpdateApi.start();
+    ElMessage.success(result.message);
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : "启动系统更新失败");
+  } finally {
+    updateStarting.value = false;
+  }
 }
 </script>

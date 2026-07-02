@@ -22,6 +22,19 @@ type GeneratedContractDocumentPayload = {
   mimeType: string;
 };
 
+export type DeploymentUpdateStatus = {
+  enabled: boolean;
+  running: boolean;
+  services: string[];
+  composeFiles: string[];
+};
+
+export type DeploymentUpdateStartResult = {
+  started: boolean;
+  containerName: string;
+  message: string;
+};
+
 export const authApi = {
   login: (payload: { username: string; password: string }) =>
     apiFetch<{ user: User }>("/auth/login", {
@@ -31,6 +44,14 @@ export const authApi = {
   me: () => apiFetch<{ user: User }>("/auth/me"),
   logout: () =>
     apiFetch<{ success: boolean }>("/auth/logout", {
+      method: "POST",
+    }),
+};
+
+export const deploymentUpdateApi = {
+  status: () => apiFetch<DeploymentUpdateStatus>("/deployment-update/status"),
+  start: () =>
+    apiFetch<DeploymentUpdateStartResult>("/deployment-update/start", {
       method: "POST",
     }),
 };

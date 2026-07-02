@@ -23,6 +23,11 @@ jobs:
       - name: Validate GHCR compose
         run: docker compose -f docker-compose.ghcr.yml config
 
+      - name: Validate web update compose overlay
+        env:
+          WEB_UPDATE_PROJECT_DIR: /tmp/factory-rental-system
+        run: docker compose -f docker-compose.ghcr.yml -f docker-compose.web-update.yml config
+
   backend-check:
     runs-on: ubuntu-latest
     defaults:

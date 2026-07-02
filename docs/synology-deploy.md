@@ -16,6 +16,7 @@
 - `FRONTEND_ORIGIN`
 - `COOKIE_SECURE`
 - `API_DOCS_ENABLED`
+- 如需 Web 端一键更新，再按“Web 端更新”章节启用覆盖配置
 
 5. 如有反向代理，按实际访问域名修改：
 
@@ -35,6 +36,33 @@
 ```bash
 docker compose -f docker-compose.ghcr.yml up -d
 ```
+
+## Web 端更新
+
+Web 端更新功能默认关闭。启用后，登录用户可以在侧栏点击“更新系统”，后端会通过宿主机 Docker socket 启动一个一次性 updater 容器，执行：
+
+```bash
+docker compose -f docker-compose.ghcr.yml pull backend frontend
+docker compose -f docker-compose.ghcr.yml up -d --remove-orphans
+```
+
+命令行部署时使用覆盖文件启用：
+
+```bash
+WEB_UPDATE_PROJECT_DIR=/volume1/docker/factory-rental-system \
+docker compose -f docker-compose.ghcr.yml -f docker-compose.web-update.yml up -d
+```
+
+`WEB_UPDATE_PROJECT_DIR` 必须是 DSM 上保存 `docker-compose.ghcr.yml`、`volumes/` 的宿主机绝对路径。覆盖文件会把这个路径以同一路径挂入 backend 和 updater 容器，确保相对数据卷仍然解析到原来的 PostgreSQL 与附件目录。
+
+覆盖文件默认设置 `WEB_UPDATE_COMPOSE_FILES=docker-compose.ghcr.yml,docker-compose.web-update.yml`，更新时会同时加载主 compose 和 Web 更新覆盖配置，避免服务重建后按钮功能被关闭。
+
+安全注意：
+
+- 覆盖文件会把 `/var/run/docker.sock` 挂给 backend，等同授予 Docker 管理权限
+- 仅建议在单管理员、强密码、HTTPS 或可信内网环境启用
+- 不需要 Web 更新时，不要加载 `docker-compose.web-update.yml`
+- 群晖 GUI 如果不能设置多 compose 文件，需在项目 YAML 中手动合并覆盖文件里的 backend `environment` 和 `volumes`
 
 ## 反向代理建议
 

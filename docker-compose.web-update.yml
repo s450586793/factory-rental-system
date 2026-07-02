@@ -1,0 +1,12 @@
+services:
+  backend:
+    environment:
+      WEB_UPDATE_ENABLED: "true"
+      WEB_UPDATE_DOCKER_SOCKET: /var/run/docker.sock
+      WEB_UPDATE_PROJECT_DIR: ${WEB_UPDATE_PROJECT_DIR}
+      WEB_UPDATE_COMPOSE_FILES: ${WEB_UPDATE_COMPOSE_FILES:-docker-compose.ghcr.yml,docker-compose.web-update.yml}
+      WEB_UPDATE_RUNNER_IMAGE: ${WEB_UPDATE_RUNNER_IMAGE:-docker:27-cli}
+      WEB_UPDATE_SERVICES: ${WEB_UPDATE_SERVICES:-backend,frontend}
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ${WEB_UPDATE_PROJECT_DIR}:${WEB_UPDATE_PROJECT_DIR}

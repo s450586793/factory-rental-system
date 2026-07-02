@@ -1,6 +1,7 @@
 import { resolveAppConfig } from "./app.config";
 import { resolveAuthConfig } from "./auth.config";
 import { resolveDatabaseConfig } from "./database.config";
+import { resolveDeploymentUpdateConfig } from "./deployment-update.config";
 import { resolveStorageConfig } from "./storage.config";
 
 export function validateEnvironment(env: Record<string, unknown>) {
@@ -17,5 +18,6 @@ export function validateEnvironment(env: Record<string, unknown>) {
   resolveAuthConfig(runtimeEnv);
   resolveDatabaseConfig(runtimeEnv);
   resolveStorageConfig(runtimeEnv);
+  resolveDeploymentUpdateConfig(runtimeEnv);
   return runtimeEnv;
 }

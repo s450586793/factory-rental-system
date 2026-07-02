@@ -2,9 +2,9 @@
 
 > 此项目由 Codex 生成，并按实际业务需求持续迭代。
 
-当前版本：V0.1.9
+当前版本：V0.2.0
 
-更新时间：2026-07-01 21:51 CST
+更新时间：2026-07-02 10:20 CST
 
 版本规则：小修复递增补丁号（例如 `V0.1.2`），大功能或结构调整递增小版本号（例如 `V0.2.0`）。
 
@@ -18,6 +18,7 @@
 
 ## 更新历史
 
+- `2026-07-02 10:20 CST` `V0.2.0` 新增 Web 端一键更新入口，登录后可触发后端在 DSM 上拉取 GHCR 最新镜像并重建服务；部署侧通过独立 compose 覆盖文件显式开启 Docker socket 权限
 - `2026-07-01 21:51 CST` `V0.1.9` 加固群晖部署安全默认值，升级前后端依赖并清零生产依赖审计漏洞；合同 PDF 修复费用条款残留、安全协议日期和动态字段字体；Web 端同步显示最新版本与更新时间
 - `2026-04-14 18:29 CST` `V0.1.8` 厂房管理中合同历史表格进一步压缩列宽和内边距，尽量减少左右滑动
 - `2026-04-14 18:19 CST` `V0.1.7` 厂房管理列表“当前合同欠费”改为“合计欠费”，金额改为该厂房全部合同欠费合计
@@ -106,6 +107,7 @@ docs/                    开发、环境变量、数据库、群晖部署文档
 .github/workflows/       GitHub Actions 工作流
 docker-compose.yml       源码构建版 compose
 docker-compose.ghcr.yml  GHCR 镜像部署版 compose
+docker-compose.web-update.yml  Web 端更新功能覆盖配置
 ```
 
 根目录的 `index.html`、`app.js`、`style.css` 仅保留为早期静态原型参考，不是正式入口。
@@ -133,6 +135,15 @@ docker compose -f docker-compose.ghcr.yml up -d
 ```
 
 `docker-compose.ghcr.yml` 已包含 `postgres`、`backend`、`frontend` 三个服务；数据库镜像直接使用官方 `postgres:16`。
+
+如需启用 Web 端“更新系统”按钮，需要额外使用覆盖文件并填写 DSM 上的项目绝对路径：
+
+```bash
+WEB_UPDATE_PROJECT_DIR=/volume1/docker/factory-rental-system \
+docker compose -f docker-compose.ghcr.yml -f docker-compose.web-update.yml up -d
+```
+
+启用后，按钮会让后端通过 Docker socket 启动一次性 updater 容器，使用 `docker-compose.ghcr.yml` 和 `docker-compose.web-update.yml` 执行 `docker compose pull backend frontend` 与 `docker compose up -d --remove-orphans`。
 
 部署版 compose 的默认策略：
 
@@ -162,6 +173,8 @@ docker compose -f docker-compose.ghcr.yml up -d
   源码构建版，适合本地开发和自建镜像调试
 - [docker-compose.ghcr.yml](./docker-compose.ghcr.yml)
   GHCR 镜像部署版，适合群晖 GUI 直接粘贴或服务器直接启动
+- [docker-compose.web-update.yml](./docker-compose.web-update.yml)
+  Web 端更新功能覆盖配置，启用后会挂载 Docker socket，仅建议在受信任内网或强密码账户下使用
 - [.env.example](./.env.example)
   本地源码构建版环境变量模板
 - [.env.ghcr.example](./.env.ghcr.example)

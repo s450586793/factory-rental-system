@@ -48,6 +48,23 @@
 - `PDF_FONT_PATH`
   收据 PDF 使用的中文字体路径
 
+## Web 端更新
+
+- `WEB_UPDATE_ENABLED`
+  是否启用 Web 端“更新系统”按钮，默认 `false`
+- `WEB_UPDATE_DOCKER_SOCKET`
+  Docker socket 路径，默认 `/var/run/docker.sock`
+- `WEB_UPDATE_PROJECT_DIR`
+  DSM 宿主机上的 compose 项目绝对路径，启用 Web 更新时必须配置
+- `WEB_UPDATE_COMPOSE_FILES`
+  用于更新的 compose 文件名列表，多个文件用英文逗号分隔；GHCR Web 更新默认 `docker-compose.ghcr.yml,docker-compose.web-update.yml`
+- `WEB_UPDATE_RUNNER_IMAGE`
+  一次性 updater 容器镜像，默认 `docker:27-cli`
+- `WEB_UPDATE_SERVICES`
+  拉取镜像时限定的服务列表，默认 `backend,frontend`
+
+启用 Web 端更新需要额外挂载 Docker socket。默认 compose 不挂载该权限，需显式加载 `docker-compose.web-update.yml`。
+
 ## Compose 端口变量
 
 - `POSTGRES_PORT`

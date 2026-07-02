@@ -5,10 +5,12 @@ import { AuthModule } from "./auth/auth.module";
 import appConfig from "./config/app.config";
 import authConfig from "./config/auth.config";
 import databaseConfig from "./config/database.config";
+import deploymentUpdateConfig from "./config/deployment-update.config";
 import storageConfig from "./config/storage.config";
 import { validateEnvironment } from "./config/env.validation";
 import { ContractsModule } from "./contracts/contracts.module";
 import { buildTypeOrmModuleOptions } from "./database/typeorm.config";
+import { DeploymentUpdateModule } from "./deployment/deployment-update.module";
 import { DepositsModule } from "./deposits/deposits.module";
 import { FilesModule } from "./files/files.module";
 import { HealthModule } from "./health/health.module";
@@ -24,7 +26,7 @@ import { UtilitiesModule } from "./utilities/utilities.module";
       isGlobal: true,
       envFilePath: [".env.local", ".env"],
       validate: validateEnvironment,
-      load: [appConfig, authConfig, databaseConfig, storageConfig],
+      load: [appConfig, authConfig, databaseConfig, storageConfig, deploymentUpdateConfig],
     }),
     TypeOrmModule.forRootAsync({
       inject: [ConfigService],
@@ -40,6 +42,7 @@ import { UtilitiesModule } from "./utilities/utilities.module";
     RentPaymentsModule,
     DepositsModule,
     ReceiptsModule,
+    DeploymentUpdateModule,
   ],
 })
 export class AppModule {}
