@@ -39,7 +39,7 @@ describe("AppShell", () => {
       },
     });
 
-    expect(wrapper.text()).toContain("版本 V0.2.0");
-    expect(wrapper.text()).toContain("2026-07-02 10:20 CST");
+    expect(wrapper.text()).toContain("版本 V0.2.1");
+    expect(wrapper.text()).toContain("2026-07-02 13:44 CST");
   });
 });
