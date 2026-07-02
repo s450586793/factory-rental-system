@@ -1,5 +1,6 @@
 import { mount, RouterLinkStub } from "@vue/test-utils";
 import AppShell from "./AppShell.vue";
+import { APP_UPDATED_AT, APP_VERSION } from "../config/app-meta";
 
 vi.mock("../stores/auth", () => ({
   useAuthStore: () => ({
@@ -39,7 +40,7 @@ describe("AppShell", () => {
       },
     });
 
-    expect(wrapper.text()).toContain("版本 V0.2.2");
-    expect(wrapper.text()).toContain("2026-07-02 15:55 CST");
+    expect(wrapper.text()).toContain(`版本 ${APP_VERSION}`);
+    expect(wrapper.text()).toContain(APP_UPDATED_AT);
   });
 });

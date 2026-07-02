@@ -121,6 +121,38 @@ describe("buildContractDocumentOverlays", () => {
     expect(bodyText).toContain("争议解决及法院管辖");
   });
 
+  it("sets the performance deposit to two months of rent", () => {
+    const pages = buildStandardLeaseContractPages({
+      contract: buildContractFixture(),
+      unit: buildUnitFixture(),
+      generatedDate: "2026-07-01",
+    });
+    const bodyText = pages.map((page) => page.sections.join("\n")).join("\n");
+
+    expect(bodyText).toContain("两个月租金计人民币8333.33元");
+  });
+
+  it("includes strengthened industrial park risk-control clauses in the lease body", () => {
+    const pages = buildStandardLeaseContractPages({
+      contract: buildContractFixture(),
+      unit: buildUnitFixture(),
+      generatedDate: "2026-07-01",
+    });
+    const bodyText = pages.map((page) => page.sections.join("\n")).join("\n");
+
+    expect(bodyText).toContain("逾期超过十五日仍未支付的，甲方有权解除合同");
+    expect(bodyText).toContain("不得将本厂房作为其他企业注册地址、分公司注册地址或其他经营主体备案地址");
+    expect(bodyText).toContain("合同终止或期满后三日内");
+    expect(bodyText).toContain("超过七日未领取的，视为乙方放弃所有权");
+    expect(bodyText).toContain("不得储存易燃易爆、危险化学品、危险废物及国家限制物品");
+    expect(bodyText).toContain("乙方应自行购买财产保险、公众责任险、安全生产责任险");
+    expect(bodyText).toContain("甲方有权提前通知进入承租区域检查消防、环保、线路、漏水、违建等事项");
+    expect(bodyText).toContain("包括电线、配电箱、地坪、门窗、隔墙、广告牌");
+    expect(bodyText).toContain("不得在厂房内设置宿舍、住宿或留宿人员");
+    expect(bodyText).toContain("停产整顿、限期整改、行政强制措施、民事赔偿或第三方索赔");
+    expect(bodyText).toContain("包括罚款、律师费、诉讼费、停租损失等");
+  });
+
   it("appends the existing safety production agreement after the standard lease body", async () => {
     const payload = {
       contract: buildContractFixture(),
