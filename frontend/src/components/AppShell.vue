@@ -137,6 +137,10 @@
           {{ deploymentUpdateStatus.onlineVersionError }}
         </p>
 
+        <p v-if="shouldReloadForOnlineVersion" class="version-update-hint">
+          当前页面仍是旧版本，请刷新页面加载最新前端。
+        </p>
+
         <div class="version-update-actions">
           <button
             type="button"
@@ -145,6 +149,14 @@
             @click="refreshDeploymentUpdateStatus"
           >
             {{ updateStatusRefreshing ? "查询中" : "刷新" }}
+          </button>
+          <button
+            v-if="shouldReloadForOnlineVersion"
+            type="button"
+            class="version-update-reload-button"
+            @click="reloadPage"
+          >
+            刷新页面
           </button>
           <button
             type="button"
@@ -233,7 +245,11 @@ const userInitial = computed(() => currentUsername.value.slice(0, 1).toUpperCase
 const hasTopActions = computed(() => Boolean(slots["top-actions"]));
 const showTopbar = computed(() => !showSidebar.value || hasTopActions.value);
 const canStartDeploymentUpdate = computed(
-  () => Boolean(deploymentUpdateStatus.value?.enabled) && !deploymentUpdateStatus.value?.running && !updateStarting.value,
+  () =>
+    Boolean(deploymentUpdateStatus.value?.enabled) &&
+    !deploymentUpdateStatus.value?.running &&
+    !updateStarting.value &&
+    !shouldReloadForOnlineVersion.value,
 );
 const updateActionCaption = computed(() => {
   if (!deploymentUpdateStatus.value) {
@@ -252,9 +268,17 @@ const updateActionCaption = computed(() => {
     return "启动中";
   }
 
+  if (shouldReloadForOnlineVersion.value) {
+    return "先刷新页面";
+  }
+
   return "拉取最新镜像";
 });
 const onlineVersionText = computed(() => deploymentUpdateStatus.value?.onlineVersion || "未查询到");
+const shouldReloadForOnlineVersion = computed(() => {
+  const onlineVersion = deploymentUpdateStatus.value?.onlineVersion;
+  return Boolean(onlineVersion && compareAppVersions(onlineVersion, APP_VERSION) > 0);
+});
 
 const isSidebarPinned = computed(() => {
   if (sidebarMode.value === "hidden") {
@@ -415,5 +439,31 @@ async function handleDeploymentUpdate() {
   } finally {
     updateStarting.value = false;
   }
+}
+
+function reloadPage() {
+  window.location.reload();
+}
+
+function compareAppVersions(left: string, right: string) {
+  const leftParts = parseAppVersion(left);
+  const rightParts = parseAppVersion(right);
+
+  for (let index = 0; index < Math.max(leftParts.length, rightParts.length); index += 1) {
+    const diff = (leftParts[index] ?? 0) - (rightParts[index] ?? 0);
+    if (diff !== 0) {
+      return diff;
+    }
+  }
+
+  return 0;
+}
+
+function parseAppVersion(value: string) {
+  return value
+    .replace(/^v/i, "")
+    .split(".")
+    .map((part) => Number.parseInt(part, 10))
+    .map((part) => (Number.isNaN(part) ? 0 : part));
 }
 </script>

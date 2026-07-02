@@ -304,13 +304,26 @@ a {
   font-weight: 700;
 }
 
+.version-update-hint {
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px solid rgba(15, 143, 113, 0.18);
+  border-radius: 8px;
+  background: rgba(15, 143, 113, 0.08);
+  color: #0f5f4d;
+  font-size: 13px;
+  font-weight: 700;
+}
+
 .version-update-actions {
   display: flex;
   justify-content: flex-end;
   gap: 10px;
+  flex-wrap: wrap;
 }
 
 .version-update-refresh-button,
+.version-update-reload-button,
 .version-update-start-button {
   min-width: 96px;
   height: 40px;
@@ -327,6 +340,12 @@ a {
   color: #0f5f4d;
 }
 
+.version-update-reload-button {
+  border: 1px solid rgba(15, 143, 113, 0.22);
+  background: #edf8f5;
+  color: #0f5f4d;
+}
+
 .version-update-start-button {
   border: 1px solid rgba(15, 143, 113, 0.18);
   background: linear-gradient(135deg, #0f8f71, #0d5b5d);
@@ -334,6 +353,7 @@ a {
 }
 
 .version-update-refresh-button:disabled,
+.version-update-reload-button:disabled,
 .version-update-start-button:disabled {
   cursor: not-allowed;
   opacity: 0.54;

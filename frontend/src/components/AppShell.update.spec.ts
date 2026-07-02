@@ -169,6 +169,38 @@ describe("AppShell deployment update", () => {
     expect(wrapper.get(".version-update-dialog").text()).toContain("V0.2.3");
   });
 
+  it("prompts the operator to reload when the running page is behind the online version", async () => {
+    vi.mocked(deploymentUpdateApi.status).mockResolvedValue({
+      enabled: true,
+      running: false,
+      services: ["backend", "frontend"],
+      composeFiles: ["docker-compose.ghcr.yml", "docker-compose.web-update.yml"],
+      onlineVersion: "V0.2.5",
+      onlineVersionCheckedAt: "2026-07-02T04:20:00.000Z",
+      onlineVersionError: null,
+    });
+
+    const reload = vi.fn();
+    Object.defineProperty(window, "location", {
+      configurable: true,
+      value: {
+        reload,
+      },
+    });
+
+    const wrapper = mountShell();
+    await flushPromises();
+    await wrapper.get("button.app-version").trigger("click");
+
+    expect(wrapper.get(".version-update-dialog").text()).toContain("当前页面仍是旧版本，请刷新页面加载最新前端");
+    expect(wrapper.find("button.version-update-reload-button").exists()).toBe(true);
+    expect(wrapper.get("button.version-update-start-button").attributes("disabled")).toBeDefined();
+
+    await wrapper.get("button.version-update-reload-button").trigger("click");
+
+    expect(reload).toHaveBeenCalledTimes(1);
+  });
+
   it("starts the backend update after operator confirmation", async () => {
     const wrapper = mountShell();
     await flushPromises();
