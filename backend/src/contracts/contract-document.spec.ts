@@ -132,6 +132,20 @@ describe("buildContractDocumentOverlays", () => {
     expect(bodyText).toContain("两个月租金计人民币8333.33元");
   });
 
+  it("states that the lessor provides invoicing and the tenant bears resulting taxes", () => {
+    const pages = buildStandardLeaseContractPages({
+      contract: buildContractFixture(),
+      unit: buildUnitFixture(),
+      generatedDate: "2026-07-01",
+    });
+    const bodyText = pages.map((page) => page.sections.join("\n")).join("\n");
+
+    expect(bodyText).toContain("甲方可按乙方要求提供开票服务");
+    expect(bodyText).toContain("乙方应承担并支付因此产生的相应税金");
+    expect(bodyText).not.toContain("法律法规有明确承担主体的从其规定");
+    expect(bodyText).not.toContain("无明确规定的，由产生该费用或取得相应收益的一方承担");
+  });
+
   it("includes strengthened industrial park risk-control clauses in the lease body", () => {
     const pages = buildStandardLeaseContractPages({
       contract: buildContractFixture(),
