@@ -154,11 +154,11 @@ function stripClauseNumber(value: string) {
 function buildStandardLeaseSignatureText(startParts: DateParts) {
   const signDate = formatDateForText(startParts);
   return [
-    "甲方（出租方）：吴孝斌                         乙方（承租方）：",
+    "甲方（出租方）：吴孝斌                              乙方（承租方）：",
     "",
-    "签字/盖章：                                  签字/盖章：",
+    "签字/盖章：                                       签字/盖章：",
     "",
-    `日期：${signDate}                            日期：${signDate}`,
+    `日期：${signDate}                                 日期：${signDate}`,
   ].join("\n");
 }
 

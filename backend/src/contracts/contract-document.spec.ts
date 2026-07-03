@@ -146,6 +146,19 @@ describe("buildContractDocumentOverlays", () => {
     expect(bodyText).not.toContain("无明确规定的，由产生该费用或取得相应收益的一方承担");
   });
 
+  it("places the tenant signature column farther to the right", () => {
+    const pages = buildStandardLeaseContractPages({
+      contract: buildContractFixture(),
+      unit: buildUnitFixture(),
+      generatedDate: "2026-07-01",
+    });
+    const bodyText = pages.map((page) => page.sections.join("\n")).join("\n");
+
+    expect(bodyText).toContain("甲方（出租方）：吴孝斌                              乙方（承租方）：");
+    expect(bodyText).toContain("签字/盖章：                                       签字/盖章：");
+    expect(bodyText).toContain("日期：2025年7月1日                                 日期：2025年7月1日");
+  });
+
   it("includes strengthened industrial park risk-control clauses in the lease body", () => {
     const pages = buildStandardLeaseContractPages({
       contract: buildContractFixture(),
