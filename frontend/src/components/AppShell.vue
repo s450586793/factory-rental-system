@@ -272,7 +272,7 @@ const updateActionCaption = computed(() => {
     return "启动中";
   }
 
-  return shouldReloadForOnlineVersion.value ? "更新" : "拉取最新镜像";
+  return "更新";
 });
 const onlineVersionText = computed(() => deploymentUpdateStatus.value?.onlineVersion || "未查询到");
 const shouldReloadForOnlineVersion = computed(() => {

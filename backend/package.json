@@ -1,6 +1,6 @@
 {
   "name": "factory-rental-backend",
-  "version": "0.2.12",
+  "version": "0.2.13",
   "private": true,
   "scripts": {
     "build": "nest build",
@@ -45,7 +45,8 @@
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1",
     "swagger-ui-express": "^5.0.1",
-    "typeorm": "^0.3.20"
+    "typeorm": "^0.3.20",
+    "undici": "^6.27.0"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.4",

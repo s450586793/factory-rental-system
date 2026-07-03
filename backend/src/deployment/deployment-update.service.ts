@@ -1,4 +1,5 @@
 import { BadRequestException, ConflictException, Inject, Injectable, ServiceUnavailableException } from "@nestjs/common";
+import { ProxyAgent } from "undici";
 import type { DeploymentUpdateConfig } from "../config/deployment-update.config";
 import { DockerEngineHttpClient } from "./docker-engine.client";
 
@@ -121,8 +122,13 @@ export class DeploymentUpdateService {
     }
 
     const checkedAt = new Date().toISOString();
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), this.config.onlineVersionTimeoutMs);
     try {
-      const response = await fetch(this.config.onlineVersionUrl);
+      const response = await fetch(this.config.onlineVersionUrl, {
+        ...this.buildOnlineVersionFetchOptions(),
+        signal: controller.signal,
+      });
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}`);
       }
@@ -142,10 +148,26 @@ export class DeploymentUpdateService {
       return {
         onlineVersion: null,
         onlineVersionCheckedAt: checkedAt,
-        onlineVersionError: error instanceof Error ? error.message : "查询失败",
+        onlineVersionError: isAbortError(error) ? "查询线上版本超时" : error instanceof Error ? error.message : "查询失败",
       };
+    } finally {
+      clearTimeout(timeout);
     }
   }
+
+  private buildOnlineVersionFetchOptions() {
+    if (!this.config.proxyUrl) {
+      return {};
+    }
+
+    return {
+      dispatcher: new ProxyAgent(this.config.proxyUrl),
+    };
+  }
+}
+
+function isAbortError(error: unknown) {
+  return error instanceof Error && error.name === "AbortError";
 }
 
 function quoteShell(value: string) {

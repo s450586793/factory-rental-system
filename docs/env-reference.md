@@ -62,6 +62,12 @@
   一次性 updater 容器镜像，默认 `docker:27-cli`
 - `WEB_UPDATE_SERVICES`
   拉取镜像时限定的服务列表，默认 `backend,frontend`
+- `WEB_UPDATE_PROXY_URL`
+  DSM 访问 GitHub 或 GHCR 需要代理时填写，例如 `http://192.168.0.6:7890`；会用于查询线上版本，也会传入 updater 容器拉取镜像
+- `WEB_UPDATE_NO_PROXY`
+  不走代理的地址列表，例如 `localhost,127.0.0.1,postgres,factory-rental-postgres,192.168.0.0/16,.local`
+- `WEB_UPDATE_ONLINE_VERSION_TIMEOUT_MS`
+  查询线上版本的超时时间，默认 `5000`，最小 `1000`
 
 启用 Web 端更新需要额外挂载 Docker socket。默认 compose 不挂载该权限，需显式加载 `docker-compose.web-update.yml`。
 

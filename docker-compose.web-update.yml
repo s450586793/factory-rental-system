@@ -7,6 +7,9 @@ services:
       WEB_UPDATE_COMPOSE_FILES: ${WEB_UPDATE_COMPOSE_FILES:-docker-compose.ghcr.yml,docker-compose.web-update.yml}
       WEB_UPDATE_RUNNER_IMAGE: ${WEB_UPDATE_RUNNER_IMAGE:-docker:27-cli}
       WEB_UPDATE_SERVICES: ${WEB_UPDATE_SERVICES:-backend,frontend}
+      WEB_UPDATE_PROXY_URL: ${WEB_UPDATE_PROXY_URL:-}
+      WEB_UPDATE_NO_PROXY: ${WEB_UPDATE_NO_PROXY:-}
+      WEB_UPDATE_ONLINE_VERSION_TIMEOUT_MS: ${WEB_UPDATE_ONLINE_VERSION_TIMEOUT_MS:-5000}
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - ${WEB_UPDATE_PROJECT_DIR}:${WEB_UPDATE_PROJECT_DIR}

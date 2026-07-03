@@ -1,5 +1,5 @@
 import { registerAs } from "@nestjs/config";
-import { readBoolean, readString, splitCsv } from "./env.helpers";
+import { readBoolean, readNumber, readString, splitCsv } from "./env.helpers";
 
 export type DeploymentUpdateConfig = {
   enabled: boolean;
@@ -10,6 +10,7 @@ export type DeploymentUpdateConfig = {
   services: string[];
   containerName: string;
   onlineVersionUrl: string;
+  onlineVersionTimeoutMs: number;
   proxyUrl: string;
   noProxy: string;
 };
@@ -35,6 +36,10 @@ export function resolveDeploymentUpdateConfig(env: NodeJS.ProcessEnv): Deploymen
     onlineVersionUrl: readString(env, "WEB_UPDATE_ONLINE_VERSION_URL", {
       defaultValue:
         "https://raw.githubusercontent.com/s450586793/factory-rental-system/main/frontend/src/config/app-meta.ts",
+    }),
+    onlineVersionTimeoutMs: readNumber(env, "WEB_UPDATE_ONLINE_VERSION_TIMEOUT_MS", {
+      defaultValue: 5_000,
+      minimum: 1_000,
     }),
     proxyUrl: readString(env, "WEB_UPDATE_PROXY_URL", {
       defaultValue: env.HTTPS_PROXY || env.HTTP_PROXY || env.https_proxy || env.http_proxy || "",

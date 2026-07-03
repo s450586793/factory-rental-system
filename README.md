@@ -2,9 +2,9 @@
 
 > 此项目由 Codex 生成，并按实际业务需求持续迭代。
 
-当前版本：V0.2.12
+当前版本：V0.2.13
 
-更新时间：2026-07-03 19:34 CST
+更新时间：2026-07-03 20:18 CST
 
 版本规则：小修复递增补丁号（例如 `V0.1.2`），大功能或结构调整递增小版本号（例如 `V0.2.0`）。
 
@@ -18,6 +18,7 @@
 
 ## 更新历史
 
+- `2026-07-03 20:18 CST` `V0.2.13` 修复 DSM Web 更新弹窗查询线上版本失败的问题：后端线上版本查询增加 5 秒超时，并在配置代理时显式通过代理访问 GitHub，避免页面长时间显示“未查询到”
 - `2026-07-03 19:34 CST` `V0.2.12` 优化版本更新弹窗：打开弹窗时强制重新查询更新状态，查询失败时不再误显示“未启用”，改为提示刷新后重试
 - `2026-07-03 15:33 CST` `V0.2.11` 修复押金字段数据库迁移注册，确保 DSM 生产环境通过 migration 增加并回填合同押金字段
 - `2026-07-03 15:13 CST` `V0.2.10` 合同新增押金字段：年租金旁可录入押金，新增下一年度合同时自动继承上一份同房源合同的年租金和押金，自动生成合同正文从合同押金字段读取
@@ -156,6 +157,17 @@ docker compose -f docker-compose.ghcr.yml -f docker-compose.web-update.yml up -d
 ```
 
 启用后，按钮会让后端通过 Docker socket 启动一次性 updater 容器，使用 `docker-compose.ghcr.yml` 和 `docker-compose.web-update.yml` 执行 `docker compose pull backend frontend` 与 `docker compose up -d --remove-orphans`。
+
+如果 DSM 访问 GitHub 或 GHCR 需要代理，可在启动时一起传入：
+
+```bash
+WEB_UPDATE_PROJECT_DIR=/volume1/docker/factory-rental-system \
+WEB_UPDATE_PROXY_URL=http://192.168.0.6:7890 \
+WEB_UPDATE_NO_PROXY=localhost,127.0.0.1,postgres,factory-rental-postgres,192.168.0.0/16,.local \
+docker compose -f docker-compose.ghcr.yml -f docker-compose.web-update.yml up -d
+```
+
+`WEB_UPDATE_PROXY_URL` 会同时用于查询线上版本和 updater 容器拉取镜像；`WEB_UPDATE_ONLINE_VERSION_TIMEOUT_MS` 默认 `5000`，用于限制线上版本查询最长等待时间。
 
 部署版 compose 的默认策略：
 

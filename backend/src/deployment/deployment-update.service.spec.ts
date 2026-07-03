@@ -12,6 +12,7 @@ function createConfig(overrides: Partial<DeploymentUpdateConfig> = {}): Deployme
     services: ["backend", "frontend"],
     containerName: "factory-rental-updater",
     onlineVersionUrl: "",
+    onlineVersionTimeoutMs: 5_000,
     proxyUrl: "",
     noProxy: "",
     ...overrides,
@@ -29,6 +30,12 @@ function createDockerClient(): jest.Mocked<DockerEngineClient> {
 }
 
 describe("DeploymentUpdateService", () => {
+  const originalFetch = global.fetch;
+
+  afterEach(() => {
+    global.fetch = originalFetch;
+  });
+
   it("reports the configured update capability without exposing Docker internals", () => {
     const service = new DeploymentUpdateService(createConfig(), createDockerClient());
 
@@ -58,6 +65,62 @@ describe("DeploymentUpdateService", () => {
       onlineVersionError: null,
     });
   });
+
+  it("times out online version checks instead of blocking update status", async () => {
+    jest.useFakeTimers();
+    global.fetch = jest.fn((_url: string | URL | Request, init?: RequestInit) => {
+      return new Promise<Response>((_resolve, reject) => {
+        init?.signal?.addEventListener("abort", () => {
+          const error = new Error("aborted");
+          error.name = "AbortError";
+          reject(error);
+        });
+      });
+    }) as typeof fetch;
+    const service = new DeploymentUpdateService(
+      createConfig({
+        onlineVersionUrl: "https://example.com/app-meta.ts",
+        onlineVersionTimeoutMs: 5_000,
+      }),
+      createDockerClient(),
+    );
+
+    const statusPromise = service.getStatus();
+    await jest.advanceTimersByTimeAsync(5_000);
+
+    await expect(statusPromise).resolves.toMatchObject({
+      enabled: true,
+      onlineVersion: null,
+      onlineVersionError: "查询线上版本超时",
+    });
+
+    jest.useRealTimers();
+  });
+
+  it("uses the configured proxy when checking the online version", async () => {
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      text: jest.fn().mockResolvedValue('export const APP_VERSION = "V9.9.9";'),
+    }) as typeof fetch;
+    const service = new DeploymentUpdateService(
+      createConfig({
+        onlineVersionUrl: "https://example.com/app-meta.ts",
+        proxyUrl: "http://192.168.0.6:7890",
+      }),
+      createDockerClient(),
+    );
+
+    await expect(service.getStatus()).resolves.toMatchObject({
+      onlineVersion: "V9.9.9",
+      onlineVersionError: null,
+    });
+    const [, init] = (global.fetch as jest.Mock).mock.calls[0] as [
+      string | URL | Request,
+      RequestInit & { dispatcher?: unknown },
+    ];
+    expect(init.dispatcher).toBeDefined();
+  });
+
 
   it("rejects update starts when web updates are disabled", async () => {
     const docker = createDockerClient();

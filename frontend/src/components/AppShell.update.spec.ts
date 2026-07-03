@@ -194,7 +194,7 @@ describe("AppShell deployment update", () => {
         running: false,
         services: ["backend", "frontend"],
         composeFiles: ["docker-compose.ghcr.yml", "docker-compose.web-update.yml"],
-        onlineVersion: "V0.2.13",
+        onlineVersion: "V0.2.14",
         onlineVersionCheckedAt: "2026-07-02T04:20:00.000Z",
         onlineVersionError: null,
       });
@@ -205,7 +205,7 @@ describe("AppShell deployment update", () => {
     await flushPromises();
 
     expect(deploymentUpdateApi.status).toHaveBeenCalledTimes(2);
-    expect(wrapper.get(".version-update-dialog").text()).toContain("V0.2.13");
+    expect(wrapper.get(".version-update-dialog").text()).toContain("V0.2.14");
     expect(wrapper.get("button.version-update-start-button").text()).toContain("更新");
   });
 
@@ -228,7 +228,7 @@ describe("AppShell deployment update", () => {
       running: false,
       services: ["backend", "frontend"],
       composeFiles: ["docker-compose.ghcr.yml", "docker-compose.web-update.yml"],
-      onlineVersion: "V0.2.13",
+      onlineVersion: "V0.2.14",
       onlineVersionCheckedAt: "2026-07-02T04:20:00.000Z",
       onlineVersionError: null,
     });

@@ -39,7 +39,7 @@ docker compose -f docker-compose.ghcr.yml up -d
 
 ## Web 端更新
 
-Web 端更新功能默认关闭。启用后，登录用户可以在侧栏点击“更新系统”，后端会通过宿主机 Docker socket 启动一个一次性 updater 容器，执行：
+Web 端更新功能默认关闭。启用后，登录用户可以点击页面版本号打开版本弹窗，再点击“更新”，后端会通过宿主机 Docker socket 启动一个一次性 updater 容器，执行：
 
 ```bash
 docker compose -f docker-compose.ghcr.yml pull backend frontend
@@ -53,9 +53,20 @@ WEB_UPDATE_PROJECT_DIR=/volume1/docker/factory-rental-system \
 docker compose -f docker-compose.ghcr.yml -f docker-compose.web-update.yml up -d
 ```
 
+DSM 访问 GitHub 或 GHCR 需要代理时，启动时一起传入：
+
+```bash
+WEB_UPDATE_PROJECT_DIR=/volume1/docker/factory-rental-system \
+WEB_UPDATE_PROXY_URL=http://192.168.0.6:7890 \
+WEB_UPDATE_NO_PROXY=localhost,127.0.0.1,postgres,factory-rental-postgres,192.168.0.0/16,.local \
+docker compose -f docker-compose.ghcr.yml -f docker-compose.web-update.yml up -d
+```
+
 `WEB_UPDATE_PROJECT_DIR` 必须是 DSM 上保存 `docker-compose.ghcr.yml`、`volumes/` 的宿主机绝对路径。覆盖文件会把这个路径以同一路径挂入 backend 和 updater 容器，确保相对数据卷仍然解析到原来的 PostgreSQL 与附件目录。
 
 覆盖文件默认设置 `WEB_UPDATE_COMPOSE_FILES=docker-compose.ghcr.yml,docker-compose.web-update.yml`，更新时会同时加载主 compose 和 Web 更新覆盖配置，避免服务重建后按钮功能被关闭。
+
+`WEB_UPDATE_PROXY_URL` 会同时用于查询线上版本和 updater 容器拉取镜像；`WEB_UPDATE_ONLINE_VERSION_TIMEOUT_MS` 默认 `5000`，用于限制线上版本查询最长等待时间。
 
 安全注意：
 
