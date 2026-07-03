@@ -70,6 +70,7 @@ export class ContractsService {
       startDate: dto.startDate,
       endDate: dto.endDate,
       annualRent: dto.annualRent,
+      depositAmount: dto.depositAmount,
       status: resolveContractStatus(dto.startDate, dto.endDate),
       businessLicenseFileId: businessLicenseFile?.id ?? null,
       businessLicenseFile,
@@ -95,6 +96,7 @@ export class ContractsService {
     contract.startDate = dto.startDate;
     contract.endDate = dto.endDate;
     contract.annualRent = dto.annualRent;
+    contract.depositAmount = dto.depositAmount;
     contract.status = resolveContractStatus(dto.startDate, dto.endDate);
     contract.businessLicenseFileId = businessLicenseFile?.id ?? null;
     contract.businessLicenseFile = businessLicenseFile ?? null;

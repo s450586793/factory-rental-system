@@ -45,6 +45,10 @@ export class CreateContractDto {
   @Min(0)
   annualRent!: number;
 
+  @IsNumber()
+  @Min(0)
+  depositAmount!: number;
+
   @IsString()
   @IsOptional()
   businessLicenseFileId?: string;

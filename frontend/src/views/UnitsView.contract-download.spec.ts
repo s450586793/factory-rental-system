@@ -60,6 +60,7 @@ const activeContract = {
   startDate: "2026-07-01",
   endDate: "2027-06-30",
   annualRent: 50000,
+  depositAmount: 10000,
   paidAmount: 0,
   outstandingAmount: 0,
   status: "active",
@@ -75,6 +76,7 @@ const oldContract = {
   startDate: "2026-07-01",
   endDate: "2027-06-30",
   annualRent: 50000,
+  depositAmount: 10000,
   paidAmount: 0,
   outstandingAmount: 0,
   status: "active",
@@ -105,6 +107,7 @@ const savedContract = {
   startDate: "2027-07-01",
   endDate: "2028-06-30",
   annualRent: 50000,
+  depositAmount: 10000,
   paidAmount: 0,
   outstandingAmount: 0,
   status: "active",
@@ -256,11 +259,9 @@ async function openCreateContractDialog(wrapper: ReturnType<typeof mountUnitsVie
 }
 
 async function fillAnnualRent(wrapper: ReturnType<typeof mountUnitsView>, value: string) {
-  const annualRentInput = wrapper
-    .findAll('input[type="number"]')
-    .find((input) => input.element instanceof HTMLInputElement && input.element.value === "0");
-  expect(annualRentInput).toBeTruthy();
-  await annualRentInput!.setValue(value);
+  const annualRentInput = wrapper.find('input[aria-label="年租金"]');
+  expect(annualRentInput.exists()).toBe(true);
+  await annualRentInput.setValue(value);
 }
 
 describe("UnitsView contract download", () => {
@@ -278,6 +279,27 @@ describe("UnitsView contract download", () => {
       filename: "自动生成厂房租赁合同_5_曹忠_2027-07-01_2028-06-30.pdf",
       mimeType: "application/pdf",
     });
+  });
+
+  it("defaults a new contract deposit from the previous contract and submits it", async () => {
+    const wrapper = mountUnitsView();
+    await flushPromises();
+
+    await openCreateContractDialog(wrapper);
+
+    const depositInput = wrapper.find('input[aria-label="押金"]');
+    expect(depositInput.exists()).toBe(true);
+    expect((depositInput.element as HTMLInputElement).value).toBe("10000");
+
+    await findButton(wrapper, "保存").trigger("click");
+    await flushPromises();
+
+    expect(contractsApi.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        annualRent: 50000,
+        depositAmount: 10000,
+      }),
+    );
   });
 
   it("downloads a newly saved contract without pre-generating the document twice", async () => {

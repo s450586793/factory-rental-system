@@ -80,6 +80,7 @@ export class InitialSchema1711600000000 implements MigrationInterface {
         "startDate" date NOT NULL,
         "endDate" date NOT NULL,
         "annualRent" numeric(12,2) NOT NULL,
+        "depositAmount" numeric(12,2) NOT NULL DEFAULT 0,
         "status" "contracts_status_enum" NOT NULL,
         "businessLicenseFileId" uuid,
         CONSTRAINT "PK_contracts_id" PRIMARY KEY ("id"),

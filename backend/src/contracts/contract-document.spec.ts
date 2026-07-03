@@ -30,6 +30,7 @@ function buildContractFixture() {
     startDate: "2025-07-01",
     endDate: "2026-06-30",
     annualRent: 50000,
+    depositAmount: 10000,
     status: ContractStatus.ACTIVE,
     businessLicenseFileId: null,
     businessLicenseFile: null,
@@ -196,7 +197,7 @@ describe("buildContractDocumentOverlays", () => {
     expect(bodyText).toContain("争议解决及法院管辖");
   });
 
-  it("sets the performance deposit to two months of rent", () => {
+  it("uses the contract deposit amount in the standard lease body", () => {
     const pages = buildStandardLeaseContractPages({
       contract: buildContractFixture(),
       unit: buildUnitFixture(),
@@ -204,7 +205,8 @@ describe("buildContractDocumentOverlays", () => {
     });
     const bodyText = pages.map((page) => page.sections.join("\n")).join("\n");
 
-    expect(bodyText).toContain("两个月租金计人民币8333.33元");
+    expect(bodyText).toContain("履约保证金人民币10000.00元");
+    expect(bodyText).not.toContain("8333.33元");
   });
 
   it("states that the lessor provides invoicing and the tenant bears resulting taxes", () => {

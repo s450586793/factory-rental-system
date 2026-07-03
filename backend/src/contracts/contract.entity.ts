@@ -57,6 +57,14 @@ export class Contract extends BaseEntityWithTimestamps {
   annualRent!: number;
 
   @Column({
+    type: "numeric",
+    precision: 12,
+    scale: 2,
+    transformer: numericTransformer,
+  })
+  depositAmount!: number;
+
+  @Column({
     type: "enum",
     enum: ContractStatus,
   })

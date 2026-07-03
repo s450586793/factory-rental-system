@@ -190,14 +190,30 @@
               </el-col>
             </el-row>
 
-            <el-form-item label="年租金">
-              <el-input-number
-                v-model="unitContractForm.annualRent"
-                :min="0"
-                :precision="2"
-                style="width: 100%"
-              />
-            </el-form-item>
+            <el-row :gutter="14">
+              <el-col :span="12">
+                <el-form-item label="年租金">
+                  <el-input-number
+                    v-model="unitContractForm.annualRent"
+                    aria-label="初始合同年租金"
+                    :min="0"
+                    :precision="2"
+                    style="width: 100%"
+                  />
+                </el-form-item>
+              </el-col>
+              <el-col :span="12">
+                <el-form-item label="押金">
+                  <el-input-number
+                    v-model="unitContractForm.depositAmount"
+                    aria-label="初始合同押金"
+                    :min="0"
+                    :precision="2"
+                    style="width: 100%"
+                  />
+                </el-form-item>
+              </el-col>
+            </el-row>
 
             <el-form-item label="营业执照">
               <div class="detail-grid">
@@ -324,6 +340,11 @@
             <el-table-column label="应收" width="90">
               <template #default="{ row }">
                 {{ displayRentAmount(row.annualRent) }}
+              </template>
+            </el-table-column>
+            <el-table-column label="押金" width="90">
+              <template #default="{ row }">
+                {{ displayRentAmount(row.depositAmount) }}
               </template>
             </el-table-column>
             <el-table-column label="已收" width="90">
@@ -477,9 +498,30 @@
           </el-col>
         </el-row>
 
-        <el-form-item label="年租金">
-          <el-input-number v-model="contractForm.annualRent" :min="0" :precision="2" style="width: 100%" />
-        </el-form-item>
+        <el-row :gutter="14">
+          <el-col :span="12">
+            <el-form-item label="年租金">
+              <el-input-number
+                v-model="contractForm.annualRent"
+                aria-label="年租金"
+                :min="0"
+                :precision="2"
+                style="width: 100%"
+              />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="押金">
+              <el-input-number
+                v-model="contractForm.depositAmount"
+                aria-label="押金"
+                :min="0"
+                :precision="2"
+                style="width: 100%"
+              />
+            </el-form-item>
+          </el-col>
+        </el-row>
 
         <el-form-item label="营业执照">
           <div class="detail-grid">
@@ -640,6 +682,7 @@ const unitContractForm = reactive({
   startDate: "",
   endDate: "",
   annualRent: 0,
+  depositAmount: 0,
 });
 const unitBusinessLicenseUpload = ref<File | null>(null);
 const unitAttachmentUploads = ref<File[]>([]);
@@ -657,6 +700,7 @@ const contractForm = reactive({
   startDate: "",
   endDate: "",
   annualRent: 0,
+  depositAmount: 0,
   businessLicenseFileId: "",
   attachmentFileIds: [] as string[],
 });
@@ -730,6 +774,7 @@ function resetUnitContractForm() {
   unitContractForm.startDate = "";
   unitContractForm.endDate = "";
   unitContractForm.annualRent = 0;
+  unitContractForm.depositAmount = 0;
   unitBusinessLicenseUpload.value = null;
   unitAttachmentUploads.value = [];
   if (unitBusinessLicenseInput.value) {
@@ -784,6 +829,7 @@ async function saveUnit() {
             startDate: unitContractForm.startDate,
             endDate: unitContractForm.endDate,
             annualRent: Number(unitContractForm.annualRent),
+            depositAmount: Number(unitContractForm.depositAmount),
             businessLicenseFileId,
             attachmentFileIds,
           });
@@ -897,6 +943,7 @@ function hasInitialContractInput() {
       unitContractForm.startDate ||
       unitContractForm.endDate ||
       Number(unitContractForm.annualRent) > 0 ||
+      Number(unitContractForm.depositAmount) > 0 ||
       unitBusinessLicenseUpload.value ||
       unitAttachmentUploads.value.length,
   );
@@ -920,6 +967,9 @@ function validateInitialContractForm() {
   }
   if (Number(unitContractForm.annualRent) <= 0) {
     throw new Error("新增初始合同时，年租金必须大于 0");
+  }
+  if (Number(unitContractForm.depositAmount) < 0) {
+    throw new Error("新增初始合同时，押金不能小于 0");
   }
 }
 
@@ -984,6 +1034,7 @@ function resetContractForm() {
   contractForm.startDate = "";
   contractForm.endDate = "";
   contractForm.annualRent = 0;
+  contractForm.depositAmount = 0;
   contractForm.businessLicenseFileId = "";
   contractForm.attachmentFileIds = [];
   existingBusinessLicense.value = null;
@@ -1002,6 +1053,8 @@ function openCreateContract() {
     contractForm.licenseCode = latestContract.licenseCode;
     contractForm.startDate = deriveNextDate(latestContract.endDate);
     contractForm.endDate = deriveContractEndDate(contractForm.startDate);
+    contractForm.annualRent = latestContract.annualRent;
+    contractForm.depositAmount = latestContract.depositAmount;
   }
   contractDialogVisible.value = true;
 }
@@ -1016,6 +1069,7 @@ function openEditContract(contract: Contract) {
   contractForm.startDate = contract.startDate;
   contractForm.endDate = contract.endDate;
   contractForm.annualRent = contract.annualRent;
+  contractForm.depositAmount = contract.depositAmount;
   contractForm.businessLicenseFileId = contract.businessLicenseFile?.id ?? "";
   contractForm.attachmentFileIds = contract.attachmentFiles.map((item) => item.id);
   existingBusinessLicense.value = contract.businessLicenseFile;
@@ -1057,6 +1111,9 @@ function validateContractForm() {
   }
   if (Number(contractForm.annualRent) <= 0) {
     throw new Error("年租金必须大于 0");
+  }
+  if (Number(contractForm.depositAmount) < 0) {
+    throw new Error("押金不能小于 0");
   }
 }
 
@@ -1102,6 +1159,7 @@ async function saveContract(generateDocumentAfterSave = false) {
       startDate: contractForm.startDate,
       endDate: contractForm.endDate,
       annualRent: Number(contractForm.annualRent),
+      depositAmount: Number(contractForm.depositAmount),
       businessLicenseFileId,
       attachmentFileIds,
     };

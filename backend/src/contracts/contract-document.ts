@@ -172,7 +172,7 @@ export function buildStandardLeaseContractPages({
   const endParts = splitDateParts(contract.endDate);
   const annualRentUppercase = toChineseCurrencyUppercase(contract.annualRent);
   const annualRentText = formatMoney(contract.annualRent);
-  const depositText = formatMoney(((contract.annualRent || 0) / 12) * 2);
+  const depositText = formatMoney(contract.depositAmount);
   const utilityText = stripClauseNumber(buildUtilityClause(unit.meterConfigs));
   const unitAddress = buildUnitFullAddress(unit);
   const tenantContact = normalizeOptionalText(contract.contactName || contract.tenantName);
@@ -199,7 +199,7 @@ export function buildStandardLeaseContractPages({
       sections: [
         "三、租金支付、押金及逾期违约",
         `1. 双方约定年租金为人民币${annualRentText}元，大写：${annualRentUppercase}。租金按年支付，先付后用；首期租金应于合同签署或起租日前支付，后续租金应于每个租赁年度开始前七日内支付。`,
-        `2. 乙方应向甲方支付履约保证金，标准暂按两个月租金计人民币${depositText}元；双方另有书面约定或系统押金记录、甲方收款凭证载明金额不一致的，以实际书面确认和收款凭证为准。押金不计利息。`,
+        `2. 乙方应向甲方支付履约保证金人民币${depositText}元；双方另有书面约定或系统押金记录、甲方收款凭证载明金额不一致的，以实际书面确认和收款凭证为准。押金不计利息。`,
         "3. 乙方逾期支付租金、押金、水电费、公摊费或其他应付款项的，每逾期一日，应按逾期未付金额的万分之五向甲方支付违约金；逾期超过十五日仍未支付的，甲方有权解除合同、收回厂房，并要求乙方承担欠付款项、违约金、恢复原状费用、清场费用及由此造成的损失。",
         "4. 乙方逾期付款期间，甲方有权暂停非紧急维修、门禁便利、开票协助等非基本服务；乙方仍应承担逾期期间产生的水电、公摊、安全环保及第三方责任。",
         "5. 押金用于担保乙方履行本合同项下付款、使用、维修、恢复原状、交还厂房、安全环保等义务。合同期满且乙方结清全部费用、迁出并完成交还后，甲方在扣除应由乙方承担的费用和损失后无息退还剩余押金。",
