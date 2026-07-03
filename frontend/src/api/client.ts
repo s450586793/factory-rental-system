@@ -91,3 +91,7 @@ export async function apiDownload(path: string, init?: RequestInit): Promise<Api
 export function apiFileUrl(fileId: string) {
   return `${API_BASE_URL}/files/${fileId}/download`;
 }
+
+export function apiGeneratedContractDocumentUrl(contractId: string) {
+  return `${API_BASE_URL}/contracts/${contractId}/generated-document`;
+}

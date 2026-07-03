@@ -606,7 +606,7 @@
 import { computed, onMounted, reactive, ref } from "vue";
 import { ElMessage, ElMessageBox } from "element-plus";
 import AppShell from "../components/AppShell.vue";
-import { apiFileUrl } from "../api/client";
+import { apiFileUrl, apiGeneratedContractDocumentUrl } from "../api/client";
 import { contractsApi, filesApi, unitsApi, utilitiesApi } from "../api";
 import { useViewportWidth } from "../composables/useViewportWidth";
 import type { Contract, MeterConfig, StoredFile, UnitSummary } from "../types/models";
@@ -848,12 +848,12 @@ function downloadPreviewFile() {
     return;
   }
 
-  triggerFileDownload(previewFile.value.id, previewFile.value.originalName);
+  triggerFileDownload(apiFileUrl(previewFile.value.id), previewFile.value.originalName);
 }
 
-function triggerFileDownload(fileId: string, filename: string) {
+function triggerFileDownload(url: string, filename: string) {
   const anchor = document.createElement("a");
-  anchor.href = apiFileUrl(fileId);
+  anchor.href = url;
   anchor.download = filename;
   anchor.rel = "noopener";
   document.body.appendChild(anchor);
@@ -1114,19 +1114,7 @@ async function saveContract(generateDocumentAfterSave = false) {
     }
 
     if (shouldGenerateDocument) {
-      try {
-        const generated = await contractsApi.generateDocument(savedContract.id);
-        triggerFileDownload(generated.file.id, generated.file.originalName);
-      } catch (error) {
-        contractDialogVisible.value = false;
-        await Promise.all([refreshSelectedUnit(), loadUnits()]);
-        ElMessage.warning(
-          error instanceof Error
-            ? `合同已保存，但合同文件生成失败：${error.message}`
-            : "合同已保存，但合同文件生成失败",
-        );
-        return;
-      }
+      triggerFileDownload(apiGeneratedContractDocumentUrl(savedContract.id), buildGeneratedContractDownloadName(savedContract));
     }
 
     contractDialogVisible.value = false;
@@ -1150,14 +1138,21 @@ async function saveContract(generateDocumentAfterSave = false) {
 async function downloadContractDocument(contractId: string) {
   try {
     downloadingContractId.value = contractId;
-    const generated = await contractsApi.generateDocument(contractId);
-    triggerFileDownload(generated.file.id, generated.file.originalName);
+    const contract = selectedUnit.value?.contracts.find((item) => item.id === contractId);
+    triggerFileDownload(apiGeneratedContractDocumentUrl(contractId), buildGeneratedContractDownloadName(contract));
     ElMessage.success("合同已开始下载");
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : "下载合同失败");
   } finally {
     downloadingContractId.value = "";
   }
+}
+
+function buildGeneratedContractDownloadName(contract?: Pick<Contract, "tenantName" | "startDate" | "endDate"> | null) {
+  const tenantName = contract?.tenantName?.replace(/[\\/:*?"<>|]+/g, "-").trim() || "合同";
+  const startDate = contract?.startDate || "开始日期";
+  const endDate = contract?.endDate || "结束日期";
+  return `自动生成厂房租赁合同_${tenantName}_${startDate}_${endDate}.pdf`;
 }
 
 async function confirmRemoveContract(contractId: string) {
