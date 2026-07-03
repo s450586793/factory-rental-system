@@ -97,7 +97,7 @@ describe("AppShell deployment update", () => {
     expect(wrapper.get(".version-update-dialog").text()).toContain("线上版本");
     expect(wrapper.get(".version-update-dialog").text()).toContain("V0.2.2");
     expect(wrapper.get("button.version-update-refresh-button").attributes("disabled")).toBeUndefined();
-    expect(wrapper.get("button.version-update-start-button").attributes("disabled")).toBeUndefined();
+    expect((wrapper.get("button.version-update-start-button").element as HTMLButtonElement).disabled).toBe(false);
   });
 
   it("disables the dialog update button when backend updates are disabled", async () => {
@@ -175,7 +175,7 @@ describe("AppShell deployment update", () => {
       running: false,
       services: ["backend", "frontend"],
       composeFiles: ["docker-compose.ghcr.yml", "docker-compose.web-update.yml"],
-      onlineVersion: "V0.2.9",
+      onlineVersion: "V0.2.10",
       onlineVersionCheckedAt: "2026-07-02T04:20:00.000Z",
       onlineVersionError: null,
     });
@@ -194,7 +194,8 @@ describe("AppShell deployment update", () => {
 
     expect(wrapper.get(".version-update-dialog").text()).toContain("当前页面仍是旧版本，请刷新页面加载最新前端");
     expect(wrapper.find("button.version-update-reload-button").exists()).toBe(true);
-    expect(wrapper.get("button.version-update-start-button").attributes("disabled")).toBeDefined();
+    expect((wrapper.get("button.version-update-start-button").element as HTMLButtonElement).disabled).toBe(false);
+    expect(wrapper.get("button.version-update-start-button").text()).toContain("更新");
 
     await wrapper.get("button.version-update-reload-button").trigger("click");
 

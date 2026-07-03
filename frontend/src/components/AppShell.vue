@@ -248,8 +248,7 @@ const canStartDeploymentUpdate = computed(
   () =>
     Boolean(deploymentUpdateStatus.value?.enabled) &&
     !deploymentUpdateStatus.value?.running &&
-    !updateStarting.value &&
-    !shouldReloadForOnlineVersion.value,
+    !updateStarting.value,
 );
 const updateActionCaption = computed(() => {
   if (!deploymentUpdateStatus.value) {
@@ -268,11 +267,7 @@ const updateActionCaption = computed(() => {
     return "启动中";
   }
 
-  if (shouldReloadForOnlineVersion.value) {
-    return "先刷新页面";
-  }
-
-  return "拉取最新镜像";
+  return shouldReloadForOnlineVersion.value ? "更新" : "拉取最新镜像";
 });
 const onlineVersionText = computed(() => deploymentUpdateStatus.value?.onlineVersion || "未查询到");
 const shouldReloadForOnlineVersion = computed(() => {
