@@ -175,7 +175,7 @@ describe("AppShell deployment update", () => {
       running: false,
       services: ["backend", "frontend"],
       composeFiles: ["docker-compose.ghcr.yml", "docker-compose.web-update.yml"],
-      onlineVersion: "V0.2.8",
+      onlineVersion: "V0.2.9",
       onlineVersionCheckedAt: "2026-07-02T04:20:00.000Z",
       onlineVersionError: null,
     });

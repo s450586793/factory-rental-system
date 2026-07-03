@@ -42,6 +42,41 @@ def split_lines(draw, text, font, max_width):
     return wrapped
 
 
+def line_width(draw, line, font, tab_stops):
+    if not tab_stops or "\t" not in line:
+        return text_width(draw, line, font)
+
+    x = 0
+    segments = line.split("\t")
+    for index, segment in enumerate(segments):
+        x += text_width(draw, segment, font)
+        if index >= len(segments) - 1:
+            continue
+        next_stop = next((stop for stop in tab_stops if stop > x), None)
+        x = next_stop if next_stop is not None else x + text_width(draw, "\t", font)
+    return x
+
+
+def draw_line_with_tabs(draw, xy, line, font, fill, tab_stops, scale):
+    x, y = xy
+    if not tab_stops or "\t" not in line:
+        draw.text((x * scale, y * scale), line, font=font, fill=fill)
+        return
+
+    cursor = x
+    for index, segment in enumerate(line.split("\t")):
+        if segment:
+            draw.text((cursor * scale, y * scale), segment, font=font, fill=fill)
+            cursor += text_width(draw, segment, font) / scale
+        if index >= line.count("\t"):
+            continue
+        next_stop = next((stop for stop in tab_stops if stop > cursor - x), None)
+        if next_stop is None:
+            cursor += text_width(draw, "\t", font) / scale
+        else:
+            cursor = x + next_stop
+
+
 def render_overlay(draw, payload):
     font_size = int(payload.get("fontSize", 14))
     line_height = int(payload.get("lineHeight", math.ceil(font_size * 1.4)))
@@ -49,6 +84,7 @@ def render_overlay(draw, payload):
     max_width = int(max_width) if max_width else None
     max_lines = int(payload.get("maxLines", 99))
     align = payload.get("align", "left")
+    tab_stops = [int(stop) for stop in payload.get("tabStops", [])]
     padding_x = int(payload.get("paddingX", 0))
     padding_y = int(payload.get("paddingY", 0))
     font_index = int(payload.get("fontIndex", 0))
@@ -64,7 +100,7 @@ def render_overlay(draw, payload):
     bottom_adjust = 0
     for line in lines or [""]:
         bbox = text_bbox(draw, line, font)
-        widest = max(widest, bbox[2] - bbox[0])
+        widest = max(widest, line_width(draw, line, font, tab_stops))
         top_adjust = min(top_adjust, bbox[1])
         bottom_adjust = max(bottom_adjust, bbox[3])
 
@@ -82,21 +118,24 @@ def render_overlay(draw, payload):
 
     for index, line in enumerate(lines or [""]):
         bbox = text_bbox(image_draw, line, font)
-        line_width = bbox[2] - bbox[0]
+        measured_line_width = line_width(image_draw, line, font, tab_stops)
         baseline_y = padding_y + index * line_height - bbox[1]
 
         if align == "center":
-            x = padding_x + ((image_width - padding_x * 2 - line_width) / 2)
+            x = padding_x + ((image_width - padding_x * 2 - measured_line_width) / 2)
         elif align == "right":
-            x = image_width - padding_x - line_width
+            x = image_width - padding_x - measured_line_width
         else:
             x = padding_x
 
-        image_draw.text(
-            (x * raster_scale, baseline_y * raster_scale),
+        draw_line_with_tabs(
+            image_draw,
+            (x, baseline_y),
             line,
-            font=image_font,
-            fill=(0, 0, 0, 255),
+            image_font,
+            (0, 0, 0, 255),
+            tab_stops,
+            raster_scale,
         )
 
     buffer = io.BytesIO()

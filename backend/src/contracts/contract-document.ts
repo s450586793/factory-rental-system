@@ -23,6 +23,7 @@ const STANDARD_CONTRACT_PAGE_HEIGHT = 841.9;
 const SAFETY_AGREEMENT_TEMPLATE_START_PAGE = 3;
 const STANDARD_CONTRACT_BODY_X = 58;
 const STANDARD_CONTRACT_BODY_WIDTH = 480;
+export const STANDARD_CONTRACT_SIGNATURE_TAB_STOP = 315;
 
 type ContractDocumentPayload = {
   contract: Contract;
@@ -57,6 +58,7 @@ export type TemplateOverlay = {
   paddingX?: number;
   paddingY?: number;
   align?: "left" | "center" | "right";
+  tabStops?: number[];
 };
 
 type RasterizedOverlay = {
@@ -154,11 +156,11 @@ function stripClauseNumber(value: string) {
 function buildStandardLeaseSignatureText(startParts: DateParts) {
   const signDate = formatDateForText(startParts);
   return [
-    "甲方（出租方）：吴孝斌                              乙方（承租方）：",
+    "甲方（出租方）：吴孝斌\t乙方（承租方）：",
     "",
-    "签字/盖章：                                       签字/盖章：",
+    "签字/盖章：\t签字/盖章：",
     "",
-    `日期：${signDate}                                 日期：${signDate}`,
+    `日期：${signDate}\t日期：${signDate}`,
   ].join("\n");
 }
 
@@ -333,6 +335,7 @@ function renderTextOverlays(fontPath: string, overlays: TemplateOverlay[]): Rast
           lineHeight: overlay.lineHeight ?? Math.ceil((overlay.fontSize ?? 14) * 1.4),
           maxLines: overlay.maxLines ?? 99,
           align: overlay.align ?? "left",
+          tabStops: overlay.tabStops ?? [],
           paddingX: overlay.paddingX ?? 0,
           paddingY: overlay.paddingY ?? 0,
         })),
@@ -603,6 +606,7 @@ function buildStandardLeaseBodyOverlays(pages: StandardLeaseContractPage[]): Tem
         lineHeight: 15,
         maxLines: isFirstPage ? 43 : 46,
         padding: 0,
+        tabStops: [STANDARD_CONTRACT_SIGNATURE_TAB_STOP - STANDARD_CONTRACT_BODY_X],
       },
       {
         id: `standard-contract-footer-${pageNumber}`,

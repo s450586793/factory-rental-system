@@ -1,7 +1,9 @@
 import { spawnSync } from "node:child_process";
+import { createRequire } from "node:module";
 import path from "node:path";
 import { PDFDocument } from "pdf-lib";
 import {
+  STANDARD_CONTRACT_SIGNATURE_TAB_STOP,
   buildContractDocumentPdf,
   buildContractDocumentOverlays,
   buildStandardLeaseContractPages,
@@ -9,6 +11,13 @@ import {
 import { Contract, ContractStatus } from "./contract.entity";
 import { FactoryUnit } from "../units/factory-unit.entity";
 import { UtilityMeterConfig, UtilityType } from "../utilities/utility-meter-config.entity";
+
+const nodeRequire = createRequire(__filename);
+const PngJs = nodeRequire("png-js") as {
+  new (data: Buffer): {
+    decode(callback: (pixels: Buffer) => void): void;
+  };
+};
 
 function buildContractFixture() {
   return Object.assign(new Contract(), {
@@ -100,6 +109,72 @@ function renderOverlayWithScript() {
   };
 }
 
+function renderSignatureOverlay(text: string) {
+  const scriptPath = path.resolve(process.cwd(), "scripts/render_text_overlays.py");
+  const fontPath = path.resolve(process.cwd(), "assets/fonts/Songti.ttc");
+  const result = spawnSync(
+    "python3",
+    [scriptPath],
+    {
+      input: JSON.stringify({
+        overlays: [
+          {
+            id: "signature",
+            text,
+            fontPath,
+            fontSize: 10,
+            fontIndex: 6,
+            rasterScale: 4,
+            maxWidth: 480,
+            lineHeight: 15,
+            tabStops: [STANDARD_CONTRACT_SIGNATURE_TAB_STOP - 58],
+          },
+        ],
+      }),
+      encoding: "utf8",
+    },
+  );
+
+  if (result.status !== 0) {
+    throw new Error(result.stderr);
+  }
+
+  return JSON.parse(result.stdout) as {
+    items: Array<{
+      id: string;
+      width: number;
+      height: number;
+      pixelWidth: number;
+      pixelHeight: number;
+      pngBase64: string;
+    }>;
+  };
+}
+
+async function decodePng(pngBase64: string, width: number, height: number) {
+  const png = new PngJs(Buffer.from(pngBase64, "base64"));
+  return new Promise<Buffer>((resolve) => {
+    png.decode((pixels: Buffer) => resolve(pixels));
+  }).then((pixels) => ({ pixels, width, height }));
+}
+
+function findFirstInkXNearRow(pixels: Buffer, width: number, height: number, row: number, startX: number) {
+  const startRow = Math.max(0, row - 10);
+  const endRow = Math.min(height - 1, row + 16);
+  let firstX: number | null = null;
+  for (let y = startRow; y <= endRow; y += 1) {
+    for (let x = startX; x < width; x += 1) {
+      const offset = (y * width + x) * 4;
+      if (pixels[offset + 3] === 0) {
+        continue;
+      }
+      firstX = firstX === null ? x : Math.min(firstX, x);
+      break;
+    }
+  }
+  return firstX;
+}
+
 describe("buildContractDocumentOverlays", () => {
   it("builds a standard factory lease body with core commercial clauses", () => {
     const pages = buildStandardLeaseContractPages({
@@ -154,9 +229,38 @@ describe("buildContractDocumentOverlays", () => {
     });
     const bodyText = pages.map((page) => page.sections.join("\n")).join("\n");
 
-    expect(bodyText).toContain("甲方（出租方）：吴孝斌                              乙方（承租方）：");
-    expect(bodyText).toContain("签字/盖章：                                       签字/盖章：");
-    expect(bodyText).toContain("日期：2025年7月1日                                 日期：2025年7月1日");
+    expect(bodyText).toContain("甲方（出租方）：吴孝斌\t乙方（承租方）：");
+    expect(bodyText).toContain("签字/盖章：\t签字/盖章：");
+    expect(bodyText).toContain("日期：2025年7月1日\t日期：2025年7月1日");
+  });
+
+  it("renders tenant signature labels on one fixed right-side column", async () => {
+    const pages = buildStandardLeaseContractPages({
+      contract: buildContractFixture(),
+      unit: buildUnitFixture(),
+      generatedDate: "2026-07-01",
+    });
+    const lastPage = pages[pages.length - 1];
+    const signatureText = lastPage.sections[lastPage.sections.length - 1];
+    const rendered = renderSignatureOverlay(signatureText);
+    const item = rendered.items[0];
+    const image = await decodePng(item.pngBase64, item.pixelWidth, item.pixelHeight);
+    const expectedStartX = (STANDARD_CONTRACT_SIGNATURE_TAB_STOP - 58) * 4;
+    const tenantStarts = [0, 2, 4].map((lineIndex) =>
+      findFirstInkXNearRow(
+        image.pixels,
+        image.width,
+        image.height,
+        lineIndex * 15 * 4,
+        expectedStartX - 4,
+      ),
+    );
+
+    for (const startX of tenantStarts) {
+      expect(startX).not.toBeNull();
+      expect(Math.abs((startX ?? 0) - expectedStartX)).toBeLessThanOrEqual(8);
+      expect(startX).toBeGreaterThan(185 * 4);
+    }
   });
 
   it("includes strengthened industrial park risk-control clauses in the lease body", () => {
