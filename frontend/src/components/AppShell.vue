@@ -247,12 +247,17 @@ const showTopbar = computed(() => !showSidebar.value || hasTopActions.value);
 const canStartDeploymentUpdate = computed(
   () =>
     Boolean(deploymentUpdateStatus.value?.enabled) &&
+    !deploymentUpdateStatus.value?.onlineVersionError &&
     !deploymentUpdateStatus.value?.running &&
     !updateStarting.value,
 );
 const updateActionCaption = computed(() => {
   if (!deploymentUpdateStatus.value) {
     return "更新";
+  }
+
+  if (deploymentUpdateStatus.value.onlineVersionError) {
+    return "刷新后重试";
   }
 
   if (!deploymentUpdateStatus.value.enabled) {
@@ -382,7 +387,7 @@ async function loadDeploymentUpdateStatus() {
     deploymentUpdateStatus.value = await deploymentUpdateApi.status();
   } catch {
     deploymentUpdateStatus.value = {
-      enabled: false,
+      enabled: true,
       running: false,
       services: [],
       composeFiles: [],
@@ -395,6 +400,7 @@ async function loadDeploymentUpdateStatus() {
 
 function openVersionDialog() {
   versionDialogVisible.value = true;
+  refreshDeploymentUpdateStatus();
 }
 
 async function refreshDeploymentUpdateStatus() {

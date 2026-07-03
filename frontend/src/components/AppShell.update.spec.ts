@@ -157,6 +157,15 @@ describe("AppShell deployment update", () => {
         onlineVersion: "V0.2.3",
         onlineVersionCheckedAt: "2026-07-02T04:10:00.000Z",
         onlineVersionError: null,
+      })
+      .mockResolvedValueOnce({
+        enabled: true,
+        running: false,
+        services: ["backend", "frontend"],
+        composeFiles: ["docker-compose.ghcr.yml", "docker-compose.web-update.yml"],
+        onlineVersion: "V0.2.4",
+        onlineVersionCheckedAt: "2026-07-02T04:20:00.000Z",
+        onlineVersionError: null,
       });
 
     const wrapper = mountShell();
@@ -165,8 +174,52 @@ describe("AppShell deployment update", () => {
     await wrapper.get("button.version-update-refresh-button").trigger("click");
     await flushPromises();
 
+    expect(deploymentUpdateApi.status).toHaveBeenCalledTimes(3);
+    expect(wrapper.get(".version-update-dialog").text()).toContain("V0.2.4");
+  });
+
+  it("refreshes deployment status when opening the version dialog", async () => {
+    vi.mocked(deploymentUpdateApi.status)
+      .mockResolvedValueOnce({
+        enabled: true,
+        running: false,
+        services: ["backend", "frontend"],
+        composeFiles: ["docker-compose.ghcr.yml", "docker-compose.web-update.yml"],
+        onlineVersion: null,
+        onlineVersionCheckedAt: null,
+        onlineVersionError: "fetch failed",
+      })
+      .mockResolvedValueOnce({
+        enabled: true,
+        running: false,
+        services: ["backend", "frontend"],
+        composeFiles: ["docker-compose.ghcr.yml", "docker-compose.web-update.yml"],
+        onlineVersion: "V0.2.13",
+        onlineVersionCheckedAt: "2026-07-02T04:20:00.000Z",
+        onlineVersionError: null,
+      });
+
+    const wrapper = mountShell();
+    await flushPromises();
+    await wrapper.get("button.app-version").trigger("click");
+    await flushPromises();
+
     expect(deploymentUpdateApi.status).toHaveBeenCalledTimes(2);
-    expect(wrapper.get(".version-update-dialog").text()).toContain("V0.2.3");
+    expect(wrapper.get(".version-update-dialog").text()).toContain("V0.2.13");
+    expect(wrapper.get("button.version-update-start-button").text()).toContain("更新");
+  });
+
+  it("keeps the update button from showing disabled when status refresh fails", async () => {
+    vi.mocked(deploymentUpdateApi.status).mockRejectedValue(new Error("fetch failed"));
+
+    const wrapper = mountShell();
+    await flushPromises();
+    await wrapper.get("button.app-version").trigger("click");
+
+    expect(wrapper.get(".version-update-dialog").text()).toContain("查询失败");
+    expect(wrapper.get("button.version-update-start-button").text()).toContain("刷新后重试");
+    expect(wrapper.get("button.version-update-start-button").attributes("disabled")).toBeDefined();
+    expect(wrapper.get("button.version-update-start-button").text()).not.toContain("未启用");
   });
 
   it("prompts the operator to reload when the running page is behind the online version", async () => {
@@ -175,7 +228,7 @@ describe("AppShell deployment update", () => {
       running: false,
       services: ["backend", "frontend"],
       composeFiles: ["docker-compose.ghcr.yml", "docker-compose.web-update.yml"],
-      onlineVersion: "V0.2.12",
+      onlineVersion: "V0.2.13",
       onlineVersionCheckedAt: "2026-07-02T04:20:00.000Z",
       onlineVersionError: null,
     });
