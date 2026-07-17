@@ -6,6 +6,7 @@ import {
   Param,
   Post,
   Res,
+  UseFilters,
   UploadedFiles,
   UseGuards,
   UseInterceptors,
@@ -17,6 +18,7 @@ import { Response } from "express";
 import { JwtAuthGuard } from "../common/guards/jwt-auth.guard";
 import { parseGeneratedContractVirtualFileId } from "../contracts/contract-document";
 import { UploadFilesDto } from "./files.dto";
+import { FileUploadExceptionFilter } from "./file-upload-exception.filter";
 import { FilesService } from "./files.service";
 
 @ApiTags("files")
@@ -26,6 +28,7 @@ export class FilesController {
   constructor(private readonly filesService: FilesService) {}
 
   @Post("upload")
+  @UseFilters(FileUploadExceptionFilter)
   @UseInterceptors(
     FilesInterceptor("files", 10, {
       storage: memoryStorage(),
