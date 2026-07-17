@@ -21,6 +21,8 @@ import { UploadFilesDto } from "./files.dto";
 import { FileUploadExceptionFilter } from "./file-upload-exception.filter";
 import { FilesService } from "./files.service";
 
+const FILE_PREVIEW_CONTENT_SECURITY_POLICY = "default-src 'none'; frame-ancestors 'self'";
+
 @ApiTags("files")
 @Controller("files")
 @UseGuards(JwtAuthGuard)
@@ -58,6 +60,8 @@ export class FilesController {
     }
 
     const { file, absolutePath } = await this.filesService.getFileResponseMeta(id);
+    response.setHeader("X-Frame-Options", "SAMEORIGIN");
+    response.setHeader("Content-Security-Policy", FILE_PREVIEW_CONTENT_SECURITY_POLICY);
     response.setHeader("Content-Type", file.mimeType);
     response.setHeader(
       "Content-Disposition",
