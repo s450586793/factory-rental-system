@@ -48,6 +48,19 @@
             </template>
           </el-table-column>
           <el-table-column prop="method" label="方式" width="68" show-overflow-tooltip />
+          <el-table-column label="凭证" width="76">
+            <template #default="{ row }">
+              <el-button
+                v-if="row.attachmentFiles.length"
+                text
+                type="primary"
+                @click="openVoucherPreview(row.attachmentFiles)"
+              >
+                {{ row.attachmentFiles.length }} 张
+              </el-button>
+              <span v-else>--</span>
+            </template>
+          </el-table-column>
           <el-table-column label="收据状态" width="88">
             <template #default="{ row }">
               <el-tag :type="row.activeReceipt ? 'success' : 'info'" size="small">
@@ -132,6 +145,22 @@
         <el-form-item label="备注">
           <el-input v-model="form.note" type="textarea" :rows="3" />
         </el-form-item>
+
+        <el-form-item label="收款凭证图片">
+          <div class="detail-grid">
+            <div v-if="existingVoucherFiles.length || voucherUploads.length" class="file-chip-list">
+              <span v-for="(file, index) in existingVoucherFiles" :key="file.id" class="file-chip">
+                <span>凭证 {{ index + 1 }}</span>
+                <el-button text type="danger" @click="removeExistingVoucher(file.id)">移除</el-button>
+              </span>
+              <span v-for="(file, index) in voucherUploads" :key="`${file.name}-${file.size}-${index}`" class="file-chip">
+                <span>待上传 {{ index + 1 }}</span>
+                <el-button text type="danger" @click="removeVoucherUpload(index)">移除</el-button>
+              </span>
+            </div>
+            <input type="file" :accept="PAYMENT_VOUCHER_IMAGE_ACCEPT" multiple @change="onVoucherFilesChange" />
+          </div>
+        </el-form-item>
       </el-form>
 
       <template #footer>
@@ -147,6 +176,12 @@
         <el-button @click="receiptPreviewVisible = false">关闭</el-button>
       </template>
     </el-dialog>
+
+    <PaymentVoucherPreviewDialog
+      v-model="voucherPreviewVisible"
+      :files="voucherPreviewFiles"
+      title="房租收款凭证"
+    />
   </AppShell>
 </template>
 
@@ -154,11 +189,13 @@
 import { computed, onMounted, reactive, ref } from "vue";
 import { ElMessage, ElMessageBox } from "element-plus";
 import AppShell from "../components/AppShell.vue";
+import PaymentVoucherPreviewDialog from "../components/PaymentVoucherPreviewDialog.vue";
 import { apiFileUrl } from "../api/client";
-import { receiptsApi, rentPaymentsApi, unitsApi } from "../api";
+import { filesApi, receiptsApi, rentPaymentsApi, unitsApi } from "../api";
 import { useViewportWidth } from "../composables/useViewportWidth";
-import type { Contract, Receipt, RentPayment, UnitSummary } from "../types/models";
+import type { Contract, Receipt, RentPayment, StoredFile, UnitSummary } from "../types/models";
 import { formatCurrency, todayIso } from "../utils/format";
+import { appendPaymentVoucherImages, PAYMENT_VOUCHER_IMAGE_ACCEPT } from "../utils/payment-vouchers";
 
 const loading = ref(false);
 const dialogVisible = ref(false);
@@ -168,6 +205,10 @@ const payments = ref<RentPayment[]>([]);
 const receipts = ref<Receipt[]>([]);
 const receiptPreviewVisible = ref(false);
 const receiptPreviewFileId = ref("");
+const existingVoucherFiles = ref<StoredFile[]>([]);
+const voucherUploads = ref<File[]>([]);
+const voucherPreviewVisible = ref(false);
+const voucherPreviewFiles = ref<StoredFile[]>([]);
 const viewportWidth = useViewportWidth();
 
 const form = reactive({
@@ -273,6 +314,8 @@ function resetForm() {
   form.amount = 0;
   form.method = "转账";
   form.note = "";
+  existingVoucherFiles.value = [];
+  voucherUploads.value = [];
 }
 
 function handleUnitChange() {
@@ -304,18 +347,54 @@ function openEdit(record: RentPayment) {
   form.amount = record.amount;
   form.method = record.method;
   form.note = record.note || "";
+  existingVoucherFiles.value = [...record.attachmentFiles];
+  voucherUploads.value = [];
   dialogVisible.value = true;
+}
+
+function onVoucherFilesChange(event: Event) {
+  const target = event.target as HTMLInputElement;
+  try {
+    voucherUploads.value = appendPaymentVoucherImages(
+      existingVoucherFiles.value.length,
+      voucherUploads.value,
+      target.files ?? [],
+    );
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : "收款凭证选择失败");
+  } finally {
+    target.value = "";
+  }
+}
+
+function removeExistingVoucher(fileId: string) {
+  existingVoucherFiles.value = existingVoucherFiles.value.filter((file) => file.id !== fileId);
+}
+
+function removeVoucherUpload(index: number) {
+  voucherUploads.value = voucherUploads.value.filter((_, currentIndex) => currentIndex !== index);
+}
+
+function openVoucherPreview(files: StoredFile[]) {
+  voucherPreviewFiles.value = files;
+  voucherPreviewVisible.value = true;
 }
 
 async function save() {
   try {
     submitting.value = true;
+    let attachmentFileIds = existingVoucherFiles.value.map((file) => file.id);
+    if (voucherUploads.value.length) {
+      const uploaded = await filesApi.upload(voucherUploads.value, "payment-voucher");
+      attachmentFileIds = [...attachmentFileIds, ...uploaded.map((file) => file.id)];
+    }
     const payload = {
       contractId: form.contractId,
       paymentDate: form.paymentDate,
       amount: Number(form.amount),
       method: form.method.trim(),
       note: form.note.trim(),
+      attachmentFileIds,
     };
 
     if (form.id) {

@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
@@ -11,6 +12,9 @@ import { In, Repository } from "typeorm";
 import type { StorageConfig } from "../config/storage.config";
 import { GenerateStoredFileDto } from "./files.dto";
 import { StoredFile, StoredFileCategory } from "./stored-file.entity";
+
+const PAYMENT_VOUCHER_IMAGE_MIME_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
+const MAX_PAYMENT_VOUCHERS_PER_RECORD = 10;
 
 type UploadLike = {
   originalname: string;
@@ -32,6 +36,7 @@ export class FilesService {
   }
 
   async saveUploadedFiles(files: UploadLike[], category: StoredFileCategory) {
+    this.validateFilesForCategory(files, category);
     const saved: StoredFile[] = [];
 
     for (const file of files) {
@@ -73,6 +78,27 @@ export class FilesService {
     return this.storedFilesRepository.findBy({ id: In(fileIds) });
   }
 
+  async resolvePaymentVoucherFiles(fileIds: string[]) {
+    if (fileIds.length > MAX_PAYMENT_VOUCHERS_PER_RECORD) {
+      throw new BadRequestException(`每条记录最多关联 ${MAX_PAYMENT_VOUCHERS_PER_RECORD} 张收款凭证`);
+    }
+
+    if (new Set(fileIds).size !== fileIds.length) {
+      throw new BadRequestException("收款凭证不能重复");
+    }
+
+    const files = await this.findByIds(fileIds);
+    if (files.length !== fileIds.length) {
+      throw new BadRequestException("部分收款凭证不存在");
+    }
+
+    if (files.some((file) => !this.isPaymentVoucherImage(file))) {
+      throw new BadRequestException("收款凭证必须为 JPG、PNG 或 WebP 图片");
+    }
+
+    return files;
+  }
+
   async findOneOrFail(id: string) {
     const file = await this.storedFilesRepository.findOne({ where: { id } });
     if (!file) {
@@ -106,6 +132,23 @@ export class FilesService {
     const timestamp = this.buildTimestamp();
     const shortId = randomUUID().slice(0, 8);
     return `${categoryPrefix}_${timestamp}_${readableStem}_${shortId}${suffix}`;
+  }
+
+  private validateFilesForCategory(files: UploadLike[], category: StoredFileCategory) {
+    if (category !== StoredFileCategory.PAYMENT_VOUCHER) {
+      return;
+    }
+
+    if (files.some((file) => !PAYMENT_VOUCHER_IMAGE_MIME_TYPES.has(file.mimetype.toLowerCase()))) {
+      throw new BadRequestException("收款凭证仅支持 JPG、PNG 或 WebP 图片");
+    }
+  }
+
+  private isPaymentVoucherImage(file: Pick<StoredFile, "category" | "mimeType">) {
+    return (
+      file.category === StoredFileCategory.PAYMENT_VOUCHER &&
+      PAYMENT_VOUCHER_IMAGE_MIME_TYPES.has(file.mimeType.toLowerCase())
+    );
   }
 
   private buildReadableStem(originalName: string, suffix: string) {

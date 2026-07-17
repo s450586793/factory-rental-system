@@ -1,7 +1,8 @@
-import { Column, Entity, JoinColumn, ManyToOne } from "typeorm";
+import { Column, Entity, JoinColumn, JoinTable, ManyToMany, ManyToOne } from "typeorm";
 import { BaseEntityWithTimestamps } from "../common/database/base.entity";
 import { numericTransformer } from "../common/database/numeric.transformer";
 import { Contract } from "../contracts/contract.entity";
+import { StoredFile } from "../files/stored-file.entity";
 import { FactoryUnit } from "../units/factory-unit.entity";
 
 @Entity("rent_payments")
@@ -39,4 +40,12 @@ export class RentPayment extends BaseEntityWithTimestamps {
 
   @Column({ type: "text", nullable: true })
   note!: string | null;
+
+  @ManyToMany(() => StoredFile, { eager: true })
+  @JoinTable({
+    name: "rent_payment_attachment_files",
+    joinColumn: { name: "rentPaymentId", referencedColumnName: "id" },
+    inverseJoinColumn: { name: "fileId", referencedColumnName: "id" },
+  })
+  attachmentFiles!: StoredFile[];
 }

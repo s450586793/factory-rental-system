@@ -1,9 +1,13 @@
 import {
+  ArrayMaxSize,
+  ArrayUnique,
+  IsArray,
   IsDateString,
   IsEnum,
   IsNumber,
   IsOptional,
   IsString,
+  IsUUID,
   MaxLength,
   Min,
 } from "class-validator";
@@ -30,6 +34,13 @@ export class CreateDepositRecordDto {
   @IsString()
   @IsOptional()
   note?: string;
+
+  @IsArray()
+  @ArrayMaxSize(10)
+  @ArrayUnique()
+  @IsUUID("4", { each: true })
+  @IsOptional()
+  attachmentFileIds?: string[];
 }
 
 export class UpdateDepositRecordDto extends CreateDepositRecordDto {}

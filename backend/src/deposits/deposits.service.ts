@@ -6,6 +6,7 @@ import {
 import { InjectRepository } from "@nestjs/typeorm";
 import { Repository } from "typeorm";
 import { Contract } from "../contracts/contract.entity";
+import { FilesService } from "../files/files.service";
 import { CreateDepositRecordDto, UpdateDepositRecordDto } from "./deposits.dto";
 import { DepositRecord } from "./deposit-record.entity";
 
@@ -16,6 +17,7 @@ export class DepositsService {
     private readonly depositsRepository: Repository<DepositRecord>,
     @InjectRepository(Contract)
     private readonly contractsRepository: Repository<Contract>,
+    private readonly filesService: FilesService,
   ) {}
 
   list() {
@@ -54,6 +56,7 @@ export class DepositsService {
     if (!contract) {
       throw new BadRequestException("合同不存在");
     }
+    const attachmentFiles = await this.filesService.resolvePaymentVoucherFiles(dto.attachmentFileIds ?? []);
 
     let deposit: DepositRecord;
     if (id) {
@@ -71,6 +74,7 @@ export class DepositsService {
     deposit.amount = dto.amount;
     deposit.method = dto.method.trim();
     deposit.note = dto.note?.trim() ?? null;
+    deposit.attachmentFiles = attachmentFiles;
 
     return this.depositsRepository.save(deposit);
   }

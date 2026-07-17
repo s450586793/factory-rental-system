@@ -14,7 +14,7 @@ export type StoredFile = {
   originalName: string;
   mimeType: string;
   size: number;
-  category: "business-license" | "contract-attachment" | "receipt";
+  category: "business-license" | "contract-attachment" | "payment-voucher" | "receipt";
   storagePath: string;
 };
 
@@ -131,6 +131,7 @@ export type RentPayment = {
   note: string | null;
   unit: { id: string; code: string; location: string };
   contract: Contract;
+  attachmentFiles: StoredFile[];
 };
 
 export type DepositRecord = {
@@ -145,6 +146,7 @@ export type DepositRecord = {
   note: string | null;
   unit: { id: string; code: string; location: string };
   contract: Contract;
+  attachmentFiles: StoredFile[];
 };
 
 export type Receipt = {

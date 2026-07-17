@@ -8,6 +8,7 @@ import { ReconcileContractSchema1711700000000 } from "./migrations/1711700000000
 import { AddUnitArea1711900000000 } from "./migrations/1711900000000-add-unit-area";
 import { AddContractContactFields1712100000000 } from "./migrations/1712100000000-add-contract-contact-fields";
 import { AddContractDepositAmount1712200000000 } from "./migrations/1712200000000-add-contract-deposit-amount";
+import { AddPaymentVoucherAttachments1712300000000 } from "./migrations/1712300000000-add-payment-voucher-attachments";
 
 export const databaseMigrations = [
   InitialSchema1711600000000,
@@ -15,6 +16,7 @@ export const databaseMigrations = [
   AddUnitArea1711900000000,
   AddContractContactFields1712100000000,
   AddContractDepositAmount1712200000000,
+  AddPaymentVoucherAttachments1712300000000,
 ];
 
 export function buildTypeOrmOptions(database: DatabaseConfig): DataSourceOptions {

@@ -1,9 +1,13 @@
 import {
+  ArrayMaxSize,
+  ArrayUnique,
+  IsArray,
   IsDateString,
   IsNotEmpty,
   IsNumber,
   IsOptional,
   IsString,
+  IsUUID,
   MaxLength,
   Min,
 } from "class-validator";
@@ -27,6 +31,13 @@ export class CreateRentPaymentDto {
   @IsString()
   @IsOptional()
   note?: string;
+
+  @IsArray()
+  @ArrayMaxSize(10)
+  @ArrayUnique()
+  @IsUUID("4", { each: true })
+  @IsOptional()
+  attachmentFileIds?: string[];
 }
 
 export class UpdateRentPaymentDto extends CreateRentPaymentDto {}

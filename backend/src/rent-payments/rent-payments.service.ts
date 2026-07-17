@@ -6,6 +6,7 @@ import {
 import { InjectRepository } from "@nestjs/typeorm";
 import { Repository } from "typeorm";
 import { Contract } from "../contracts/contract.entity";
+import { FilesService } from "../files/files.service";
 import { Receipt, ReceiptSourceType, ReceiptStatus } from "../receipts/receipt.entity";
 import { CreateRentPaymentDto, UpdateRentPaymentDto } from "./rent-payments.dto";
 import { RentPayment } from "./rent-payment.entity";
@@ -19,6 +20,7 @@ export class RentPaymentsService {
     private readonly contractsRepository: Repository<Contract>,
     @InjectRepository(Receipt)
     private readonly receiptsRepository: Repository<Receipt>,
+    private readonly filesService: FilesService,
   ) {}
 
   list() {
@@ -58,6 +60,7 @@ export class RentPaymentsService {
     if (!contract) {
       throw new BadRequestException("合同不存在");
     }
+    const attachmentFiles = await this.filesService.resolvePaymentVoucherFiles(dto.attachmentFileIds ?? []);
 
     let payment: RentPayment;
     if (id) {
@@ -75,6 +78,7 @@ export class RentPaymentsService {
     payment.amount = dto.amount;
     payment.method = dto.method.trim();
     payment.note = dto.note?.trim() ?? null;
+    payment.attachmentFiles = attachmentFiles;
 
     return this.rentPaymentsRepository.save(payment);
   }

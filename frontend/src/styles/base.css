@@ -871,6 +871,36 @@ button.file-chip {
   color: var(--muted);
 }
 
+.payment-voucher-preview-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 12px;
+}
+
+.payment-voucher-preview-item {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+  color: var(--text);
+  font-size: 13px;
+  text-decoration: none;
+}
+
+.payment-voucher-preview-item img {
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  object-fit: cover;
+  background: #f5f7f6;
+}
+
+.payment-voucher-preview-item span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .detail-grid {
   display: grid;
   gap: 18px;

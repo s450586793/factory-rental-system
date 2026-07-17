@@ -4,6 +4,7 @@ import { BaseEntityWithTimestamps } from "../common/database/base.entity";
 export enum StoredFileCategory {
   BUSINESS_LICENSE = "business-license",
   CONTRACT_ATTACHMENT = "contract-attachment",
+  PAYMENT_VOUCHER = "payment-voucher",
   RECEIPT = "receipt",
 }
 
