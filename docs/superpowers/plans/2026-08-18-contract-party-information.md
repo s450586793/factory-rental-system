@@ -23,6 +23,7 @@
 
 **Files:**
 - Create: `backend/src/database/migrations/1712400000000-add-contract-lessor-fields.ts`
+- Create: `backend/src/contracts/contracts.dto.spec.ts`
 - Create: `backend/src/contracts/contracts.service.spec.ts`
 - Create: `backend/src/units/units.service.spec.ts`
 - Modify: `backend/src/database/typeorm.config.ts`
@@ -30,7 +31,6 @@
 - Modify: `backend/src/contracts/contracts.dto.ts`
 - Modify: `backend/src/contracts/contracts.service.ts`
 - Modify: `backend/src/units/units.service.ts`
-- Modify: `backend/src/openapi/swagger.spec.ts`
 
 **Interfaces:**
 - Produces contract properties `lessorName`, `lessorLicenseCode`, `lessorContactName`, and `lessorPhone`, all strings.
@@ -53,12 +53,12 @@ expect(repository.create).toHaveBeenCalledWith(
 );
 ```
 
-Extend the Swagger snapshot assertions so the contract schema and create request expose the four fields.
+Add DTO validation cases proving all eight party identity strings may be omitted while maximum lengths are still enforced.
 Add a `UnitsService.list()` fixture asserting both `activeContract` and `contracts[0]` expose the saved lessor values.
 
 - [ ] **Step 2: Run focused backend tests and verify failure**
 
-Run: `npm test -- --runTestsByPath src/contracts/contracts.service.spec.ts src/units/units.service.spec.ts src/openapi/swagger.spec.ts`
+Run: `npm test -- --runTestsByPath src/contracts/contracts.dto.spec.ts src/contracts/contracts.service.spec.ts src/units/units.service.spec.ts`
 
 Expected: FAIL because the entity and DTO do not expose lessor fields.
 
@@ -78,7 +78,7 @@ Register the migration in `databaseMigrations`. Add entity columns with `default
 
 - [ ] **Step 4: Run focused tests and backend build**
 
-Run: `npm test -- --runTestsByPath src/contracts/contracts.service.spec.ts src/units/units.service.spec.ts src/openapi/swagger.spec.ts`
+Run: `npm test -- --runTestsByPath src/contracts/contracts.dto.spec.ts src/contracts/contracts.service.spec.ts src/units/units.service.spec.ts`
 
 Run: `npm run lint`
 
@@ -89,7 +89,7 @@ Expected: all commands PASS.
 - [ ] **Step 5: Commit backend persistence**
 
 ```bash
-git add backend/src/database/migrations/1712400000000-add-contract-lessor-fields.ts backend/src/database/typeorm.config.ts backend/src/contracts/contract.entity.ts backend/src/contracts/contracts.dto.ts backend/src/contracts/contracts.service.ts backend/src/contracts/contracts.service.spec.ts backend/src/units/units.service.ts backend/src/units/units.service.spec.ts backend/src/openapi/swagger.spec.ts
+git add backend/src/database/migrations/1712400000000-add-contract-lessor-fields.ts backend/src/database/typeorm.config.ts backend/src/contracts/contract.entity.ts backend/src/contracts/contracts.dto.ts backend/src/contracts/contracts.dto.spec.ts backend/src/contracts/contracts.service.ts backend/src/contracts/contracts.service.spec.ts backend/src/units/units.service.ts backend/src/units/units.service.spec.ts
 git commit -m "feat: 保存合同甲方信息"
 ```
 
