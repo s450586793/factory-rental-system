@@ -30,6 +30,18 @@ export class Contract extends BaseEntityWithTimestamps {
   @JoinColumn({ name: "unitId" })
   unit!: FactoryUnit;
 
+  @Column({ default: "" })
+  lessorName!: string;
+
+  @Column({ default: "" })
+  lessorLicenseCode!: string;
+
+  @Column({ default: "" })
+  lessorContactName!: string;
+
+  @Column({ default: "" })
+  lessorPhone!: string;
+
   @Column()
   tenantName!: string;
 

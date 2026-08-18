@@ -16,9 +16,29 @@ export class CreateContractDto {
   unitId!: string;
 
   @IsString()
-  @IsNotEmpty()
+  @IsOptional()
   @MaxLength(120)
-  tenantName!: string;
+  lessorName?: string;
+
+  @IsString()
+  @IsOptional()
+  @MaxLength(80)
+  lessorLicenseCode?: string;
+
+  @IsString()
+  @IsOptional()
+  @MaxLength(120)
+  lessorContactName?: string;
+
+  @IsString()
+  @IsOptional()
+  @MaxLength(50)
+  lessorPhone?: string;
+
+  @IsString()
+  @IsOptional()
+  @MaxLength(120)
+  tenantName?: string;
 
   @IsString()
   @IsOptional()

@@ -63,7 +63,11 @@ export class ContractsService {
     );
     const entity = this.contractsRepository.create({
       unitId: dto.unitId,
-      tenantName: dto.tenantName.trim(),
+      lessorName: dto.lessorName?.trim() ?? "",
+      lessorLicenseCode: dto.lessorLicenseCode?.trim() ?? "",
+      lessorContactName: dto.lessorContactName?.trim() ?? "",
+      lessorPhone: dto.lessorPhone?.trim() ?? "",
+      tenantName: dto.tenantName?.trim() ?? "",
       contactName: dto.contactName?.trim() ?? "",
       tenantPhone: dto.tenantPhone?.trim() ?? "",
       licenseCode: dto.licenseCode?.trim() ?? "",
@@ -89,7 +93,11 @@ export class ContractsService {
     );
 
     contract.unitId = dto.unitId;
-    contract.tenantName = dto.tenantName.trim();
+    contract.lessorName = dto.lessorName?.trim() ?? "";
+    contract.lessorLicenseCode = dto.lessorLicenseCode?.trim() ?? "";
+    contract.lessorContactName = dto.lessorContactName?.trim() ?? "";
+    contract.lessorPhone = dto.lessorPhone?.trim() ?? "";
+    contract.tenantName = dto.tenantName?.trim() ?? "";
     contract.contactName = dto.contactName?.trim() ?? "";
     contract.tenantPhone = dto.tenantPhone?.trim() ?? "";
     contract.licenseCode = dto.licenseCode?.trim() ?? "";

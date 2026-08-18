@@ -174,8 +174,12 @@ export class UnitsService {
       area: unit.area ?? null,
       status,
       activeContract: activeContract
-        ? {
+          ? {
             id: activeContract.id,
+            lessorName: activeContract.lessorName,
+            lessorLicenseCode: activeContract.lessorLicenseCode,
+            lessorContactName: activeContract.lessorContactName,
+            lessorPhone: activeContract.lessorPhone,
             tenantName: activeContract.tenantName,
             contactName: activeContract.contactName,
             tenantPhone: activeContract.tenantPhone,
@@ -199,6 +203,10 @@ export class UnitsService {
     return {
       id: contract.id,
       unitId: contract.unitId,
+      lessorName: contract.lessorName,
+      lessorLicenseCode: contract.lessorLicenseCode,
+      lessorContactName: contract.lessorContactName,
+      lessorPhone: contract.lessorPhone,
       tenantName: contract.tenantName,
       contactName: contract.contactName,
       tenantPhone: contract.tenantPhone,
