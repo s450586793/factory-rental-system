@@ -8,7 +8,7 @@ import { Contract } from "./contract.entity";
 import { FactoryUnit } from "../units/factory-unit.entity";
 import { UtilityMeterConfig } from "../utilities/utility-meter-config.entity";
 
-export const GENERATED_CONTRACT_PREFIX = "自动生成厂房租赁合同_";
+export const GENERATED_CONTRACT_PREFIX = "厂房租赁合同_";
 export const GENERATED_CONTRACT_VIRTUAL_FILE_PREFIX = "contract-document--";
 
 const TEMPLATE_FILE = "厂房租赁协议+安全协议模板.pdf";

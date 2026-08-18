@@ -6,6 +6,7 @@ import {
   STANDARD_CONTRACT_SIGNATURE_TAB_STOP,
   buildContractDocumentPdf,
   buildContractDocumentOverlays,
+  buildGeneratedContractFilename,
   buildStandardLeaseContractPages,
 } from "./contract-document";
 import { Contract, ContractStatus } from "./contract.entity";
@@ -181,6 +182,12 @@ function findFirstInkXNearRow(pixels: Buffer, width: number, height: number, row
 }
 
 describe("buildContractDocumentOverlays", () => {
+  it("builds a contract filename without the auto-generated label", () => {
+    expect(buildGeneratedContractFilename(buildContractFixture(), buildUnitFixture())).toBe(
+      "厂房租赁合同_5_曹忠_2025-07-01_2026-06-30.pdf",
+    );
+  });
+
   it("builds a standard factory lease body with core commercial clauses", () => {
     const pages = buildStandardLeaseContractPages({
       contract: buildContractFixture(),

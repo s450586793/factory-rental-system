@@ -308,10 +308,10 @@ describe("UnitsView contract download", () => {
     vi.mocked(contractsApi.generateDocument).mockResolvedValue({
       file: {
         id: "contract-document--contract-new",
-        originalName: "自动生成厂房租赁合同_5_曹忠_2027-07-01_2028-06-30.pdf",
+        originalName: "厂房租赁合同_5_曹忠_2027-07-01_2028-06-30.pdf",
         mimeType: "application/pdf",
       },
-      filename: "自动生成厂房租赁合同_5_曹忠_2027-07-01_2028-06-30.pdf",
+      filename: "厂房租赁合同_5_曹忠_2027-07-01_2028-06-30.pdf",
       mimeType: "application/pdf",
     });
   });
@@ -442,7 +442,12 @@ describe("UnitsView contract download", () => {
   });
 
   it("downloads a newly saved contract without pre-generating the document twice", async () => {
-    const anchorClick = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => undefined);
+    const downloadNames: string[] = [];
+    const anchorClick = vi
+      .spyOn(HTMLAnchorElement.prototype, "click")
+      .mockImplementation(function (this: HTMLAnchorElement) {
+        downloadNames.push(this.download);
+      });
     const wrapper = mountUnitsView();
     await flushPromises();
 
@@ -455,6 +460,7 @@ describe("UnitsView contract download", () => {
     expect(contractsApi.create).toHaveBeenCalledTimes(1);
     expect(contractsApi.generateDocument).not.toHaveBeenCalled();
     expect(anchorClick).toHaveBeenCalledTimes(1);
+    expect(downloadNames).toEqual(["厂房租赁合同_曹忠_2027-07-01_2028-06-30.pdf"]);
     expect(ElMessage.success).toHaveBeenCalledWith("合同已新增并已下载合同文件");
 
     anchorClick.mockRestore();
@@ -487,7 +493,12 @@ describe("UnitsView contract download", () => {
   });
 
   it("downloads an existing contract without pre-generating the document twice", async () => {
-    const anchorClick = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => undefined);
+    const downloadNames: string[] = [];
+    const anchorClick = vi
+      .spyOn(HTMLAnchorElement.prototype, "click")
+      .mockImplementation(function (this: HTMLAnchorElement) {
+        downloadNames.push(this.download);
+      });
     const wrapper = mountUnitsView();
     await flushPromises();
 
@@ -498,6 +509,7 @@ describe("UnitsView contract download", () => {
 
     expect(contractsApi.generateDocument).not.toHaveBeenCalled();
     expect(anchorClick).toHaveBeenCalledTimes(1);
+    expect(downloadNames).toEqual(["厂房租赁合同_曹忠_2026-07-01_2027-06-30.pdf"]);
     expect(ElMessage.success).toHaveBeenCalledWith("合同已开始下载");
 
     anchorClick.mockRestore();

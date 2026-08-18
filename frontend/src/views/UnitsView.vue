@@ -1314,7 +1314,7 @@ function buildGeneratedContractDownloadName(contract?: Pick<Contract, "tenantNam
   const tenantName = contract?.tenantName?.replace(/[\\/:*?"<>|]+/g, "-").trim() || "合同";
   const startDate = contract?.startDate || "开始日期";
   const endDate = contract?.endDate || "结束日期";
-  return `自动生成厂房租赁合同_${tenantName}_${startDate}_${endDate}.pdf`;
+  return `厂房租赁合同_${tenantName}_${startDate}_${endDate}.pdf`;
 }
 
 async function confirmRemoveContract(contractId: string) {
