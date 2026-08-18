@@ -23,6 +23,10 @@ function buildContractFixture() {
   return Object.assign(new Contract(), {
     id: "contract-1",
     unitId: "unit-1",
+    lessorName: "江阴市示例产业园有限公司",
+    lessorLicenseCode: "91320281TEST000001",
+    lessorContactName: "吴孝斌",
+    lessorPhone: "18651510352",
     tenantName: "曹忠",
     contactName: "曹忠",
     tenantPhone: "",
@@ -197,6 +201,29 @@ describe("buildContractDocumentOverlays", () => {
     expect(bodyText).toContain("争议解决及法院管辖");
   });
 
+  it("renders complete lessor and tenant identity information", () => {
+    const contract = buildContractFixture();
+    contract.tenantName = "测试租户有限公司";
+    contract.contactName = "张三";
+    contract.tenantPhone = "13800000000";
+    contract.licenseCode = "91320281TEST000002";
+    const pages = buildStandardLeaseContractPages({
+      contract,
+      unit: buildUnitFixture(),
+      generatedDate: "2026-07-01",
+    });
+    const bodyText = pages.map((page) => page.sections.join("\n")).join("\n");
+
+    expect(bodyText).toContain("出租方（甲方）：江阴市示例产业园有限公司");
+    expect(bodyText).toContain(
+      "甲方联系人：吴孝斌    联系电话：18651510352    证照号码：91320281TEST000001",
+    );
+    expect(bodyText).toContain("承租方（乙方）：测试租户有限公司");
+    expect(bodyText).toContain(
+      "乙方联系人：张三    联系电话：13800000000    证照号码：91320281TEST000002",
+    );
+  });
+
   it("uses the contract deposit amount in the standard lease body", () => {
     const pages = buildStandardLeaseContractPages({
       contract: buildContractFixture(),
@@ -231,7 +258,9 @@ describe("buildContractDocumentOverlays", () => {
     });
     const bodyText = pages.map((page) => page.sections.join("\n")).join("\n");
 
-    expect(bodyText).toContain("甲方（出租方）：吴孝斌\t乙方（承租方）：");
+    expect(bodyText).toContain(
+      "甲方（出租方）：江阴市示例产业园有限公司\t乙方（承租方）：曹忠",
+    );
     expect(bodyText).toContain("签字/盖章：\t签字/盖章：");
     expect(bodyText).toContain("日期：2025年7月1日\t日期：2025年7月1日");
   });
@@ -340,8 +369,36 @@ describe("buildContractDocumentOverlays", () => {
     expect(overlays).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
+          id: "page4-lessor",
+          text: "江阴市示例产业园有限公司",
+        }),
+        expect.objectContaining({
           id: "page10-lessor-contact",
           text: "吴孝斌同志",
+        }),
+        expect.objectContaining({
+          id: "page10-tenant-contact",
+          text: "曹忠同志",
+        }),
+      ]),
+    );
+  });
+
+  it("falls back to party names when safety contacts are empty", () => {
+    const contract = buildContractFixture();
+    contract.lessorContactName = "";
+    contract.contactName = "";
+    const overlays = buildContractDocumentOverlays({
+      contract,
+      unit: buildUnitFixture(),
+      generatedDate: "2026-07-01",
+    });
+
+    expect(overlays).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: "page10-lessor-contact",
+          text: "江阴市示例产业园有限公司同志",
         }),
         expect.objectContaining({
           id: "page10-tenant-contact",

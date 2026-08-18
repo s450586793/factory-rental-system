@@ -11,8 +11,6 @@ import { UtilityMeterConfig } from "../utilities/utility-meter-config.entity";
 export const GENERATED_CONTRACT_PREFIX = "自动生成厂房租赁合同_";
 export const GENERATED_CONTRACT_VIRTUAL_FILE_PREFIX = "contract-document--";
 
-const LESSOR_NAME = "吴孝斌";
-const LESSOR_COMPANY = "吴孝斌";
 const TEMPLATE_FILE = "厂房租赁协议+安全协议模板.pdf";
 const FONT_FILE = "Songti.ttc";
 const SONGTI_SC_REGULAR_INDEX = 6;
@@ -153,10 +151,14 @@ function stripClauseNumber(value: string) {
   return value.replace(/^\d+、/, "");
 }
 
-function buildStandardLeaseSignatureText(startParts: DateParts) {
+function buildStandardLeaseSignatureText(
+  startParts: DateParts,
+  lessorName: string,
+  tenantName: string,
+) {
   const signDate = formatDateForText(startParts);
   return [
-    "甲方（出租方）：吴孝斌\t乙方（承租方）：",
+    `甲方（出租方）：${lessorName}\t乙方（承租方）：${tenantName}`,
     "",
     "签字/盖章：\t签字/盖章：",
     "",
@@ -175,6 +177,11 @@ export function buildStandardLeaseContractPages({
   const depositText = formatMoney(contract.depositAmount);
   const utilityText = stripClauseNumber(buildUtilityClause(unit.meterConfigs));
   const unitAddress = buildUnitFullAddress(unit);
+  const lessorName = normalizeOptionalText(contract.lessorName);
+  const lessorContact = normalizeOptionalText(contract.lessorContactName || contract.lessorName);
+  const lessorPhone = normalizeOptionalText(contract.lessorPhone);
+  const lessorLicenseCode = normalizeOptionalText(contract.lessorLicenseCode);
+  const tenantName = normalizeOptionalText(contract.tenantName);
   const tenantContact = normalizeOptionalText(contract.contactName || contract.tenantName);
   const tenantPhone = normalizeOptionalText(contract.tenantPhone);
   const licenseCode = normalizeOptionalText(contract.licenseCode);
@@ -182,8 +189,9 @@ export function buildStandardLeaseContractPages({
   return [
     {
       sections: [
-        `出租方（甲方）：${LESSOR_COMPANY}`,
-        `承租方（乙方）：${contract.tenantName}`,
+        `出租方（甲方）：${lessorName}`,
+        `甲方联系人：${lessorContact}    联系电话：${lessorPhone}    证照号码：${lessorLicenseCode}`,
+        `承租方（乙方）：${tenantName}`,
         `乙方联系人：${tenantContact}    联系电话：${tenantPhone}    证照号码：${licenseCode}`,
         "根据《中华人民共和国民法典》及有关法律法规，甲、乙双方在平等、自愿、诚实信用的基础上，就甲方将合法拥有或有权出租的厂房出租给乙方使用事宜，订立本合同。本合同正文与附件《入驻厂区企业安全生产管理协议书》共同构成双方完整约定。",
         "一、租赁标的及交付",
@@ -271,7 +279,7 @@ export function buildStandardLeaseContractPages({
         "十三、其他",
         "1. 本合同未尽事宜，双方可另行签订书面补充协议。补充协议、交付确认、费用通知、整改通知、安全生产管理协议及双方确认的附件，与本合同具有同等法律效力。",
         "2. 本合同一式两份，甲、乙双方各执一份，自双方签字或盖章之日起生效。",
-        buildStandardLeaseSignatureText(startParts),
+        buildStandardLeaseSignatureText(startParts, lessorName, tenantName),
       ],
     },
   ];
@@ -419,12 +427,16 @@ export function buildContractDocumentOverlays({
   const annualRentText = formatMoney(contract.annualRent);
   const utilityClause = buildUtilityClause(unit.meterConfigs);
   const signDate = `${formatDateForText(startParts)}签订`;
+  const lessorName = normalizeOptionalText(contract.lessorName);
+  const tenantName = normalizeOptionalText(contract.tenantName);
+  const lessorContact = contract.lessorContactName?.trim() || contract.lessorName?.trim();
+  const tenantContact = contract.contactName?.trim() || contract.tenantName?.trim();
 
   const overlays: TemplateOverlay[] = [
     {
       id: "page1-tenant",
       pageIndex: 0,
-      text: contract.tenantName,
+      text: tenantName,
       x: 170,
       top: 139,
       clearWidth: 260,
@@ -488,7 +500,7 @@ export function buildContractDocumentOverlays({
     {
       id: "page4-lessor",
       pageIndex: 3,
-      text: LESSOR_COMPANY,
+      text: lessorName,
       x: 302,
       top: 103,
       clearWidth: 210,
@@ -500,7 +512,7 @@ export function buildContractDocumentOverlays({
     {
       id: "page4-tenant",
       pageIndex: 3,
-      text: contract.tenantName,
+      text: tenantName,
       x: 302,
       top: 146,
       clearWidth: 210,
@@ -526,7 +538,7 @@ export function buildContractDocumentOverlays({
     {
       id: "page10-lessor-contact",
       pageIndex: 9,
-      text: `${LESSOR_NAME}同志`,
+      text: lessorContact ? `${lessorContact}同志` : "未填写",
       x: 178,
       top: 155,
       clearWidth: 72,
@@ -538,7 +550,7 @@ export function buildContractDocumentOverlays({
     {
       id: "page10-tenant-contact",
       pageIndex: 9,
-      text: `${contract.contactName || contract.tenantName}同志`,
+      text: tenantContact ? `${tenantContact}同志` : "未填写",
       x: 301,
       top: 186,
       clearWidth: 72,
