@@ -152,10 +152,10 @@
                 </el-form-item>
               </el-col>
               <el-col :span="12">
-                <el-form-item label="甲方营业执照号码">
+                <el-form-item label="甲方营业执照代码">
                   <el-input
                     v-model="unitContractForm.lessorLicenseCode"
-                    aria-label="初始合同甲方营业执照号码"
+                    aria-label="初始合同甲方营业执照代码"
                     placeholder="个人出租可留空"
                   />
                 </el-form-item>
@@ -187,10 +187,10 @@
                 </el-form-item>
               </el-col>
               <el-col :span="12">
-                <el-form-item label="乙方营业执照号码">
+                <el-form-item label="乙方营业执照代码">
                   <el-input
                     v-model="unitContractForm.licenseCode"
-                    aria-label="初始合同乙方营业执照号码"
+                    aria-label="初始合同乙方营业执照代码"
                     placeholder="统一社会信用代码"
                   />
                 </el-form-item>
@@ -514,10 +514,10 @@
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item label="甲方营业执照号码">
+            <el-form-item label="甲方营业执照代码">
               <el-input
                 v-model="contractForm.lessorLicenseCode"
-                aria-label="甲方营业执照号码"
+                aria-label="甲方营业执照代码"
                 placeholder="个人出租可留空"
               />
             </el-form-item>
@@ -545,8 +545,8 @@
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item label="乙方营业执照号码">
-              <el-input v-model="contractForm.licenseCode" aria-label="乙方营业执照号码" />
+            <el-form-item label="乙方营业执照代码">
+              <el-input v-model="contractForm.licenseCode" aria-label="乙方营业执照代码" />
             </el-form-item>
           </el-col>
         </el-row>

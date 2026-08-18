@@ -328,7 +328,7 @@ describe("UnitsView contract download", () => {
     expect((findInputByLabel(wrapper, "甲方名称").element as HTMLInputElement).value).toBe(
       "江阴市示例产业园有限公司",
     );
-    expect((findInputByLabel(wrapper, "甲方营业执照号码").element as HTMLInputElement).value).toBe(
+    expect((findInputByLabel(wrapper, "甲方营业执照代码").element as HTMLInputElement).value).toBe(
       "91320281TEST000001",
     );
     expect((findInputByLabel(wrapper, "甲方联系人").element as HTMLInputElement).value).toBe("吴孝斌");
@@ -358,7 +358,7 @@ describe("UnitsView contract download", () => {
     await openCreateContractDialog(wrapper);
 
     expect((findInputByLabel(wrapper, "甲方名称").element as HTMLInputElement).value).toBe("");
-    expect((findInputByLabel(wrapper, "甲方营业执照号码").element as HTMLInputElement).value).toBe("");
+    expect((findInputByLabel(wrapper, "甲方营业执照代码").element as HTMLInputElement).value).toBe("");
     expect((findInputByLabel(wrapper, "甲方联系人").element as HTMLInputElement).value).toBe("吴孝斌");
     expect((findInputByLabel(wrapper, "甲方电话").element as HTMLInputElement).value).toBe("18651510352");
   });
@@ -370,11 +370,11 @@ describe("UnitsView contract download", () => {
 
     for (const label of [
       "甲方名称",
-      "甲方营业执照号码",
+      "甲方营业执照代码",
       "甲方联系人",
       "甲方电话",
       "乙方名称",
-      "乙方营业执照号码",
+      "乙方营业执照代码",
       "乙方联系人",
       "乙方电话",
     ]) {
@@ -422,7 +422,7 @@ describe("UnitsView contract download", () => {
     await wrapper.find('input[placeholder="例如 A-01"]').setValue("6");
     await wrapper.find('input[placeholder="例如 东区 1 号车间"]').setValue("空置厂房");
     await findInputByLabel(wrapper, "初始合同甲方名称").setValue("江阴市示例产业园有限公司");
-    await findInputByLabel(wrapper, "初始合同甲方营业执照号码").setValue("91320281TEST000001");
+    await findInputByLabel(wrapper, "初始合同甲方营业执照代码").setValue("91320281TEST000001");
     await findInputByLabel(wrapper, "初始合同开始").setValue("2026-09-01");
     await findInputByLabel(wrapper, "初始合同年租金").setValue("50000");
     await findButton(wrapper, "保存").trigger("click");

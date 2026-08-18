@@ -189,10 +189,10 @@ export function buildStandardLeaseContractPages({
   return [
     {
       sections: [
-        `出租方（甲方）：${lessorName}`,
-        `甲方联系人：${lessorContact}    联系电话：${lessorPhone}    证照号码：${lessorLicenseCode}`,
-        `承租方（乙方）：${tenantName}`,
-        `乙方联系人：${tenantContact}    联系电话：${tenantPhone}    证照号码：${licenseCode}`,
+        `出租方（甲方）：${lessorName}    营业执照代码：${lessorLicenseCode}`,
+        `甲方联系人：${lessorContact}    联系电话：${lessorPhone}`,
+        `承租方（乙方）：${tenantName}    营业执照代码：${licenseCode}`,
+        `乙方联系人：${tenantContact}    联系电话：${tenantPhone}`,
         "根据《中华人民共和国民法典》及有关法律法规，甲、乙双方在平等、自愿、诚实信用的基础上，就甲方将合法拥有或有权出租的厂房出租给乙方使用事宜，订立本合同。本合同正文与附件《入驻厂区企业安全生产管理协议书》共同构成双方完整约定。",
         "一、租赁标的及交付",
         `1. 甲方出租给乙方的厂房位于${unitAddress}。租赁范围以现场交付、双方确认的边界及附属设施为准。`,

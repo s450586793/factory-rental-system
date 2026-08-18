@@ -212,16 +212,15 @@ describe("buildContractDocumentOverlays", () => {
       unit: buildUnitFixture(),
       generatedDate: "2026-07-01",
     });
-    const bodyText = pages.map((page) => page.sections.join("\n")).join("\n");
-
-    expect(bodyText).toContain("出租方（甲方）：江阴市示例产业园有限公司");
-    expect(bodyText).toContain(
-      "甲方联系人：吴孝斌    联系电话：18651510352    证照号码：91320281TEST000001",
+    expect(pages[0].sections).toEqual(
+      expect.arrayContaining([
+        "出租方（甲方）：江阴市示例产业园有限公司    营业执照代码：91320281TEST000001",
+        "甲方联系人：吴孝斌    联系电话：18651510352",
+        "承租方（乙方）：测试租户有限公司    营业执照代码：91320281TEST000002",
+        "乙方联系人：张三    联系电话：13800000000",
+      ]),
     );
-    expect(bodyText).toContain("承租方（乙方）：测试租户有限公司");
-    expect(bodyText).toContain(
-      "乙方联系人：张三    联系电话：13800000000    证照号码：91320281TEST000002",
-    );
+    expect(pages[0].sections.join("\n")).not.toContain("证照号码");
   });
 
   it("uses the contract deposit amount in the standard lease body", () => {
