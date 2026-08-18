@@ -140,28 +140,80 @@
               </div>
             </div>
 
+            <h4 class="contract-party-heading">甲方信息</h4>
             <el-row :gutter="14">
               <el-col :span="12">
-                <el-form-item label="公司名称">
-                  <el-input v-model="unitContractForm.tenantName" placeholder="为空则视为空置" />
+                <el-form-item label="甲方名称">
+                  <el-input
+                    v-model="unitContractForm.lessorName"
+                    aria-label="初始合同甲方名称"
+                    placeholder="个人姓名或公司名称"
+                  />
                 </el-form-item>
               </el-col>
               <el-col :span="12">
-                <el-form-item label="营业执照代码">
-                  <el-input v-model="unitContractForm.licenseCode" placeholder="统一社会信用代码" />
+                <el-form-item label="甲方营业执照号码">
+                  <el-input
+                    v-model="unitContractForm.lessorLicenseCode"
+                    aria-label="初始合同甲方营业执照号码"
+                    placeholder="个人出租可留空"
+                  />
                 </el-form-item>
               </el-col>
             </el-row>
 
             <el-row :gutter="14">
               <el-col :span="12">
-                <el-form-item label="负责人">
-                  <el-input v-model="unitContractForm.contactName" placeholder="例如 林建生" />
+                <el-form-item label="甲方联系人">
+                  <el-input v-model="unitContractForm.lessorContactName" aria-label="初始合同甲方联系人" />
                 </el-form-item>
               </el-col>
               <el-col :span="12">
-                <el-form-item label="电话">
-                  <el-input v-model="unitContractForm.tenantPhone" placeholder="例如 13800000000" />
+                <el-form-item label="甲方电话">
+                  <el-input v-model="unitContractForm.lessorPhone" aria-label="初始合同甲方电话" />
+                </el-form-item>
+              </el-col>
+            </el-row>
+
+            <h4 class="contract-party-heading">乙方信息</h4>
+            <el-row :gutter="14">
+              <el-col :span="12">
+                <el-form-item label="乙方名称">
+                  <el-input
+                    v-model="unitContractForm.tenantName"
+                    aria-label="初始合同乙方名称"
+                    placeholder="个人姓名或公司名称"
+                  />
+                </el-form-item>
+              </el-col>
+              <el-col :span="12">
+                <el-form-item label="乙方营业执照号码">
+                  <el-input
+                    v-model="unitContractForm.licenseCode"
+                    aria-label="初始合同乙方营业执照号码"
+                    placeholder="统一社会信用代码"
+                  />
+                </el-form-item>
+              </el-col>
+            </el-row>
+
+            <el-row :gutter="14">
+              <el-col :span="12">
+                <el-form-item label="乙方联系人">
+                  <el-input
+                    v-model="unitContractForm.contactName"
+                    aria-label="初始合同乙方联系人"
+                    placeholder="例如 林建生"
+                  />
+                </el-form-item>
+              </el-col>
+              <el-col :span="12">
+                <el-form-item label="乙方电话">
+                  <el-input
+                    v-model="unitContractForm.tenantPhone"
+                    aria-label="初始合同乙方电话"
+                    placeholder="例如 13800000000"
+                  />
                 </el-form-item>
               </el-col>
             </el-row>
@@ -171,6 +223,7 @@
                 <el-form-item label="合同开始">
                   <el-date-picker
                     v-model="unitContractForm.startDate"
+                    aria-label="初始合同开始"
                     type="date"
                     value-format="YYYY-MM-DD"
                     style="width: 100%"
@@ -453,28 +506,60 @@
 
     <el-dialog v-model="contractDialogVisible" :title="contractForm.id ? '编辑合同' : '新增合同'" width="760px">
         <el-form label-position="top">
-          <el-row :gutter="14">
-            <el-col :span="12">
-            <el-form-item label="公司名称">
-              <el-input v-model="contractForm.tenantName" />
+        <h4 class="contract-party-heading">甲方信息</h4>
+        <el-row :gutter="14">
+          <el-col :span="12">
+            <el-form-item label="甲方名称">
+              <el-input v-model="contractForm.lessorName" aria-label="甲方名称" placeholder="个人姓名或公司名称" />
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item label="营业执照代码">
-              <el-input v-model="contractForm.licenseCode" />
+            <el-form-item label="甲方营业执照号码">
+              <el-input
+                v-model="contractForm.lessorLicenseCode"
+                aria-label="甲方营业执照号码"
+                placeholder="个人出租可留空"
+              />
             </el-form-item>
           </el-col>
         </el-row>
 
         <el-row :gutter="14">
           <el-col :span="12">
-            <el-form-item label="负责人">
-              <el-input v-model="contractForm.contactName" />
+            <el-form-item label="甲方联系人">
+              <el-input v-model="contractForm.lessorContactName" aria-label="甲方联系人" />
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item label="电话">
-              <el-input v-model="contractForm.tenantPhone" />
+            <el-form-item label="甲方电话">
+              <el-input v-model="contractForm.lessorPhone" aria-label="甲方电话" />
+            </el-form-item>
+          </el-col>
+        </el-row>
+
+        <h4 class="contract-party-heading">乙方信息</h4>
+          <el-row :gutter="14">
+            <el-col :span="12">
+            <el-form-item label="乙方名称">
+              <el-input v-model="contractForm.tenantName" aria-label="乙方名称" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="乙方营业执照号码">
+              <el-input v-model="contractForm.licenseCode" aria-label="乙方营业执照号码" />
+            </el-form-item>
+          </el-col>
+        </el-row>
+
+        <el-row :gutter="14">
+          <el-col :span="12">
+            <el-form-item label="乙方联系人">
+              <el-input v-model="contractForm.contactName" aria-label="乙方联系人" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="乙方电话">
+              <el-input v-model="contractForm.tenantPhone" aria-label="乙方电话" />
             </el-form-item>
           </el-col>
         </el-row>
@@ -654,6 +739,9 @@ import { useViewportWidth } from "../composables/useViewportWidth";
 import type { Contract, MeterConfig, StoredFile, UnitSummary } from "../types/models";
 import { formatCurrency } from "../utils/format";
 
+const DEFAULT_LESSOR_CONTACT_NAME = "吴孝斌";
+const DEFAULT_LESSOR_PHONE = "18651510352";
+
 const loading = ref(false);
 const units = ref<UnitSummary[]>([]);
 const selectedUnit = ref<UnitSummary | null>(null);
@@ -675,6 +763,10 @@ const unitForm = reactive({
   area: null as number | null,
 });
 const unitContractForm = reactive({
+  lessorName: "",
+  lessorLicenseCode: "",
+  lessorContactName: DEFAULT_LESSOR_CONTACT_NAME,
+  lessorPhone: DEFAULT_LESSOR_PHONE,
   tenantName: "",
   contactName: "",
   tenantPhone: "",
@@ -693,6 +785,10 @@ const contractDialogVisible = ref(false);
 const submittingContract = ref(false);
 const contractForm = reactive({
   id: "",
+  lessorName: "",
+  lessorLicenseCode: "",
+  lessorContactName: DEFAULT_LESSOR_CONTACT_NAME,
+  lessorPhone: DEFAULT_LESSOR_PHONE,
   tenantName: "",
   contactName: "",
   tenantPhone: "",
@@ -767,6 +863,10 @@ function resetUnitForm() {
 }
 
 function resetUnitContractForm() {
+  unitContractForm.lessorName = "";
+  unitContractForm.lessorLicenseCode = "";
+  unitContractForm.lessorContactName = DEFAULT_LESSOR_CONTACT_NAME;
+  unitContractForm.lessorPhone = DEFAULT_LESSOR_PHONE;
   unitContractForm.tenantName = "";
   unitContractForm.contactName = "";
   unitContractForm.tenantPhone = "";
@@ -822,6 +922,10 @@ async function saveUnit() {
 
           await contractsApi.create({
             unitId: createdUnit.id,
+            lessorName: unitContractForm.lessorName.trim(),
+            lessorLicenseCode: unitContractForm.lessorLicenseCode.trim(),
+            lessorContactName: unitContractForm.lessorContactName.trim(),
+            lessorPhone: unitContractForm.lessorPhone.trim(),
             tenantName: unitContractForm.tenantName.trim(),
             contactName: unitContractForm.contactName.trim(),
             tenantPhone: unitContractForm.tenantPhone.trim(),
@@ -936,7 +1040,9 @@ function validateUnitForm(code: string, location: string, area: number | null) {
 
 function hasInitialContractInput() {
   return Boolean(
-    unitContractForm.tenantName.trim() ||
+    unitContractForm.lessorName.trim() ||
+      unitContractForm.lessorLicenseCode.trim() ||
+      unitContractForm.tenantName.trim() ||
       unitContractForm.contactName.trim() ||
       unitContractForm.tenantPhone.trim() ||
       unitContractForm.licenseCode.trim() ||
@@ -950,15 +1056,6 @@ function hasInitialContractInput() {
 }
 
 function validateInitialContractForm() {
-  if (!unitContractForm.tenantName.trim()) {
-    throw new Error("新增初始合同时，公司名称不能为空");
-  }
-  if (!unitContractForm.contactName.trim()) {
-    throw new Error("新增初始合同时，负责人不能为空");
-  }
-  if (!unitContractForm.tenantPhone.trim()) {
-    throw new Error("新增初始合同时，电话不能为空");
-  }
   if (!unitContractForm.startDate) {
     throw new Error("新增初始合同时，合同开始日期不能为空");
   }
@@ -1027,6 +1124,10 @@ async function confirmRemoveUnit(unitId: string) {
 
 function resetContractForm() {
   contractForm.id = "";
+  contractForm.lessorName = "";
+  contractForm.lessorLicenseCode = "";
+  contractForm.lessorContactName = DEFAULT_LESSOR_CONTACT_NAME;
+  contractForm.lessorPhone = DEFAULT_LESSOR_PHONE;
   contractForm.tenantName = "";
   contractForm.contactName = "";
   contractForm.tenantPhone = "";
@@ -1047,6 +1148,10 @@ function openCreateContract() {
   resetContractForm();
   const latestContract = selectedUnit.value?.contracts?.[0];
   if (latestContract) {
+    contractForm.lessorName = latestContract.lessorName;
+    contractForm.lessorLicenseCode = latestContract.lessorLicenseCode;
+    contractForm.lessorContactName = latestContract.lessorContactName;
+    contractForm.lessorPhone = latestContract.lessorPhone;
     contractForm.tenantName = latestContract.tenantName;
     contractForm.contactName = latestContract.contactName;
     contractForm.tenantPhone = latestContract.tenantPhone;
@@ -1062,6 +1167,10 @@ function openCreateContract() {
 function openEditContract(contract: Contract) {
   resetContractForm();
   contractForm.id = contract.id;
+  contractForm.lessorName = contract.lessorName;
+  contractForm.lessorLicenseCode = contract.lessorLicenseCode;
+  contractForm.lessorContactName = contract.lessorContactName;
+  contractForm.lessorPhone = contract.lessorPhone;
   contractForm.tenantName = contract.tenantName;
   contractForm.contactName = contract.contactName;
   contractForm.tenantPhone = contract.tenantPhone;
@@ -1094,15 +1203,6 @@ function handleContractStartDateChange() {
 }
 
 function validateContractForm() {
-  if (!contractForm.tenantName.trim()) {
-    throw new Error("公司名称不能为空");
-  }
-  if (!contractForm.contactName.trim()) {
-    throw new Error("负责人不能为空");
-  }
-  if (!contractForm.tenantPhone.trim()) {
-    throw new Error("电话不能为空");
-  }
   if (!contractForm.startDate) {
     throw new Error("合同开始日期不能为空");
   }
@@ -1152,6 +1252,10 @@ async function saveContract(generateDocumentAfterSave = false) {
 
     const payload = {
       unitId: selectedUnit.value.id,
+      lessorName: contractForm.lessorName.trim(),
+      lessorLicenseCode: contractForm.lessorLicenseCode.trim(),
+      lessorContactName: contractForm.lessorContactName.trim(),
+      lessorPhone: contractForm.lessorPhone.trim(),
       tenantName: contractForm.tenantName.trim(),
       contactName: contractForm.contactName.trim(),
       tenantPhone: contractForm.tenantPhone.trim(),

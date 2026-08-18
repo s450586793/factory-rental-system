@@ -920,6 +920,20 @@ button.file-chip {
   margin: 0 0 12px;
 }
 
+.contract-party-heading {
+  margin: 4px 0 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border);
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0;
+}
+
+.contract-party-heading:not(:first-child) {
+  margin-top: 8px;
+}
+
 .unit-detail-dialog .el-dialog {
   max-width: min(1180px, 92vw);
   overflow: hidden;

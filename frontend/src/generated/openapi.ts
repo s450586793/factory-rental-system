@@ -21,6 +21,10 @@ export type StoredFile = {
 export type Contract = {
   id: string;
   unitId: string;
+  lessorName: string;
+  lessorLicenseCode: string;
+  lessorContactName: string;
+  lessorPhone: string;
   tenantName: string;
   contactName: string;
   tenantPhone: string;
@@ -57,6 +61,10 @@ export type UnitSummary = {
   status: "occupied" | "vacant" | "expiring" | "expired";
   activeContract: {
     id: string;
+    lessorName: string;
+    lessorLicenseCode: string;
+    lessorContactName: string;
+    lessorPhone: string;
     tenantName: string;
     contactName: string;
     tenantPhone: string;

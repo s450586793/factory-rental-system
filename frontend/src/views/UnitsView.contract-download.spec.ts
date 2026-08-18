@@ -53,6 +53,10 @@ vi.mock("../composables/useViewportWidth", () => ({
 
 const activeContract = {
   id: "contract-old",
+  lessorName: "江阴市示例产业园有限公司",
+  lessorLicenseCode: "91320281TEST000001",
+  lessorContactName: "吴孝斌",
+  lessorPhone: "18651510352",
   tenantName: "曹忠",
   contactName: "曹忠",
   tenantPhone: "15951506512",
@@ -69,6 +73,10 @@ const activeContract = {
 const oldContract = {
   id: "contract-old",
   unitId: "unit-1",
+  lessorName: "江阴市示例产业园有限公司",
+  lessorLicenseCode: "91320281TEST000001",
+  lessorContactName: "吴孝斌",
+  lessorPhone: "18651510352",
   tenantName: "曹忠",
   contactName: "曹忠",
   tenantPhone: "15951506512",
@@ -100,6 +108,10 @@ const unit = {
 const savedContract = {
   id: "contract-new",
   unitId: "unit-1",
+  lessorName: "江阴市示例产业园有限公司",
+  lessorLicenseCode: "91320281TEST000001",
+  lessorContactName: "吴孝斌",
+  lessorPhone: "18651510352",
   tenantName: "曹忠",
   contactName: "曹忠",
   tenantPhone: "15951506512",
@@ -115,6 +127,18 @@ const savedContract = {
   businessLicenseFile: null,
   attachmentFiles: [],
 } satisfies Contract;
+
+const vacantUnit = {
+  id: "unit-vacant",
+  code: "6",
+  location: "空置厂房",
+  area: 120,
+  status: "vacant",
+  activeContract: null,
+  contractCount: 0,
+  contracts: [],
+  meterConfigs: [],
+} satisfies UnitSummary;
 
 function passthroughStub(tag = "div") {
   return defineComponent({
@@ -258,10 +282,21 @@ async function openCreateContractDialog(wrapper: ReturnType<typeof mountUnitsVie
   await flushPromises();
 }
 
+async function openCreateUnitDialog(wrapper: ReturnType<typeof mountUnitsView>) {
+  await findButton(wrapper, "新增厂房").trigger("click");
+  await flushPromises();
+}
+
 async function fillAnnualRent(wrapper: ReturnType<typeof mountUnitsView>, value: string) {
   const annualRentInput = wrapper.find('input[aria-label="年租金"]');
   expect(annualRentInput.exists()).toBe(true);
   await annualRentInput.setValue(value);
+}
+
+function findInputByLabel(wrapper: ReturnType<typeof mountUnitsView>, label: string) {
+  const input = wrapper.find(`input[aria-label="${label}"]`);
+  expect(input.exists(), `expected input with aria-label "${label}"`).toBe(true);
+  return input;
 }
 
 describe("UnitsView contract download", () => {
@@ -290,14 +325,118 @@ describe("UnitsView contract download", () => {
     const depositInput = wrapper.find('input[aria-label="押金"]');
     expect(depositInput.exists()).toBe(true);
     expect((depositInput.element as HTMLInputElement).value).toBe("10000");
+    expect((findInputByLabel(wrapper, "甲方名称").element as HTMLInputElement).value).toBe(
+      "江阴市示例产业园有限公司",
+    );
+    expect((findInputByLabel(wrapper, "甲方营业执照号码").element as HTMLInputElement).value).toBe(
+      "91320281TEST000001",
+    );
+    expect((findInputByLabel(wrapper, "甲方联系人").element as HTMLInputElement).value).toBe("吴孝斌");
+    expect((findInputByLabel(wrapper, "甲方电话").element as HTMLInputElement).value).toBe("18651510352");
 
     await findButton(wrapper, "保存").trigger("click");
     await flushPromises();
 
     expect(contractsApi.create).toHaveBeenCalledWith(
       expect.objectContaining({
+        lessorName: "江阴市示例产业园有限公司",
+        lessorLicenseCode: "91320281TEST000001",
+        lessorContactName: "吴孝斌",
+        lessorPhone: "18651510352",
         annualRent: 50000,
         depositAmount: 10000,
+      }),
+    );
+  });
+
+  it("uses empty lessor identity with default contact details when no previous contract exists", async () => {
+    vi.mocked(unitsApi.list).mockResolvedValue([vacantUnit]);
+    vi.mocked(unitsApi.detail).mockResolvedValue(vacantUnit);
+    const wrapper = mountUnitsView();
+    await flushPromises();
+
+    await openCreateContractDialog(wrapper);
+
+    expect((findInputByLabel(wrapper, "甲方名称").element as HTMLInputElement).value).toBe("");
+    expect((findInputByLabel(wrapper, "甲方营业执照号码").element as HTMLInputElement).value).toBe("");
+    expect((findInputByLabel(wrapper, "甲方联系人").element as HTMLInputElement).value).toBe("吴孝斌");
+    expect((findInputByLabel(wrapper, "甲方电话").element as HTMLInputElement).value).toBe("18651510352");
+  });
+
+  it("allows all party identity fields to be empty", async () => {
+    const wrapper = mountUnitsView();
+    await flushPromises();
+    await openCreateContractDialog(wrapper);
+
+    for (const label of [
+      "甲方名称",
+      "甲方营业执照号码",
+      "甲方联系人",
+      "甲方电话",
+      "乙方名称",
+      "乙方营业执照号码",
+      "乙方联系人",
+      "乙方电话",
+    ]) {
+      await findInputByLabel(wrapper, label).setValue("");
+    }
+
+    await findButton(wrapper, "保存").trigger("click");
+    await flushPromises();
+
+    expect(contractsApi.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        lessorName: "",
+        lessorLicenseCode: "",
+        lessorContactName: "",
+        lessorPhone: "",
+        tenantName: "",
+        licenseCode: "",
+        contactName: "",
+        tenantPhone: "",
+      }),
+    );
+  });
+
+  it("does not create an initial contract from untouched lessor defaults", async () => {
+    vi.mocked(unitsApi.create).mockResolvedValue(vacantUnit);
+    const wrapper = mountUnitsView();
+    await flushPromises();
+    await openCreateUnitDialog(wrapper);
+
+    await wrapper.find('input[placeholder="例如 A-01"]').setValue("6");
+    await wrapper.find('input[placeholder="例如 东区 1 号车间"]').setValue("空置厂房");
+    await findButton(wrapper, "保存").trigger("click");
+    await flushPromises();
+
+    expect(unitsApi.create).toHaveBeenCalledTimes(1);
+    expect(contractsApi.create).not.toHaveBeenCalled();
+  });
+
+  it("submits lessor information with an initial contract", async () => {
+    vi.mocked(unitsApi.create).mockResolvedValue(vacantUnit);
+    const wrapper = mountUnitsView();
+    await flushPromises();
+    await openCreateUnitDialog(wrapper);
+
+    await wrapper.find('input[placeholder="例如 A-01"]').setValue("6");
+    await wrapper.find('input[placeholder="例如 东区 1 号车间"]').setValue("空置厂房");
+    await findInputByLabel(wrapper, "初始合同甲方名称").setValue("江阴市示例产业园有限公司");
+    await findInputByLabel(wrapper, "初始合同甲方营业执照号码").setValue("91320281TEST000001");
+    await findInputByLabel(wrapper, "初始合同开始").setValue("2026-09-01");
+    await findInputByLabel(wrapper, "初始合同年租金").setValue("50000");
+    await findButton(wrapper, "保存").trigger("click");
+    await flushPromises();
+
+    expect(contractsApi.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        lessorName: "江阴市示例产业园有限公司",
+        lessorLicenseCode: "91320281TEST000001",
+        lessorContactName: "吴孝斌",
+        lessorPhone: "18651510352",
+        startDate: "2026-09-01",
+        endDate: "2027-08-31",
+        annualRent: 50000,
       }),
     );
   });
