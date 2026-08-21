@@ -20,9 +20,11 @@
 import { apiFileUrl } from "../api/client";
 import type { StoredFile } from "../types/models";
 
+type PaymentVoucherPreviewFile = Pick<StoredFile, "id" | "originalName">;
+
 defineProps<{
   modelValue: boolean;
-  files: StoredFile[];
+  files: PaymentVoucherPreviewFile[];
   title: string;
 }>();
 
