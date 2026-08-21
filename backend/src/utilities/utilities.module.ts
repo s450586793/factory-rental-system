@@ -1,6 +1,7 @@
 import { Module } from "@nestjs/common";
 import { TypeOrmModule } from "@nestjs/typeorm";
 import { Contract } from "../contracts/contract.entity";
+import { FilesModule } from "../files/files.module";
 import { Receipt } from "../receipts/receipt.entity";
 import { FactoryUnit } from "../units/factory-unit.entity";
 import { UtilityChargeItem } from "./utility-charge-item.entity";
@@ -11,6 +12,7 @@ import { UtilitiesService } from "./utilities.service";
 
 @Module({
   imports: [
+    FilesModule,
     TypeOrmModule.forFeature([
       UtilityMeterConfig,
       UtilityChargeRecord,

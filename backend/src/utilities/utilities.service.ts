@@ -6,6 +6,7 @@ import {
 import { InjectRepository } from "@nestjs/typeorm";
 import { In, Repository } from "typeorm";
 import { Contract } from "../contracts/contract.entity";
+import { FilesService } from "../files/files.service";
 import { Receipt, ReceiptSourceType, ReceiptStatus } from "../receipts/receipt.entity";
 import { FactoryUnit } from "../units/factory-unit.entity";
 import { calculateUtilityCharge, round2 } from "./utility-calculation";
@@ -40,6 +41,7 @@ export class UtilitiesService {
     private readonly contractsRepository: Repository<Contract>,
     @InjectRepository(Receipt)
     private readonly receiptsRepository: Repository<Receipt>,
+    private readonly filesService: FilesService,
   ) {}
 
   listMeterConfigs(unitId?: string, type?: UtilityType) {
@@ -152,6 +154,9 @@ export class UtilitiesService {
 
   async markAsPaid(id: string, dto: MarkUtilityRecordPaidDto) {
     const record = await this.findRecordOrFail(id);
+    if (dto.attachmentFileIds !== undefined) {
+      record.attachmentFiles = await this.filesService.resolvePaymentVoucherFiles(dto.attachmentFileIds);
+    }
     record.status = UtilityChargeStatus.PAID;
     record.paidAt = dto.paidAt ?? today();
     record.paymentMethod = dto.paymentMethod?.trim() ?? null;

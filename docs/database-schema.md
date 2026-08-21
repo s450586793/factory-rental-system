@@ -32,6 +32,9 @@
 - `utility_charge_records`
   水电收费主表，保存租户快照、抄表日期、总用量、调整后用量、金额、缴费状态。
 
+- `utility_charge_record_attachment_files`
+  水电收费记录与收款凭证文件的多对多关联表。
+
 - `utility_charge_items`
   水电收费明细表，保存每个表计的上次读数、本次读数、倍率、单价、线损快照和金额。
 
@@ -50,6 +53,7 @@
 - 一个 `factory_units` 可以对应多条 `utility_meter_configs`
 - 一个 `contracts` 可以对应多条 `utility_charge_records`
 - 一个 `utility_charge_records` 可以对应多条 `utility_charge_items`
+- 一个 `utility_charge_records` 可以对应多条 `stored_files` 收款凭证
 - 一个 `contracts` 可以对应多条 `rent_payments`
 - 一个 `contracts` 可以对应多条 `deposit_records`
 - 一个 `utility_charge_records` 或 `rent_payments` 最多对应一条有效 `receipts`

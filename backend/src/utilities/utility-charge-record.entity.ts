@@ -2,12 +2,15 @@ import {
   Column,
   Entity,
   JoinColumn,
+  JoinTable,
+  ManyToMany,
   ManyToOne,
   OneToMany,
 } from "typeorm";
 import { BaseEntityWithTimestamps } from "../common/database/base.entity";
 import { numericTransformer } from "../common/database/numeric.transformer";
 import { Contract } from "../contracts/contract.entity";
+import { StoredFile } from "../files/stored-file.entity";
 import { FactoryUnit } from "../units/factory-unit.entity";
 import { UtilityChargeItem } from "./utility-charge-item.entity";
 import { UtilityType } from "./utility-meter-config.entity";
@@ -96,6 +99,14 @@ export class UtilityChargeRecord extends BaseEntityWithTimestamps {
 
   @Column({ type: "text", nullable: true })
   note!: string | null;
+
+  @ManyToMany(() => StoredFile, { eager: true })
+  @JoinTable({
+    name: "utility_charge_record_attachment_files",
+    joinColumn: { name: "utilityChargeRecordId", referencedColumnName: "id" },
+    inverseJoinColumn: { name: "fileId", referencedColumnName: "id" },
+  })
+  attachmentFiles!: StoredFile[];
 
   @OneToMany(() => UtilityChargeItem, (item) => item.record, {
     eager: true,

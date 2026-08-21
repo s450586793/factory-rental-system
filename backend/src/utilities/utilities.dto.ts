@@ -1,4 +1,6 @@
 import {
+  ArrayMaxSize,
+  ArrayUnique,
   IsArray,
   IsBoolean,
   IsDateString,
@@ -7,6 +9,7 @@ import {
   IsNumber,
   IsOptional,
   IsString,
+  IsUUID,
   MaxLength,
   Min,
   ValidateNested,
@@ -99,6 +102,13 @@ export class MarkUtilityRecordPaidDto {
   @IsString()
   @IsOptional()
   paymentMethod?: string;
+
+  @IsArray()
+  @ArrayMaxSize(10)
+  @ArrayUnique()
+  @IsUUID("4", { each: true })
+  @IsOptional()
+  attachmentFileIds?: string[];
 }
 
 export class UtilityPrefillQueryDto {
