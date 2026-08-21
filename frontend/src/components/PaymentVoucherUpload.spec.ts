@@ -50,6 +50,13 @@ describe("PaymentVoucherUpload", () => {
     expect(click).toHaveBeenCalledTimes(3);
   });
 
+  it("keeps the hidden native input out of the tab order", () => {
+    const wrapper = mountUploader();
+
+    expect(wrapper.get('input[type="file"]').attributes("tabindex")).toBe("-1");
+    expect(wrapper.get(".payment-voucher-dropzone").attributes("tabindex")).toBe("0");
+  });
+
   it("emits selected files from the native input and resets it", async () => {
     const pngFile = imageFile("receipt.png");
     const wrapper = mountUploader();
@@ -77,6 +84,21 @@ describe("PaymentVoucherUpload", () => {
     await dropzone.trigger("drop", { dataTransfer: { files: [pngFile, webpFile] } });
 
     expect(wrapper.emitted("update:modelValue")?.at(-1)?.[0]).toEqual([pngFile, webpFile]);
+    expect(dropzone.classes()).not.toContain("is-dragging");
+  });
+
+  it("keeps drag styling while moving between dropzone children", async () => {
+    const wrapper = mountUploader();
+    const dropzone = wrapper.get(".payment-voucher-dropzone");
+    const child = dropzone.get("span");
+
+    await dropzone.trigger("dragenter");
+    await child.trigger("dragenter");
+    await child.trigger("dragleave");
+
+    expect(dropzone.classes()).toContain("is-dragging");
+
+    await dropzone.trigger("dragleave");
     expect(dropzone.classes()).not.toContain("is-dragging");
   });
 
@@ -140,5 +162,19 @@ describe("PaymentVoucherUpload", () => {
     expect(wrapper.emitted("update:modelValue")).toBeUndefined();
     expect(wrapper.emitted("remove-existing")).toBeUndefined();
     expect(wrapper.get(".payment-voucher-dropzone").attributes("aria-disabled")).toBe("true");
+  });
+
+  it("clears drag styling and ignores drag events while disabled", async () => {
+    const wrapper = mountUploader();
+    const dropzone = wrapper.get(".payment-voucher-dropzone");
+
+    await dropzone.trigger("dragenter");
+    expect(dropzone.classes()).toContain("is-dragging");
+
+    await wrapper.setProps({ disabled: true });
+    await dropzone.trigger("dragenter");
+    await dropzone.trigger("dragover");
+
+    expect(dropzone.classes()).not.toContain("is-dragging");
   });
 });

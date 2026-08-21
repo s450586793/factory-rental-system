@@ -7,6 +7,8 @@
       :accept="PAYMENT_VOUCHER_IMAGE_ACCEPT"
       multiple
       :disabled="disabled"
+      tabindex="-1"
+      aria-hidden="true"
       @change="onFileInputChange"
     />
 
@@ -20,9 +22,9 @@
       @click="openFilePicker"
       @keydown.enter.prevent="openFilePicker"
       @keydown.space.prevent="openFilePicker"
-      @dragenter.prevent="isDragging = true"
-      @dragover.prevent="isDragging = true"
-      @dragleave.prevent="isDragging = false"
+      @dragenter.prevent="onDragEnter"
+      @dragover.prevent="onDragOver"
+      @dragleave.prevent="onDragLeave"
       @drop.prevent="onDrop"
     >
       <span>收款凭证图片</span>
@@ -48,7 +50,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed, ref, watch } from "vue";
 import { ElMessage } from "element-plus";
 import type { StoredFile } from "../types/models";
 import {
@@ -78,6 +80,16 @@ const emit = defineEmits<{
 const fileInput = ref<HTMLInputElement>();
 const isDragging = ref(false);
 const selectedCount = computed(() => props.existingFiles.length + props.modelValue.length);
+let dragDepth = 0;
+
+watch(
+  () => props.disabled,
+  (disabled) => {
+    if (disabled) {
+      clearDragState();
+    }
+  },
+);
 
 function openFilePicker() {
   if (!props.disabled) {
@@ -107,8 +119,39 @@ function onFileInputChange(event: Event) {
 }
 
 function onDrop(event: DragEvent) {
-  isDragging.value = false;
+  clearDragState();
   appendFiles(event.dataTransfer?.files ?? []);
+}
+
+function onDragEnter() {
+  if (props.disabled) {
+    clearDragState();
+    return;
+  }
+
+  dragDepth += 1;
+  isDragging.value = true;
+}
+
+function onDragOver() {
+  if (props.disabled) {
+    clearDragState();
+  }
+}
+
+function onDragLeave() {
+  if (props.disabled) {
+    clearDragState();
+    return;
+  }
+
+  dragDepth = Math.max(0, dragDepth - 1);
+  isDragging.value = dragDepth > 0;
+}
+
+function clearDragState() {
+  dragDepth = 0;
+  isDragging.value = false;
 }
 
 function removeExistingFile(fileId: string) {
