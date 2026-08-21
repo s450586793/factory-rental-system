@@ -12,6 +12,7 @@ import {
   IsUUID,
   MaxLength,
   Min,
+  ValidateIf,
   ValidateNested,
 } from "class-validator";
 import { Type } from "class-transformer";
@@ -100,14 +101,14 @@ export class MarkUtilityRecordPaidDto {
   paidAt?: string;
 
   @IsString()
-  @IsOptional()
+  @ValidateIf((_object, value) => value !== undefined)
   paymentMethod?: string;
 
   @IsArray()
   @ArrayMaxSize(10)
   @ArrayUnique()
   @IsUUID("4", { each: true })
-  @IsOptional()
+  @ValidateIf((_object, value) => value !== undefined)
   attachmentFileIds?: string[];
 }
 
