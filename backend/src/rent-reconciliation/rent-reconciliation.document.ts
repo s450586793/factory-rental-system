@@ -7,6 +7,7 @@ import type {
 import { RentReconciliationStatus } from "./rent-reconciliation.types";
 
 const PAGE_MARGIN = 42;
+const FOOTER_RESERVED_HEIGHT = 32;
 const CONTENT_COLOR = "#1f2933";
 const MUTED_COLOR = "#667085";
 const BORDER_COLOR = "#d0d5dd";
@@ -43,7 +44,7 @@ export async function renderRentReconciliationPdf(
       },
     });
     const contentWidth = doc.page.width - PAGE_MARGIN * 2;
-    const pageBottom = () => doc.page.height - PAGE_MARGIN;
+    const pageBottom = () => doc.page.height - PAGE_MARGIN - FOOTER_RESERVED_HEIGHT;
     let cursorY = PAGE_MARGIN;
 
     doc.on("data", (chunk: Buffer) => chunks.push(chunk));
@@ -209,9 +210,10 @@ export async function renderRentReconciliationPdf(
         .font(fontPath)
         .fillColor(MUTED_COLOR)
         .fontSize(8)
-        .text(`${pageIndex + 1} / ${pageRange.count}`, PAGE_MARGIN, doc.page.height - 28, {
+        .text(`${pageIndex + 1} / ${pageRange.count}`, PAGE_MARGIN, doc.page.height - PAGE_MARGIN - 20, {
           width: contentWidth,
           align: "center",
+          lineBreak: false,
         });
     }
 

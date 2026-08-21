@@ -54,9 +54,11 @@ function detailFixture(paymentCount = 1): TenantReconciliationDetail {
 describe("renderRentReconciliationPdf", () => {
   it("renders a valid PDF for a period with payments and receipt numbers", async () => {
     const buffer = await renderRentReconciliationPdf(detailFixture(), fontPath, "2026-08-21");
+    const pageCount = buffer.toString("latin1").match(/\/Type \/Page\b/g)?.length ?? 0;
 
     expect(buffer.subarray(0, 4).toString()).toBe("%PDF");
     expect(buffer.length).toBeGreaterThan(1000);
+    expect(pageCount).toBe(1);
   });
 
   it("renders an empty-payment period without failing", async () => {
