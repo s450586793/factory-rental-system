@@ -154,12 +154,14 @@ export class UtilitiesService {
 
   async markAsPaid(id: string, dto: MarkUtilityRecordPaidDto) {
     const record = await this.findRecordOrFail(id);
+    const isAlreadyPaid = record.status === UtilityChargeStatus.PAID;
     if (dto.attachmentFileIds !== undefined) {
       record.attachmentFiles = await this.filesService.resolvePaymentVoucherFiles(dto.attachmentFileIds);
     }
     record.status = UtilityChargeStatus.PAID;
-    record.paidAt = dto.paidAt ?? today();
-    record.paymentMethod = dto.paymentMethod?.trim() ?? null;
+    record.paidAt = dto.paidAt ?? (isAlreadyPaid ? record.paidAt : today());
+    record.paymentMethod =
+      dto.paymentMethod !== undefined ? dto.paymentMethod.trim() : isAlreadyPaid ? record.paymentMethod : null;
     return this.utilityRecordsRepository.save(record);
   }
 

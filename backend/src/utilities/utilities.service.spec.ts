@@ -99,4 +99,27 @@ describe("UtilitiesService", () => {
       }),
     );
   });
+
+  it("preserves payment details when updating vouchers for an already paid utility record", async () => {
+    const record = {
+      id: "record-1",
+      status: UtilityChargeStatus.PAID,
+      paidAt: "2026-07-01",
+      paymentMethod: "银行转账",
+      attachmentFiles: [{ id: "existing-voucher" }],
+    };
+    const { service, utilityRecordsRepository } = createService(record);
+
+    await service.markAsPaid("record-1", {
+      attachmentFileIds: ["voucher-1"],
+    } as never);
+
+    expect(utilityRecordsRepository.save).toHaveBeenCalledWith(
+      expect.objectContaining({
+        paidAt: "2026-07-01",
+        paymentMethod: "银行转账",
+        attachmentFiles: [{ id: "voucher-1" }],
+      }),
+    );
+  });
 });
