@@ -51,6 +51,19 @@
             {{ formatCurrency(row.amount) }}
           </template>
         </el-table-column>
+        <el-table-column label="凭证" width="82">
+          <template #default="{ row }">
+            <el-button
+              v-if="row.attachmentFiles.length"
+              text
+              type="primary"
+              @click="openVoucherPreview(row.attachmentFiles)"
+            >
+              {{ row.attachmentFiles.length }} 张
+            </el-button>
+            <span v-else>--</span>
+          </template>
+        </el-table-column>
         <el-table-column label="缴费状态" width="110">
           <template #default="{ row }">
             <el-tag :type="row.status === 'paid' ? 'success' : 'warning'">
@@ -63,7 +76,7 @@
             {{ row.recordedAt }}
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="260" :fixed="actionColumnFixed">
+        <el-table-column label="操作" width="340" :fixed="actionColumnFixed">
           <template #default="{ row }">
             <el-space wrap>
               <el-button text type="primary" @click="openViewRecord(row)">查看</el-button>
@@ -72,7 +85,7 @@
                 v-if="row.status === 'unpaid'"
                 text
                 type="success"
-                @click="markRecordPaid(row.id)"
+                @click="openPaymentDialog(row)"
               >
                 标记已缴费
               </el-button>
@@ -83,6 +96,14 @@
                 @click="createReceipt(row.id)"
               >
                 开收据
+              </el-button>
+              <el-button
+                v-if="row.status === 'paid'"
+                text
+                type="primary"
+                @click="openPaymentDialog(row)"
+              >
+                管理凭证
               </el-button>
               <el-button text type="danger" @click="confirmRemoveRecord(row.id)">删除</el-button>
             </el-space>
@@ -242,6 +263,44 @@
         </template>
       </template>
     </el-dialog>
+
+    <el-dialog v-model="paymentDialogVisible" :title="paymentDialogTitle" width="520px" :close-on-click-modal="!paymentSubmitting">
+      <el-form label-position="top">
+        <el-form-item label="缴费日期">
+          <el-date-picker
+            v-model="paymentForm.paidAt"
+            type="date"
+            value-format="YYYY-MM-DD"
+            style="width: 100%"
+            :disabled="paymentSubmitting"
+          />
+        </el-form-item>
+        <el-form-item label="缴费方式">
+          <el-input v-model="paymentForm.paymentMethod" placeholder="例如 转账、微信" :disabled="paymentSubmitting" />
+        </el-form-item>
+        <el-form-item label="收款凭证图片">
+          <PaymentVoucherUpload
+            v-model="voucherUploads"
+            :existing-files="existingVoucherFiles"
+            :disabled="paymentSubmitting"
+            @remove-existing="removeExistingVoucher"
+          />
+        </el-form-item>
+      </el-form>
+
+      <template #footer>
+        <el-button :disabled="paymentSubmitting" @click="paymentDialogVisible = false">取消</el-button>
+        <el-button type="primary" :loading="paymentSubmitting" :disabled="paymentSubmitting" @click="savePayment">
+          {{ paymentRecord?.status === "paid" ? "保存凭证" : "确认缴费" }}
+        </el-button>
+      </template>
+    </el-dialog>
+
+    <PaymentVoucherPreviewDialog
+      v-model="voucherPreviewVisible"
+      :files="voucherPreviewFiles"
+      title="水电收款凭证"
+    />
   </AppShell>
 </template>
 
@@ -249,9 +308,11 @@
 import { computed, onMounted, reactive, ref } from "vue";
 import { ElMessage, ElMessageBox } from "element-plus";
 import AppShell from "../components/AppShell.vue";
-import { receiptsApi, unitsApi, utilitiesApi } from "../api";
+import PaymentVoucherUpload from "../components/PaymentVoucherUpload.vue";
+import PaymentVoucherPreviewDialog from "../components/PaymentVoucherPreviewDialog.vue";
+import { filesApi, receiptsApi, unitsApi, utilitiesApi } from "../api";
 import { useViewportWidth } from "../composables/useViewportWidth";
-import type { Contract, UnitSummary, UtilityChargeRecord } from "../types/models";
+import type { Contract, StoredFile, UnitSummary, UtilityChargeRecord } from "../types/models";
 import { formatCurrency, todayIso } from "../utils/format";
 
 type EditableItem = {
@@ -268,8 +329,15 @@ const loading = ref(false);
 const submitting = ref(false);
 const dialogVisible = ref(false);
 const dialogMode = ref<"create" | "edit" | "view">("create");
+const paymentDialogVisible = ref(false);
+const paymentSubmitting = ref(false);
 const units = ref<UnitSummary[]>([]);
 const records = ref<UtilityChargeRecord[]>([]);
+const paymentRecord = ref<UtilityChargeRecord | null>(null);
+const existingVoucherFiles = ref<StoredFile[]>([]);
+const voucherUploads = ref<File[]>([]);
+const voucherPreviewVisible = ref(false);
+const voucherPreviewFiles = ref<StoredFile[]>([]);
 const viewportWidth = useViewportWidth();
 
 const form = reactive({
@@ -283,6 +351,11 @@ const form = reactive({
   items: [] as EditableItem[],
 });
 
+const paymentForm = reactive({
+  paidAt: "",
+  paymentMethod: "",
+});
+
 const selectedUnit = computed(() => units.value.find((item) => item.id === form.unitId) || null);
 const selectedContracts = computed<Contract[]>(() => selectedUnit.value?.contracts ?? []);
 const isViewMode = computed(() => dialogMode.value === "view");
@@ -291,6 +364,9 @@ const dialogTitle = computed(() => {
   if (dialogMode.value === "view") return "查看水电收费";
   return form.id ? "编辑水电收费" : "新增水电收费";
 });
+const paymentDialogTitle = computed(() =>
+  paymentRecord.value?.status === "paid" ? "管理水电收款凭证" : "确认水电收款",
+);
 
 const totalUsage = computed(() =>
   form.items.reduce((sum, item) => sum + calculateItemUsage(item), 0),
@@ -438,13 +514,45 @@ async function removeCurrentRecord() {
   dialogVisible.value = false;
 }
 
-async function markRecordPaid(recordId: string) {
+function openPaymentDialog(record: UtilityChargeRecord) {
+  paymentRecord.value = record;
+  paymentForm.paidAt = record.paidAt || todayIso();
+  paymentForm.paymentMethod = record.paymentMethod || "转账";
+  existingVoucherFiles.value = [...record.attachmentFiles];
+  voucherUploads.value = [];
+  paymentDialogVisible.value = true;
+}
+
+function removeExistingVoucher(fileId: string) {
+  existingVoucherFiles.value = existingVoucherFiles.value.filter((file) => file.id !== fileId);
+}
+
+function openVoucherPreview(files: StoredFile[]) {
+  voucherPreviewFiles.value = files;
+  voucherPreviewVisible.value = true;
+}
+
+async function savePayment() {
+  if (paymentSubmitting.value || !paymentRecord.value) return;
   try {
-    await utilitiesApi.payRecord(recordId, { paidAt: todayIso() });
-    ElMessage.success("已标记为已缴费");
+    paymentSubmitting.value = true;
+    let attachmentFileIds = existingVoucherFiles.value.map((file) => file.id);
+    if (voucherUploads.value.length) {
+      const uploaded = await filesApi.upload(voucherUploads.value, "payment-voucher");
+      attachmentFileIds = [...attachmentFileIds, ...uploaded.map((file) => file.id)];
+    }
+    await utilitiesApi.payRecord(paymentRecord.value.id, {
+      paidAt: paymentForm.paidAt,
+      paymentMethod: paymentForm.paymentMethod.trim(),
+      attachmentFileIds,
+    });
+    ElMessage.success(paymentRecord.value.status === "paid" ? "收款凭证已更新" : "已标记为已缴费");
+    paymentDialogVisible.value = false;
     await loadPageData();
   } catch (error) {
-    ElMessage.error(error instanceof Error ? error.message : "更新状态失败");
+    ElMessage.error(error instanceof Error ? error.message : "保存水电收款失败");
+  } finally {
+    paymentSubmitting.value = false;
   }
 }
 

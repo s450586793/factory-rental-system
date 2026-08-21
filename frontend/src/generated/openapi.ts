@@ -123,6 +123,7 @@ export type UtilityChargeRecord = {
   paidAt: string | null;
   paymentMethod: string | null;
   note: string | null;
+  attachmentFiles: StoredFile[];
   unit: { id: string; code: string; location: string };
   contract: Contract;
   items: UtilityChargeItem[];

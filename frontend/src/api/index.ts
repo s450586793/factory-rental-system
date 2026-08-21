@@ -136,7 +136,7 @@ export const utilitiesApi = {
       method: "PATCH",
       body: JSON.stringify(payload),
     }),
-  payRecord: (id: string, payload: { paidAt?: string; paymentMethod?: string }) =>
+  payRecord: (id: string, payload: { paidAt?: string; paymentMethod?: string; attachmentFileIds?: string[] }) =>
     apiFetch<UtilityChargeRecord>(`/utilities/records/${id}/pay`, {
       method: "POST",
       body: JSON.stringify(payload),
