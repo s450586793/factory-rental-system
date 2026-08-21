@@ -145,8 +145,29 @@ function mountView() {
           },
         }),
         "el-input": passthroughStub("input"),
-        "el-select": passthroughStub("select"),
-        "el-option": defineComponent({ setup: () => () => null }),
+        "el-select": defineComponent({
+          props: ["modelValue"],
+          emits: ["update:modelValue"],
+          setup(props, { attrs, emit, slots }) {
+            return () =>
+              h(
+                "select",
+                {
+                  ...attrs,
+                  value: props.modelValue,
+                  onChange: (event: Event) =>
+                    emit("update:modelValue", (event.target as HTMLSelectElement).value),
+                },
+                slots.default?.(),
+              );
+          },
+        }),
+        "el-option": defineComponent({
+          props: ["label", "value"],
+          setup(props) {
+            return () => h("option", { value: props.value }, String(props.label));
+          },
+        }),
         "el-tag": passthroughStub("span"),
         "el-dialog": defineComponent({
           props: ["modelValue"],
@@ -237,6 +258,45 @@ describe("RentReconciliationView", () => {
     expect(wrapper.text()).toContain("2025-09-01 至 2026-08-31");
     expect(wrapper.text()).toContain("转账");
     expect(wrapper.text()).toContain("RC20260115-001");
+  });
+
+  it("selects a tenant from a stable dropdown", async () => {
+    const anotherTenant = {
+      ...listResponse.items[0],
+      tenantName: "五金仓储",
+    };
+    vi.mocked(rentReconciliationApi.list)
+      .mockResolvedValueOnce({
+        ...listResponse,
+        items: [...listResponse.items, anotherTenant],
+      })
+      .mockResolvedValueOnce(listResponse);
+
+    const wrapper = mountView();
+    await flushPromises();
+
+    const tenantSelect = wrapper.find('select[aria-label="选择租户"]');
+    expect(tenantSelect.exists()).toBe(true);
+    expect(tenantSelect.findAll("option").map((option) => option.text())).toEqual([
+      "全部租户",
+      "大理石",
+      "五金仓储",
+    ]);
+
+    await tenantSelect.setValue("大理石");
+    await findButton(wrapper, "查询").trigger("click");
+    await flushPromises();
+
+    expect(rentReconciliationApi.list).toHaveBeenLastCalledWith({
+      keyword: "大理石",
+      year: undefined,
+      status: undefined,
+    });
+    expect(tenantSelect.findAll("option").map((option) => option.text())).toEqual([
+      "全部租户",
+      "大理石",
+      "五金仓储",
+    ]);
   });
 
   it("opens voucher and receipt previews from a payment row", async () => {

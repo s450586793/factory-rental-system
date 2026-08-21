@@ -26,7 +26,15 @@
         </div>
 
         <div class="page-filters reconciliation-filters">
-          <el-input v-model="filters.keyword" clearable placeholder="搜索租户" aria-label="搜索租户" />
+          <el-select v-model="filters.keyword" clearable placeholder="选择租户" aria-label="选择租户">
+            <el-option label="全部租户" value="" />
+            <el-option
+              v-for="tenantName in tenantOptions"
+              :key="tenantName"
+              :label="tenantName"
+              :value="tenantName"
+            />
+          </el-select>
           <el-select v-model="filters.year" placeholder="合同年度" aria-label="合同年度">
             <el-option label="全部年度" value="" />
             <el-option v-for="year in listResponse.availableYears" :key="year" :label="`${year} 年`" :value="year" />
@@ -214,6 +222,7 @@ const downloading = ref(false);
 const selectedTenantName = ref("");
 const detail = ref<TenantReconciliationDetail | null>(null);
 const listResponse = ref<RentReconciliationListResponse>({ items: [], availableYears: [] });
+const tenantOptions = ref<string[]>([]);
 const receiptPreviewVisible = ref(false);
 const receiptPreviewFileId = ref("");
 const voucherPreviewVisible = ref(false);
@@ -236,11 +245,15 @@ onMounted(loadList);
 async function loadList() {
   try {
     loading.value = true;
-    listResponse.value = await rentReconciliationApi.list({
+    const response = await rentReconciliationApi.list({
       keyword: filters.keyword.trim() || undefined,
       year: selectedYear.value,
       status: filters.status || undefined,
     });
+    listResponse.value = response;
+    if (!filters.keyword.trim() && selectedYear.value === undefined && !filters.status) {
+      tenantOptions.value = [...new Set(response.items.map((item) => item.tenantName).filter(Boolean))];
+    }
   } catch (error) {
     listResponse.value = { items: [], availableYears: listResponse.value.availableYears };
     ElMessage.error(error instanceof Error ? error.message : "加载房租对账失败");
