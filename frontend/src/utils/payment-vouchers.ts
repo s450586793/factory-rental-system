@@ -1,7 +1,7 @@
 export const PAYMENT_VOUCHER_IMAGE_ACCEPT = "image/jpeg,image/png,image/webp";
 
 const PAYMENT_VOUCHER_IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
-const MAX_PAYMENT_VOUCHER_IMAGES = 10;
+export const MAX_PAYMENT_VOUCHER_IMAGES = 10;
 
 export function appendPaymentVoucherImages(
   existingAttachmentCount: number,

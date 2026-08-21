@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { appendPaymentVoucherImages } from "./payment-vouchers";
+import { appendPaymentVoucherImages, MAX_PAYMENT_VOUCHER_IMAGES } from "./payment-vouchers";
 
 function imageFile(name: string, type = "image/png") {
   return new File(["image"], name, { type });
@@ -24,5 +24,15 @@ describe("appendPaymentVoucherImages", () => {
     expect(() => appendPaymentVoucherImages(9, [], [imageFile("one.png"), imageFile("two.png")])).toThrow(
       "每条记录最多上传 10 张收款凭证",
     );
+  });
+
+  it("keeps current uploads when no files are selected", () => {
+    const png = imageFile("receipt.png");
+
+    expect(appendPaymentVoucherImages(1, [png], [])).toEqual([png]);
+  });
+
+  it("exports the maximum number of payment voucher images", () => {
+    expect(MAX_PAYMENT_VOUCHER_IMAGES).toBe(10);
   });
 });

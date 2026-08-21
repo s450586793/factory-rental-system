@@ -1049,6 +1049,90 @@ button.file-chip {
   min-width: 0;
 }
 
+.payment-voucher-upload {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
+.payment-voucher-file-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.payment-voucher-dropzone {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  min-height: 46px;
+  padding: 10px 12px;
+  border: 1px dashed var(--line-strong);
+  border-radius: 6px;
+  background: var(--panel-soft);
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.payment-voucher-dropzone strong {
+  color: var(--text);
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.payment-voucher-dropzone.is-dragging {
+  border-color: var(--brand);
+  background: var(--brand-soft);
+}
+
+.payment-voucher-dropzone:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+}
+
+.payment-voucher-dropzone.is-disabled {
+  color: var(--muted);
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.payment-voucher-file-list {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.payment-voucher-file-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-width: 0;
+  padding: 6px 8px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--panel);
+}
+
+.payment-voucher-file-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.payment-voucher-file-row .el-button {
+  flex: 0 0 auto;
+}
+
 .detail-section {
   padding: 18px;
   border-radius: 18px;
@@ -1320,6 +1404,19 @@ button.file-chip {
 
   .detail-section {
     padding: 14px;
+  }
+
+  .payment-voucher-dropzone,
+  .payment-voucher-file-row {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .payment-voucher-file-name {
+    overflow: visible;
+    text-overflow: clip;
+    white-space: normal;
+    overflow-wrap: anywhere;
   }
 
   .user-trigger {
