@@ -198,6 +198,9 @@ describe("DepositsView 收款凭证", () => {
     expect(depositsApi.create).toHaveBeenCalledWith(
       expect.objectContaining({ attachmentFileIds: ["uploaded-1", "uploaded-2"] }),
     );
+    expect(vi.mocked(filesApi.upload).mock.invocationCallOrder[0]).toBeLessThan(
+      vi.mocked(depositsApi.create).mock.invocationCallOrder[0],
+    );
   });
 
   it("编辑时移除已有凭证，只提交新上传凭证的 ID", async () => {
