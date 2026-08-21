@@ -1,21 +1,27 @@
-import { Injectable, NotFoundException } from "@nestjs/common";
+import { Injectable, NotFoundException, ServiceUnavailableException } from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
 import { InjectRepository } from "@nestjs/typeorm";
+import { access } from "fs/promises";
+import { join } from "path";
 import { In, Repository } from "typeorm";
+import { formatShanghaiDate } from "../common/date/shanghai-date";
+import type { StorageConfig } from "../config/storage.config";
 import { Contract } from "../contracts/contract.entity";
 import { StoredFile } from "../files/stored-file.entity";
 import { Receipt, ReceiptSourceType, ReceiptStatus } from "../receipts/receipt.entity";
 import {
   ListRentReconciliationQueryDto,
-  RentReconciliationStatus,
   TenantRentReconciliationQueryDto,
 } from "./rent-reconciliation.dto";
-import type {
-  ContractPeriodReconciliation,
-  ReconciliationFile,
-  ReconciliationReceipt,
-  RentReconciliationListResponse,
-  RentReconciliationPayment,
-  TenantReconciliationDetail,
+import { renderRentReconciliationPdf } from "./rent-reconciliation.document";
+import {
+  RentReconciliationStatus,
+  type ContractPeriodReconciliation,
+  type ReconciliationFile,
+  type ReconciliationReceipt,
+  type RentReconciliationListResponse,
+  type RentReconciliationPayment,
+  type TenantReconciliationDetail,
 } from "./rent-reconciliation.types";
 
 const UNKNOWN_TENANT_NAME = "未填写租户";
@@ -60,6 +66,7 @@ export class RentReconciliationService {
     private readonly contractsRepository: Repository<Contract>,
     @InjectRepository(Receipt)
     private readonly receiptsRepository: Repository<Receipt>,
+    private readonly configService: ConfigService,
   ) {}
 
   async list(query: ListRentReconciliationQueryDto): Promise<RentReconciliationListResponse> {
@@ -96,6 +103,19 @@ export class RentReconciliationService {
     }
 
     return detail;
+  }
+
+  async generatePdf(query: TenantRentReconciliationQueryDto) {
+    const detail = await this.detail(query);
+    const generatedDate = formatShanghaiDate();
+    const fontPath = await this.resolvePdfFontPath();
+    const buffer = await renderRentReconciliationPdf(detail, fontPath, generatedDate);
+
+    return {
+      buffer,
+      filename: `房租对账单_${this.sanitizeFilenameSegment(detail.tenantName)}_${generatedDate}.pdf`,
+      mimeType: "application/pdf",
+    };
   }
 
   private async loadLedgers(year?: number) {
@@ -251,5 +271,35 @@ export class RentReconciliationService {
       }
     });
     return [...years].sort((left, right) => right - left);
+  }
+
+  private async resolvePdfFontPath() {
+    const storage = this.configService.getOrThrow<StorageConfig>("storage");
+    const candidates = [
+      "/app/assets/fonts/NotoSansCJKsc-Regular.otf",
+      storage.pdfFontPath && !storage.pdfFontPath.toLowerCase().endsWith(".ttc") ? storage.pdfFontPath : null,
+      join(process.cwd(), "assets", "fonts", "NotoSansCJKsc-Regular.otf"),
+    ].filter(Boolean) as string[];
+
+    for (const candidate of candidates) {
+      try {
+        await access(candidate);
+        return candidate;
+      } catch {
+        continue;
+      }
+    }
+
+    throw new ServiceUnavailableException("对账单 PDF 字体不可用");
+  }
+
+  private sanitizeFilenameSegment(value: string) {
+    return [...value]
+      .map((character) =>
+        character.charCodeAt(0) < 32 || "\\/:*?\"<>|".includes(character) ? "_" : character,
+      )
+      .join("")
+      .replace(/_+/g, "_")
+      .trim() || UNKNOWN_TENANT_NAME;
   }
 }

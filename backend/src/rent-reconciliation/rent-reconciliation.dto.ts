@@ -1,11 +1,6 @@
 import { Type } from "class-transformer";
 import { IsEnum, IsInt, IsNotEmpty, IsOptional, IsString, Max, MaxLength, Min } from "class-validator";
-
-export enum RentReconciliationStatus {
-  OUTSTANDING = "outstanding",
-  SETTLED = "settled",
-  CREDIT = "credit",
-}
+import { RentReconciliationStatus } from "./rent-reconciliation.types";
 
 export class ListRentReconciliationQueryDto {
   @IsOptional()

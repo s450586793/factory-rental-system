@@ -15,6 +15,7 @@ import { DepositsModule } from "./deposits/deposits.module";
 import { FilesModule } from "./files/files.module";
 import { HealthModule } from "./health/health.module";
 import { ReceiptsModule } from "./receipts/receipts.module";
+import { RentReconciliationModule } from "./rent-reconciliation/rent-reconciliation.module";
 import { RentPaymentsModule } from "./rent-payments/rent-payments.module";
 import { UnitsModule } from "./units/units.module";
 import { UsersModule } from "./users/users.module";
@@ -40,6 +41,7 @@ import { UtilitiesModule } from "./utilities/utilities.module";
     ContractsModule,
     UtilitiesModule,
     RentPaymentsModule,
+    RentReconciliationModule,
     DepositsModule,
     ReceiptsModule,
     DeploymentUpdateModule,

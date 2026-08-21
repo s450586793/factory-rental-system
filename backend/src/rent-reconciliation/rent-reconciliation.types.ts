@@ -1,4 +1,8 @@
-import type { RentReconciliationStatus } from "./rent-reconciliation.dto";
+export enum RentReconciliationStatus {
+  OUTSTANDING = "outstanding",
+  SETTLED = "settled",
+  CREDIT = "credit",
+}
 
 export type ReconciliationFile = {
   id: string;

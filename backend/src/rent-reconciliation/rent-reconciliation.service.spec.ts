@@ -1,4 +1,5 @@
 import { NotFoundException } from "@nestjs/common";
+import { join } from "path";
 import { RentReconciliationService } from "./rent-reconciliation.service";
 
 type PaymentFixtureOptions = {
@@ -77,13 +78,20 @@ function createService(contracts: unknown[], receipts: unknown[] = []) {
   const receiptsRepository = {
     find: jest.fn().mockResolvedValue(receipts),
   };
+  const configService = {
+    getOrThrow: jest.fn().mockReturnValue({
+      root: "/tmp/rent-test-storage",
+      pdfFontPath: join(__dirname, "..", "..", "assets", "fonts", "NotoSansCJKsc-Regular.otf"),
+    }),
+  };
   const ServiceWithMocks = RentReconciliationService as unknown as new (
     contractsRepository: unknown,
     receiptsRepository: unknown,
+    configService: unknown,
   ) => RentReconciliationService;
 
   return {
-    service: new ServiceWithMocks(contractsRepository, receiptsRepository),
+    service: new ServiceWithMocks(contractsRepository, receiptsRepository, configService),
     contractsRepository,
     receiptsRepository,
   };
@@ -289,5 +297,23 @@ describe("RentReconciliationService", () => {
 
     await expect(service.detail({ tenantName: "不存在", year: 2025 })).rejects.toBeInstanceOf(NotFoundException);
     await expect(service.detail({ tenantName: "大理石", year: 2026 })).rejects.toThrow("未找到符合条件的房租对账记录");
+  });
+
+  it("generates a PDF with a sanitized tenant filename", async () => {
+    const { service } = createService([
+      contractFixture({
+        id: "contract-1",
+        tenantName: "大理石/仓储",
+        startDate: "2025-09-01",
+        endDate: "2026-08-31",
+        annualRent: 100000,
+      }),
+    ]);
+
+    const generated = await service.generatePdf({ tenantName: "大理石/仓储", year: 2026 });
+
+    expect(generated.buffer.subarray(0, 4).toString()).toBe("%PDF");
+    expect(generated.filename).toMatch(/^房租对账单_大理石_仓储_\d{4}-\d{2}-\d{2}\.pdf$/);
+    expect(generated.mimeType).toBe("application/pdf");
   });
 });
