@@ -4,6 +4,7 @@ import LoginView from "../features/auth/views/LoginView.vue";
 import UnitsView from "../features/units/views/UnitsView.vue";
 import UtilitiesView from "../features/utilities/views/UtilitiesView.vue";
 import RentPaymentsView from "../features/rent-payments/views/RentPaymentsView.vue";
+import RentReconciliationView from "../features/rent-reconciliation/views/RentReconciliationView.vue";
 import DepositsView from "../features/deposits/views/DepositsView.vue";
 import ReceiptsView from "../features/receipts/views/ReceiptsView.vue";
 
@@ -33,6 +34,12 @@ const routes = [
     path: "/rent-payments",
     name: "rent-payments",
     component: RentPaymentsView,
+    meta: { requiresAuth: true },
+  },
+  {
+    path: "/rent-reconciliation",
+    name: "rent-reconciliation",
+    component: RentReconciliationView,
     meta: { requiresAuth: true },
   },
   {

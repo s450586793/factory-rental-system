@@ -210,6 +210,13 @@ const navItems = [
     description: "登记房租付款、合同归属和收款方式，保留完整收款台账。",
   },
   {
+    label: "房租对账",
+    to: "/rent-reconciliation",
+    badge: "账",
+    caption: "应收实收与结欠",
+    description: "按租户和合同期间核对房租应收、实收、结欠和付款凭证。",
+  },
+  {
     label: "押金记录",
     to: "/deposits",
     badge: "押",

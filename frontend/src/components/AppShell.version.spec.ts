@@ -43,4 +43,23 @@ describe("AppShell", () => {
     expect(wrapper.text()).toContain(`版本 ${APP_VERSION}`);
     expect(wrapper.text()).toContain(APP_UPDATED_AT);
   });
+
+  it("shows the rent reconciliation navigation entry", () => {
+    const wrapper = mount(AppShell, {
+      global: {
+        stubs: {
+          RouterLink: RouterLinkStub,
+          "el-dropdown": true,
+          "el-dropdown-menu": true,
+          "el-dropdown-item": true,
+        },
+      },
+    });
+
+    const reconciliationLink = wrapper
+      .findAllComponents(RouterLinkStub)
+      .find((link) => link.props("to") === "/rent-reconciliation");
+
+    expect(reconciliationLink?.text()).toContain("房租对账");
+  });
 });
