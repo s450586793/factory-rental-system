@@ -4,7 +4,11 @@ import type {
   RentReconciliationPayment,
   TenantReconciliationDetail,
 } from "./rent-reconciliation.types";
-import { RentReconciliationStatus } from "./rent-reconciliation.types";
+import {
+  buildPeriodAmountSegments,
+  buildSummaryItems,
+  type PdfTextSegment,
+} from "./rent-reconciliation.document-layout";
 
 const PAGE_MARGIN = 42;
 const FOOTER_RESERVED_HEIGHT = 32;
@@ -12,19 +16,10 @@ const CONTENT_COLOR = "#1f2933";
 const MUTED_COLOR = "#667085";
 const BORDER_COLOR = "#d0d5dd";
 const HEADER_BACKGROUND = "#eef2f5";
+const DANGER_COLOR = "#b42318";
 
 function formatMoney(value: number) {
   return `￥${Number(value).toFixed(2)}`;
-}
-
-function statusLabel(status: RentReconciliationStatus) {
-  if (status === RentReconciliationStatus.OUTSTANDING) {
-    return "欠款";
-  }
-  if (status === RentReconciliationStatus.CREDIT) {
-    return "有结余";
-  }
-  return "已结清";
 }
 
 export async function renderRentReconciliationPdf(
@@ -103,6 +98,24 @@ export async function renderRentReconciliationPdf(
       cursorY += 24;
     };
 
+    const drawRightAlignedSegments = (segments: PdfTextSegment[], x: number, y: number, width: number) => {
+      const preferredFontSize = 8.5;
+      doc.fontSize(preferredFontSize);
+      const preferredWidth = segments.reduce((total, segment) => total + doc.widthOfString(segment.text), 0);
+      const fontSize = preferredWidth > width ? Math.max(7, (preferredFontSize * width) / preferredWidth) : preferredFontSize;
+      doc.fontSize(fontSize);
+      const segmentWidths = segments.map((segment) => doc.widthOfString(segment.text));
+      const totalWidth = segmentWidths.reduce((total, segmentWidth) => total + segmentWidth, 0);
+      let segmentX = x + Math.max(0, width - totalWidth);
+
+      segments.forEach((segment, index) => {
+        doc
+          .fillColor(segment.tone === "danger" ? DANGER_COLOR : MUTED_COLOR)
+          .text(segment.text, segmentX, y, { lineBreak: false });
+        segmentX += segmentWidths[index];
+      });
+    };
+
     const drawPayment = (payment: RentReconciliationPayment) => {
       const widths = [76, 82, 68, 118, contentWidth - 344];
       const note = payment.note?.trim() || "--";
@@ -147,11 +160,11 @@ export async function renderRentReconciliationPdf(
         .text(`${period.startDate} 至 ${period.endDate}`, PAGE_MARGIN + 10, cursorY + 29, {
           width: 165,
         });
-      doc.text(
-        `应收 ${formatMoney(period.receivableAmount)}  实收 ${formatMoney(period.paidAmount)}  结欠 ${formatMoney(period.outstandingAmount)}  结余 ${formatMoney(period.creditAmount)}  ${statusLabel(period.status)}`,
+      drawRightAlignedSegments(
+        buildPeriodAmountSegments(period),
         PAGE_MARGIN + 175,
         cursorY + 29,
-        { width: contentWidth - 185, align: "right" },
+        contentWidth - 185,
       );
       cursorY += 66;
 
@@ -184,18 +197,15 @@ export async function renderRentReconciliationPdf(
     cursorY += 28;
 
     const summaryGap = 6;
-    const summaryWidth = (contentWidth - summaryGap * 3) / 4;
-    const summaries = [
-      ["累计应收", detail.receivableAmount],
-      ["累计实收", detail.paidAmount],
-      ["当前结欠", detail.outstandingAmount],
-      ["当前结余", detail.creditAmount],
-    ] as const;
-    summaries.forEach(([label, amount], index) => {
+    const summaries = buildSummaryItems(detail);
+    const summaryWidth = (contentWidth - summaryGap * (summaries.length - 1)) / summaries.length;
+    summaries.forEach(({ label, amount, tone }, index) => {
       const x = PAGE_MARGIN + index * (summaryWidth + summaryGap);
       doc.save().fillColor(HEADER_BACKGROUND).rect(x, cursorY, summaryWidth, 54).fill().restore();
-      doc.fillColor(MUTED_COLOR).fontSize(8.5).text(label, x + 8, cursorY + 8, { width: summaryWidth - 16 });
-      doc.fillColor(CONTENT_COLOR).fontSize(13).text(formatMoney(amount), x + 8, cursorY + 27, {
+      const labelColor = tone === "danger" ? DANGER_COLOR : MUTED_COLOR;
+      const amountColor = tone === "danger" ? DANGER_COLOR : CONTENT_COLOR;
+      doc.fillColor(labelColor).fontSize(8.5).text(label, x + 8, cursorY + 8, { width: summaryWidth - 16 });
+      doc.fillColor(amountColor).fontSize(13).text(formatMoney(amount), x + 8, cursorY + 27, {
         width: summaryWidth - 16,
       });
     });
