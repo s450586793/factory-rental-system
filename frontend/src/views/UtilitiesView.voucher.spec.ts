@@ -277,14 +277,14 @@ describe("UtilitiesView 收款凭证", () => {
     await flushPromises();
 
     await findButton(wrapper, "管理凭证").trigger("click");
+    expect(uploader(wrapper).props("existingFiles")).toEqual(paidRecord.attachmentFiles);
+    expect(wrapper.findAll("input")).toHaveLength(0);
     await uploader(wrapper).vm.$emit("remove-existing", "existing-1");
     await uploader(wrapper).vm.$emit("update:modelValue", [new File(["new"], "new.png", { type: "image/png" })]);
     await findButton(wrapper, "保存凭证").trigger("click");
     await flushPromises();
 
     expect(utilitiesApi.payRecord).toHaveBeenCalledWith("utility-paid-1", {
-      paidAt: "2026-08-01",
-      paymentMethod: "转账",
       attachmentFileIds: ["uploaded-new"],
     });
   });

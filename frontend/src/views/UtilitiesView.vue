@@ -266,7 +266,7 @@
 
     <el-dialog v-model="paymentDialogVisible" :title="paymentDialogTitle" width="520px" :close-on-click-modal="!paymentSubmitting">
       <el-form label-position="top">
-        <el-form-item label="缴费日期">
+        <el-form-item v-if="paymentRecord?.status !== 'paid'" label="缴费日期">
           <el-date-picker
             v-model="paymentForm.paidAt"
             type="date"
@@ -275,7 +275,7 @@
             :disabled="paymentSubmitting"
           />
         </el-form-item>
-        <el-form-item label="缴费方式">
+        <el-form-item v-if="paymentRecord?.status !== 'paid'" label="缴费方式">
           <el-input v-model="paymentForm.paymentMethod" placeholder="例如 转账、微信" :disabled="paymentSubmitting" />
         </el-form-item>
         <el-form-item label="收款凭证图片">
@@ -534,6 +534,7 @@ function openVoucherPreview(files: StoredFile[]) {
 
 async function savePayment() {
   if (paymentSubmitting.value || !paymentRecord.value) return;
+  const record = paymentRecord.value;
   try {
     paymentSubmitting.value = true;
     let attachmentFileIds = existingVoucherFiles.value.map((file) => file.id);
@@ -541,12 +542,17 @@ async function savePayment() {
       const uploaded = await filesApi.upload(voucherUploads.value, "payment-voucher");
       attachmentFileIds = [...attachmentFileIds, ...uploaded.map((file) => file.id)];
     }
-    await utilitiesApi.payRecord(paymentRecord.value.id, {
-      paidAt: paymentForm.paidAt,
-      paymentMethod: paymentForm.paymentMethod.trim(),
-      attachmentFileIds,
-    });
-    ElMessage.success(paymentRecord.value.status === "paid" ? "收款凭证已更新" : "已标记为已缴费");
+    await utilitiesApi.payRecord(
+      record.id,
+      record.status === "paid"
+        ? { attachmentFileIds }
+        : {
+            paidAt: paymentForm.paidAt,
+            paymentMethod: paymentForm.paymentMethod.trim(),
+            attachmentFileIds,
+          },
+    );
+    ElMessage.success(record.status === "paid" ? "收款凭证已更新" : "已标记为已缴费");
     paymentDialogVisible.value = false;
     await loadPageData();
   } catch (error) {
