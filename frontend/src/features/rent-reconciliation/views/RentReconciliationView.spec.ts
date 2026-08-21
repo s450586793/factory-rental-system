@@ -255,6 +255,12 @@ describe("RentReconciliationView", () => {
       tenantName: "大理石",
       year: undefined,
     });
+    const detailStats = wrapper.get(".reconciliation-stats");
+    expect(detailStats.findAll(".stat-item")).toHaveLength(2);
+    expect(detailStats.text()).not.toContain("累计应收");
+    expect(detailStats.text()).not.toContain("累计实收");
+    expect(detailStats.text()).toContain("当前结欠");
+    expect(detailStats.text()).toContain("当前结余");
     expect(wrapper.text()).toContain("2025-09-01 至 2026-08-31");
     expect(wrapper.text()).toContain("转账");
     expect(wrapper.text()).toContain("RC20260115-001");

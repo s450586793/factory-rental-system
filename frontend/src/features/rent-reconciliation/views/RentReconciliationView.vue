@@ -104,14 +104,6 @@
 
         <div v-if="detail" class="stats-row reconciliation-stats">
           <div class="stat-item">
-            <small>累计应收</small>
-            <strong>{{ formatCurrency(detail.receivableAmount) }}</strong>
-          </div>
-          <div class="stat-item">
-            <small>累计实收</small>
-            <strong>{{ formatCurrency(detail.paidAmount) }}</strong>
-          </div>
-          <div class="stat-item">
             <small>当前结欠</small>
             <strong :class="{ 'amount-overdue': detail.outstandingAmount > 0 }">
               {{ formatCurrency(detail.outstandingAmount) }}
