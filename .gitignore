@@ -20,4 +20,6 @@ volumes/storage/*
 !volumes/storage/.gitkeep
 .env
 .env.local
+.worktrees/
+.superpowers/
 3D打印设计/
