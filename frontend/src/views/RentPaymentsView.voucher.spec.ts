@@ -1,14 +1,22 @@
 import { flushPromises, mount } from "@vue/test-utils";
 import { defineComponent, h, inject, provide } from "vue";
-import { ElMessage } from "element-plus";
+import { ElMessage, ElMessageBox } from "element-plus";
 import RentPaymentsView from "./RentPaymentsView.vue";
-import { filesApi, receiptsApi, rentPaymentsApi, unitsApi } from "../api";
-import type { Contract, RentPayment, UnitSummary } from "../types/models";
+import PaymentVoucherUpload from "../components/PaymentVoucherUpload.vue";
+import { filesApi, receiptsApi, rentPaymentsApi, rentReceivablesApi, unitsApi } from "../api";
+import type { Contract, Receipt, RentPayment, UnitSummary } from "../types/models";
 
 vi.mock("../api", () => ({
   filesApi: { upload: vi.fn() },
   receiptsApi: { create: vi.fn(), list: vi.fn() },
-  rentPaymentsApi: { create: vi.fn(), update: vi.fn(), remove: vi.fn(), list: vi.fn() },
+  rentPaymentsApi: {
+    create: vi.fn(),
+    update: vi.fn(),
+    remove: vi.fn(),
+    list: vi.fn(),
+    previewAllocation: vi.fn(),
+  },
+  rentReceivablesApi: { list: vi.fn() },
   unitsApi: { list: vi.fn() },
 }));
 
@@ -100,12 +108,41 @@ const paymentMutationResult = {
   unallocatedAmount: 0,
 };
 
+const activeReceipt = {
+  id: "receipt-1",
+  receiptNo: "R202608001",
+  sourceType: "rent-payment",
+  sourceId: "payment-1",
+  tenantNameSnapshot: "租户",
+  unitCodeSnapshot: "A1",
+  amountSnapshot: 1000,
+  issueDate: "2026-08-01",
+  summary: "房租",
+  pdfFileId: "receipt-file-1",
+  pdfFile: {
+    id: "receipt-file-1",
+    originalName: "receipt.pdf",
+    mimeType: "application/pdf",
+    size: 1,
+    category: "receipt",
+    storagePath: "receipt/receipt.pdf",
+  },
+  status: "active",
+  voidedAt: null,
+} satisfies Receipt;
+
 function passthroughStub(tag = "div") {
   return defineComponent({
     props: ["modelValue"],
     emits: ["update:modelValue"],
-    setup(_, { attrs, emit, slots }) {
-      return () => h(tag, { ...attrs, onUpdateModelValue: (value: unknown) => emit("update:modelValue", value) }, [slots.default?.(), slots.footer?.()]);
+    setup(props, { attrs, emit, slots }) {
+      return () => h(tag, {
+        ...attrs,
+        value: props.modelValue,
+        onInput: (event: Event) => emit("update:modelValue", (event.target as HTMLInputElement).value),
+        onChange: (event: Event) => emit("update:modelValue", (event.target as HTMLInputElement).value),
+        onUpdateModelValue: (value: unknown) => emit("update:modelValue", value),
+      }, [slots.default?.(), slots.footer?.()]);
     },
   });
 }
@@ -114,15 +151,6 @@ const dialogStub = defineComponent({
   props: ["modelValue"],
   setup(props, { attrs, slots }) {
     return () => (props.modelValue ? h("div", attrs, [slots.default?.(), slots.footer?.()]) : null);
-  },
-});
-
-const paymentVoucherUploadStub = defineComponent({
-  name: "PaymentVoucherUpload",
-  props: ["modelValue", "existingFiles", "disabled"],
-  emits: ["update:modelValue", "remove-existing"],
-  setup() {
-    return () => h("div", { "data-test": "payment-voucher-upload" });
   },
 });
 
@@ -147,8 +175,16 @@ function mountView() {
         "el-row": passthroughStub(),
         "el-col": passthroughStub(),
         "el-space": passthroughStub(),
+        "el-tabs": passthroughStub(),
+        "el-tab-pane": passthroughStub(),
+        "el-tooltip": passthroughStub("span"),
         "el-select": passthroughStub("select"),
-        "el-option": defineComponent({ setup: () => () => null }),
+        "el-option": defineComponent({
+          props: ["label", "value"],
+          setup(props) {
+            return () => h("option", { value: props.value }, props.label);
+          },
+        }),
         "el-input": passthroughStub("input"),
         "el-input-number": passthroughStub("input"),
         "el-date-picker": passthroughStub("input"),
@@ -167,8 +203,6 @@ function mountView() {
             return () => h("div", table.getRows().map((row) => slots.default?.({ row }) ?? h("span", String((row as Record<string, unknown>)[props.prop as string] ?? ""))));
           },
         }),
-        PaymentVoucherPreviewDialog: true,
-        PaymentVoucherUpload: paymentVoucherUploadStub,
       },
     },
   });
@@ -181,7 +215,7 @@ function findButton(wrapper: ReturnType<typeof mountView>, text: string) {
 }
 
 function uploader(wrapper: ReturnType<typeof mountView>) {
-  return wrapper.findComponent(paymentVoucherUploadStub);
+  return wrapper.findComponent(PaymentVoucherUpload);
 }
 
 describe("RentPaymentsView 收款凭证", () => {
@@ -189,8 +223,13 @@ describe("RentPaymentsView 收款凭证", () => {
     vi.mocked(unitsApi.list).mockResolvedValue([unit]);
     vi.mocked(rentPaymentsApi.list).mockResolvedValue([]);
     vi.mocked(receiptsApi.list).mockResolvedValue([]);
+    vi.mocked(rentReceivablesApi.list).mockResolvedValue({ items: [] });
+    vi.mocked(rentPaymentsApi.previewAllocation).mockResolvedValue({ allocations: [], unallocatedAmount: 0 });
     vi.mocked(rentPaymentsApi.create).mockResolvedValue(paymentMutationResult);
     vi.mocked(rentPaymentsApi.update).mockResolvedValue(paymentMutationResult);
+    vi.mocked(rentPaymentsApi.remove).mockResolvedValue(paymentMutationResult);
+    vi.mocked(receiptsApi.create).mockResolvedValue(activeReceipt);
+    vi.mocked(ElMessageBox.confirm).mockResolvedValue({} as Awaited<ReturnType<typeof ElMessageBox.confirm>>);
     vi.mocked(filesApi.upload).mockResolvedValue([
       { id: "uploaded-1", originalName: "one.png", mimeType: "image/png", size: 1, category: "payment-voucher", storagePath: "payment-voucher/one.png" },
       { id: "uploaded-2", originalName: "two.webp", mimeType: "image/webp", size: 1, category: "payment-voucher", storagePath: "payment-voucher/two.webp" },
@@ -241,5 +280,114 @@ describe("RentPaymentsView 收款凭证", () => {
       "payment-1",
       expect.objectContaining({ attachmentFileIds: ["uploaded-new"] }),
     );
+  });
+
+  it("支持拖拽图片和点击选择按钮添加待上传凭证", async () => {
+    const pngFile = new File(["one"], "one.png", { type: "image/png" });
+    const clickSpy = vi.spyOn(HTMLInputElement.prototype, "click");
+    const wrapper = mountView();
+    await flushPromises();
+    await findButton(wrapper, "新增房租收费").trigger("click");
+
+    const dropzone = wrapper.get('[aria-label="选择收款凭证图片"]');
+    await dropzone.trigger("drop", { dataTransfer: { files: [pngFile] } });
+    expect(uploader(wrapper).props("modelValue")).toEqual([pngFile]);
+
+    await dropzone.trigger("click");
+    expect(clickSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it("点击凭证数量打开图片预览", async () => {
+    vi.mocked(rentPaymentsApi.list).mockResolvedValue([existingPayment]);
+    const wrapper = mountView();
+    await flushPromises();
+
+    await findButton(wrapper, "1 张").trigger("click");
+
+    expect(wrapper.get('img[alt="房租收款凭证 1"]').attributes("src")).toContain("existing-1");
+    expect(wrapper.text()).toContain("existing.png");
+  });
+
+  it("可开具收据并刷新列表，也可预览已开收据", async () => {
+    vi.mocked(rentPaymentsApi.list).mockResolvedValue([existingPayment]);
+    const wrapper = mountView();
+    await flushPromises();
+
+    await findButton(wrapper, "开收据").trigger("click");
+    await flushPromises();
+    expect(receiptsApi.create).toHaveBeenCalledWith({ sourceType: "rent-payment", sourceId: "payment-1" });
+    expect(receiptsApi.list).toHaveBeenCalledTimes(2);
+
+    vi.mocked(receiptsApi.list).mockResolvedValue([activeReceipt]);
+    await findButton(wrapper, "刷新").trigger("click");
+    await flushPromises();
+    await findButton(wrapper, "查看收据").trigger("click");
+    expect(wrapper.get("iframe").attributes("src")).toContain("receipt-file-1");
+  });
+
+  it("保留收据状态和关键字筛选", async () => {
+    vi.mocked(rentPaymentsApi.list).mockResolvedValue([existingPayment]);
+    vi.mocked(receiptsApi.list).mockResolvedValue([activeReceipt]);
+    const wrapper = mountView();
+    await flushPromises();
+
+    const table = wrapper.get(".rent-payments-table");
+    expect(table.text()).toContain("租户");
+
+    await wrapper.get('[aria-label="收据状态筛选"]').setValue("pending");
+    expect(table.text()).not.toContain("租户");
+
+    await wrapper.get('[aria-label="收据状态筛选"]').setValue("issued");
+    await wrapper.get('[aria-label="收款记录搜索"]').setValue("不存在的租户");
+    expect(table.text()).not.toContain("租户");
+
+    await wrapper.get('[aria-label="收款记录搜索"]').setValue("转账");
+    expect(table.text()).toContain("租户");
+  });
+
+  it("编辑弹窗保留删除流程", async () => {
+    vi.mocked(rentPaymentsApi.list).mockResolvedValue([existingPayment]);
+    const wrapper = mountView();
+    await flushPromises();
+
+    await findButton(wrapper, "编辑").trigger("click");
+    await findButton(wrapper, "删除").trigger("click");
+    await flushPromises();
+
+    expect(ElMessageBox.confirm).toHaveBeenCalled();
+    expect(rentPaymentsApi.remove).toHaveBeenCalledWith("payment-1");
+  });
+
+  it("上传进行中重复保存只发起一次上传和创建请求", async () => {
+    let resolveUpload!: (files: Awaited<ReturnType<typeof filesApi.upload>>) => void;
+    vi.mocked(filesApi.upload).mockImplementation(
+      () => new Promise((resolve) => {
+        resolveUpload = resolve;
+      }),
+    );
+    const wrapper = mountView();
+    await flushPromises();
+    await findButton(wrapper, "新增房租收费").trigger("click");
+    await uploader(wrapper).vm.$emit("update:modelValue", [new File(["one"], "one.png", { type: "image/png" })]);
+
+    const saveButton = findButton(wrapper, "保存");
+    const firstClick = saveButton.trigger("click");
+    const secondClick = saveButton.trigger("click");
+    await Promise.all([firstClick, secondClick]);
+    await flushPromises();
+    expect(filesApi.upload).toHaveBeenCalledTimes(1);
+
+    resolveUpload!([
+      {
+        id: "uploaded-1",
+        originalName: "one.png",
+        mimeType: "image/png",
+        size: 1,
+        category: "payment-voucher",
+        storagePath: "payment-voucher/one.png",
+      },
+    ]);
+    await flushPromises();
+    expect(rentPaymentsApi.create).toHaveBeenCalledTimes(1);
   });
 });

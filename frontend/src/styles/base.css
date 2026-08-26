@@ -873,6 +873,105 @@ a {
   padding-bottom: 7px;
 }
 
+.rent-payments-tabs,
+.rent-payments-tabs .el-tabs__content,
+.rent-payments-tabs .el-tab-pane {
+  min-width: 0;
+}
+
+.rent-payments-tabs > .el-tabs__header {
+  margin: 0 0 16px;
+}
+
+.receivables-filters {
+  grid-template-columns: repeat(4, minmax(120px, 1fr)) auto;
+}
+
+.receivables-filters .el-select {
+  width: 100%;
+}
+
+.table-shell .rent-receivables-table {
+  min-width: 1080px;
+}
+
+.rent-receivables-table .el-table__cell {
+  padding-top: 7px;
+  padding-bottom: 7px;
+}
+
+.rent-receivables-table .cell {
+  padding-left: 5px;
+  padding-right: 5px;
+}
+
+.rent-receivables-table .el-button.is-text,
+.rent-receivables-table .el-button.is-link {
+  padding-left: 0;
+  padding-right: 0;
+}
+
+.rent-receivables-table .el-tag {
+  padding-inline: 6px;
+  font-size: 12px;
+}
+
+.receivable-balance.is-overdue {
+  color: var(--danger);
+  font-weight: 700;
+}
+
+.allocation-preview {
+  min-height: 54px;
+  margin: 0 0 18px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 12px;
+  background: var(--panel-soft);
+}
+
+.allocation-preview-head,
+.allocation-preview-row {
+  display: grid;
+  align-items: center;
+  gap: 12px;
+}
+
+.allocation-preview-head {
+  grid-template-columns: minmax(0, 1fr) auto;
+  margin-bottom: 8px;
+}
+
+.allocation-preview-error {
+  color: var(--danger);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.allocation-preview-list {
+  display: grid;
+  gap: 6px;
+}
+
+.allocation-preview-row {
+  grid-template-columns: 76px minmax(190px, 1fr) 112px;
+  min-height: 32px;
+  border-top: 1px solid var(--line);
+  padding-top: 6px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.allocation-preview-row strong {
+  color: var(--text);
+  text-align: right;
+}
+
+.allocation-preview-row.is-unallocated,
+.allocation-preview-row.is-unallocated strong {
+  color: var(--accent);
+}
+
 .rent-payments-table .cell {
   padding-left: 5px;
   padding-right: 5px;
@@ -1568,6 +1667,20 @@ button.file-chip {
     text-overflow: clip;
     white-space: normal;
     overflow-wrap: anywhere;
+  }
+
+  .rent-payments-tabs .el-tabs__nav-scroll {
+    overflow-x: auto;
+  }
+
+  .allocation-preview-head,
+  .allocation-preview-row {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 4px;
+  }
+
+  .allocation-preview-row strong {
+    text-align: left;
   }
 
   .user-trigger {
