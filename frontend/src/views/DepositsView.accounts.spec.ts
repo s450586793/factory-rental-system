@@ -244,4 +244,36 @@ describe("DepositsView 押金账户", () => {
     expect(findButton(wrapper, "刷新").attributes("disabled")).toBeDefined();
     expect(ElMessage.error).not.toHaveBeenCalledWith("迟到错误");
   });
+
+  it("组件卸载后忽略押金加载的迟到错误及 finally", async () => {
+    const pendingAccounts = deferred<DepositAccountSummary[]>();
+    vi.mocked(depositsApi.listAccounts).mockReturnValueOnce(pendingAccounts.promise);
+    const wrapper = mountView();
+    const view = wrapper.vm as unknown as { loading: boolean };
+
+    expect(view.loading).toBe(true);
+    wrapper.unmount();
+    pendingAccounts.reject(new Error("卸载后错误"));
+    await flushPromises();
+
+    expect(view.loading).toBe(true);
+    expect(ElMessage.error).not.toHaveBeenCalledWith("卸载后错误");
+  });
+
+  it("组件卸载后忽略押金加载的迟到成功且不提交账户", async () => {
+    const pendingAccounts = deferred<DepositAccountSummary[]>();
+    vi.mocked(depositsApi.listAccounts).mockReturnValueOnce(pendingAccounts.promise);
+    const wrapper = mountView();
+    const view = wrapper.vm as unknown as {
+      accounts: DepositAccountSummary[];
+      loading: boolean;
+    };
+
+    wrapper.unmount();
+    pendingAccounts.resolve(accounts);
+    await flushPromises();
+
+    expect(view.accounts).toEqual([]);
+    expect(view.loading).toBe(true);
+  });
 });

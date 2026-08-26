@@ -200,7 +200,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from "vue";
+import { computed, onBeforeUnmount, onMounted, reactive, ref } from "vue";
 import { ElMessage, ElMessageBox } from "element-plus";
 import AppShell from "../components/AppShell.vue";
 import PaymentVoucherUpload from "../components/PaymentVoucherUpload.vue";
@@ -220,6 +220,7 @@ const voucherUploads = ref<File[]>([]);
 const voucherPreviewVisible = ref(false);
 const voucherPreviewFiles = ref<StoredFile[]>([]);
 let loadRequestSequence = 0;
+let isPageMounted = true;
 
 const form = reactive({
   id: "",
@@ -236,8 +237,13 @@ const selectedUnit = computed(() => units.value.find((item) => item.id === form.
 const selectedContracts = computed<Contract[]>(() => selectedUnit.value?.contracts ?? []);
 
 onMounted(loadPageData);
+onBeforeUnmount(() => {
+  isPageMounted = false;
+  loadRequestSequence += 1;
+});
 
 async function loadPageData() {
+  if (!isPageMounted) return;
   const requestSequence = ++loadRequestSequence;
   try {
     loading.value = true;
@@ -246,7 +252,7 @@ async function loadPageData() {
       depositsApi.listAccounts(),
       depositsApi.list(),
     ]);
-    if (requestSequence !== loadRequestSequence) return;
+    if (!isLatestLoadRequest(requestSequence)) return;
     units.value = unitList;
     accounts.value = accountList.map((account) => ({
       ...account,
@@ -254,14 +260,18 @@ async function loadPageData() {
     }));
     records.value = depositList;
   } catch (error) {
-    if (requestSequence === loadRequestSequence) {
+    if (isLatestLoadRequest(requestSequence)) {
       ElMessage.error(error instanceof Error ? error.message : "加载押金记录失败");
     }
   } finally {
-    if (requestSequence === loadRequestSequence) {
+    if (isLatestLoadRequest(requestSequence)) {
       loading.value = false;
     }
   }
+}
+
+function isLatestLoadRequest(requestSequence: number) {
+  return isPageMounted && requestSequence === loadRequestSequence;
 }
 
 function resetForm() {

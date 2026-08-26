@@ -219,7 +219,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from "vue";
+import { computed, onBeforeUnmount, onMounted, reactive, ref } from "vue";
 import { ElMessage } from "element-plus";
 import AppShell from "../../../components/AppShell.vue";
 import PaymentVoucherPreviewDialog from "../../../components/PaymentVoucherPreviewDialog.vue";
@@ -247,6 +247,9 @@ const voucherPreviewVisible = ref(false);
 const voucherPreviewFiles = ref<ReconciliationFile[]>([]);
 let listRequestSequence = 0;
 let detailRequestSequence = 0;
+let downloadRequestSequence = 0;
+let activeObjectUrl = "";
+let isPageMounted = true;
 
 const filters = reactive<{
   keyword: string;
@@ -261,8 +264,19 @@ const filters = reactive<{
 const selectedYear = computed(() => (filters.year === "" ? undefined : filters.year));
 
 onMounted(loadList);
+onBeforeUnmount(() => {
+  isPageMounted = false;
+  listRequestSequence += 1;
+  detailRequestSequence += 1;
+  downloadRequestSequence += 1;
+  if (activeObjectUrl) {
+    URL.revokeObjectURL(activeObjectUrl);
+    activeObjectUrl = "";
+  }
+});
 
 async function loadList() {
+  if (!isPageMounted) return;
   const requestSequence = ++listRequestSequence;
   const query = {
     keyword: filters.keyword.trim() || undefined,
@@ -272,25 +286,29 @@ async function loadList() {
   try {
     loading.value = true;
     const response = await rentReconciliationApi.list(query);
-    if (requestSequence !== listRequestSequence) return;
+    if (!isLatestListRequest(requestSequence)) return;
     listResponse.value = response;
     if (!query.keyword && query.year === undefined && !query.status) {
       tenantOptions.value = [...new Set(response.items.map((item) => item.tenantName).filter(Boolean))];
     }
   } catch (error) {
-    if (requestSequence === listRequestSequence) {
+    if (isLatestListRequest(requestSequence)) {
       listResponse.value = { items: [], availableYears: listResponse.value.availableYears };
       ElMessage.error(error instanceof Error ? error.message : "加载房租对账失败");
     }
   } finally {
-    if (requestSequence === listRequestSequence) {
+    if (isLatestListRequest(requestSequence)) {
       loading.value = false;
     }
   }
 }
 
+function isLatestListRequest(requestSequence: number) {
+  return isPageMounted && requestSequence === listRequestSequence;
+}
+
 async function loadDetail() {
-  if (!selectedTenantName.value) {
+  if (!isPageMounted || !selectedTenantName.value) {
     return;
   }
 
@@ -302,18 +320,22 @@ async function loadDetail() {
   try {
     detailLoading.value = true;
     const response = await rentReconciliationApi.detail(query);
-    if (requestSequence !== detailRequestSequence) return;
+    if (!isLatestDetailRequest(requestSequence)) return;
     detail.value = response;
   } catch (error) {
-    if (requestSequence === detailRequestSequence) {
+    if (isLatestDetailRequest(requestSequence)) {
       detail.value = null;
       ElMessage.error(error instanceof Error ? error.message : "加载对账明细失败");
     }
   } finally {
-    if (requestSequence === detailRequestSequence) {
+    if (isLatestDetailRequest(requestSequence)) {
       detailLoading.value = false;
     }
   }
+}
+
+function isLatestDetailRequest(requestSequence: number) {
+  return isPageMounted && requestSequence === detailRequestSequence;
 }
 
 async function openDetail(tenantName: string) {
@@ -382,10 +404,11 @@ function printDetail() {
 }
 
 async function downloadPdf() {
-  if (!detail.value || downloading.value) {
+  if (!isPageMounted || !detail.value || downloading.value) {
     return;
   }
 
+  const requestSequence = ++downloadRequestSequence;
   let objectUrl = "";
   try {
     downloading.value = true;
@@ -393,7 +416,9 @@ async function downloadPdf() {
       tenantName: detail.value.tenantName,
       year: selectedYear.value,
     });
+    if (!isLatestDownloadRequest(requestSequence)) return;
     objectUrl = URL.createObjectURL(downloaded.blob);
+    activeObjectUrl = objectUrl;
     const anchor = document.createElement("a");
     anchor.href = objectUrl;
     anchor.download = downloaded.filename;
@@ -402,12 +427,21 @@ async function downloadPdf() {
     anchor.click();
     anchor.remove();
   } catch (error) {
-    ElMessage.error(error instanceof Error ? error.message : "下载房租对账单失败");
-  } finally {
-    if (objectUrl) {
-      URL.revokeObjectURL(objectUrl);
+    if (isLatestDownloadRequest(requestSequence)) {
+      ElMessage.error(error instanceof Error ? error.message : "下载房租对账单失败");
     }
-    downloading.value = false;
+  } finally {
+    if (objectUrl && activeObjectUrl === objectUrl) {
+      URL.revokeObjectURL(objectUrl);
+      activeObjectUrl = "";
+    }
+    if (isLatestDownloadRequest(requestSequence)) {
+      downloading.value = false;
+    }
   }
+}
+
+function isLatestDownloadRequest(requestSequence: number) {
+  return isPageMounted && requestSequence === downloadRequestSequence;
 }
 </script>

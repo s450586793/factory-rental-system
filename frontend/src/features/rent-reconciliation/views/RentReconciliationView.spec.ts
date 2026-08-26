@@ -479,6 +479,90 @@ describe("RentReconciliationView", () => {
     expect(ElMessage.error).not.toHaveBeenCalledWith("迟到错误");
   });
 
+  it("ignores a late list rejection and finally after unmount", async () => {
+    let rejectList!: (reason?: unknown) => void;
+    vi.mocked(rentReconciliationApi.list).mockReturnValueOnce(
+      new Promise<RentReconciliationListResponse>((_, reject) => {
+        rejectList = reject;
+      }),
+    );
+    const wrapper = mountView();
+    const view = wrapper.vm as unknown as { loading: boolean };
+
+    expect(view.loading).toBe(true);
+    wrapper.unmount();
+    rejectList(new Error("卸载后列表错误"));
+    await flushPromises();
+
+    expect(view.loading).toBe(true);
+    expect(ElMessage.error).not.toHaveBeenCalledWith("卸载后列表错误");
+  });
+
+  it("ignores a late list success after unmount", async () => {
+    let resolveList!: (value: RentReconciliationListResponse) => void;
+    vi.mocked(rentReconciliationApi.list).mockReturnValueOnce(
+      new Promise<RentReconciliationListResponse>((resolve) => {
+        resolveList = resolve;
+      }),
+    );
+    const wrapper = mountView();
+    const view = wrapper.vm as unknown as {
+      listResponse: RentReconciliationListResponse;
+      loading: boolean;
+    };
+
+    wrapper.unmount();
+    resolveList(listResponse);
+    await flushPromises();
+
+    expect(view.listResponse.items).toEqual([]);
+    expect(view.loading).toBe(true);
+  });
+
+  it("ignores a late detail rejection and finally after unmount", async () => {
+    let rejectDetail!: (reason?: unknown) => void;
+    vi.mocked(rentReconciliationApi.detail).mockReturnValueOnce(
+      new Promise<TenantReconciliationDetail>((_, reject) => {
+        rejectDetail = reject;
+      }),
+    );
+    const wrapper = mountView();
+    await flushPromises();
+    await findButton(wrapper, "查看对账").trigger("click");
+    const view = wrapper.vm as unknown as { detailLoading: boolean };
+
+    expect(view.detailLoading).toBe(true);
+    wrapper.unmount();
+    rejectDetail(new Error("卸载后明细错误"));
+    await flushPromises();
+
+    expect(view.detailLoading).toBe(true);
+    expect(ElMessage.error).not.toHaveBeenCalledWith("卸载后明细错误");
+  });
+
+  it("ignores a late detail success after unmount", async () => {
+    let resolveDetail!: (value: TenantReconciliationDetail) => void;
+    vi.mocked(rentReconciliationApi.detail).mockReturnValueOnce(
+      new Promise<TenantReconciliationDetail>((resolve) => {
+        resolveDetail = resolve;
+      }),
+    );
+    const wrapper = mountView();
+    await flushPromises();
+    await findButton(wrapper, "查看对账").trigger("click");
+    const view = wrapper.vm as unknown as {
+      detail: TenantReconciliationDetail | null;
+      detailLoading: boolean;
+    };
+
+    wrapper.unmount();
+    resolveDetail(detailResponse);
+    await flushPromises();
+
+    expect(view.detail).toBeNull();
+    expect(view.detailLoading).toBe(true);
+  });
+
   it("selects a tenant from a stable dropdown", async () => {
     const anotherTenant = {
       ...listResponse.items[0],
