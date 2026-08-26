@@ -1,7 +1,11 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, UseGuards } from "@nestjs/common";
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query, UseGuards } from "@nestjs/common";
 import { ApiTags } from "@nestjs/swagger";
 import { JwtAuthGuard } from "../common/guards/jwt-auth.guard";
-import { CreateDepositRecordDto, UpdateDepositRecordDto } from "./deposits.dto";
+import {
+  CreateDepositRecordDto,
+  ListDepositAccountsQueryDto,
+  UpdateDepositRecordDto,
+} from "./deposits.dto";
 import { DepositsService } from "./deposits.service";
 
 @ApiTags("deposits")
@@ -13,6 +17,11 @@ export class DepositsController {
   @Get()
   list() {
     return this.depositsService.list();
+  }
+
+  @Get("accounts")
+  listAccounts(@Query() query: ListDepositAccountsQueryDto) {
+    return this.depositsService.listAccounts(query);
   }
 
   @Get(":id")

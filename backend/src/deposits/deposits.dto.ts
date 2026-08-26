@@ -44,3 +44,26 @@ export class CreateDepositRecordDto {
 }
 
 export class UpdateDepositRecordDto extends CreateDepositRecordDto {}
+
+export class ListDepositAccountsQueryDto {
+  @IsUUID()
+  @IsOptional()
+  unitId?: string;
+
+  @IsString()
+  @MaxLength(200)
+  @IsOptional()
+  tenantName?: string;
+}
+
+export type DepositAccountSummary = {
+  unitId: string;
+  unit: { id: string; code: string; location: string };
+  tenantName: string;
+  agreedDepositAmount: number;
+  heldAmount: number;
+  supplementAmount: number;
+  refundAmount: number;
+  latestContractId: string | null;
+  lastTransactionDate: string | null;
+};
