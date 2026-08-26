@@ -1,13 +1,20 @@
 import { Module } from "@nestjs/common";
 import { TypeOrmModule } from "@nestjs/typeorm";
+import { DepositsModule } from "../deposits/deposits.module";
 import { FilesModule } from "../files/files.module";
+import { RentReceivablesModule } from "../rent-receivables/rent-receivables.module";
 import { FactoryUnit } from "../units/factory-unit.entity";
 import { Contract } from "./contract.entity";
 import { ContractsController } from "./contracts.controller";
 import { ContractsService } from "./contracts.service";
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Contract, FactoryUnit]), FilesModule],
+  imports: [
+    TypeOrmModule.forFeature([Contract, FactoryUnit]),
+    FilesModule,
+    RentReceivablesModule,
+    DepositsModule,
+  ],
   controllers: [ContractsController],
   providers: [ContractsService],
   exports: [ContractsService, TypeOrmModule],

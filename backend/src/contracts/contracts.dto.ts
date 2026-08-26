@@ -2,13 +2,16 @@ import {
   ArrayUnique,
   IsArray,
   IsDateString,
+  IsEnum,
   IsNotEmpty,
   IsNumber,
   IsOptional,
   IsString,
+  IsUUID,
   MaxLength,
   Min,
 } from "class-validator";
+import { BillingFrequency, DepositSettlementMode } from "./contract.enums";
 
 export class CreateContractDto {
   @IsString()
@@ -62,12 +65,29 @@ export class CreateContractDto {
   endDate!: string;
 
   @IsNumber()
-  @Min(0)
+  @Min(0.01)
   annualRent!: number;
 
   @IsNumber()
   @Min(0)
   depositAmount!: number;
+
+  @IsEnum(BillingFrequency)
+  @IsOptional()
+  billingFrequency?: BillingFrequency;
+
+  @IsEnum(DepositSettlementMode)
+  @IsOptional()
+  depositSettlementMode?: DepositSettlementMode;
+
+  @IsNumber()
+  @Min(0)
+  @IsOptional()
+  depositCarryoverAmount?: number;
+
+  @IsUUID()
+  @IsOptional()
+  depositCarryoverSourceContractId?: string;
 
   @IsString()
   @IsOptional()
