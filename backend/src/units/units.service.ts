@@ -7,7 +7,8 @@ import { InjectRepository } from "@nestjs/typeorm";
 import { QueryFailedError, Repository } from "typeorm";
 import { formatShanghaiDate } from "../common/date/shanghai-date";
 import { Contract, ContractStatus } from "../contracts/contract.entity";
-import { calculateAccruedReceivable } from "../contracts/contract-rent-schedule";
+import { RentContractFinancialSummary } from "../rent-receivables/rent-receivables.dto";
+import { RentReceivablesService } from "../rent-receivables/rent-receivables.service";
 import { UtilityMeterConfig } from "../utilities/utility-meter-config.entity";
 import { CreateUnitDto, UpdateUnitDto } from "./units.dto";
 import { FactoryUnit } from "./factory-unit.entity";
@@ -17,6 +18,13 @@ function today() {
 }
 
 const EXPIRING_DAYS_THRESHOLD = 45;
+const EMPTY_FINANCIAL_SUMMARY: RentContractFinancialSummary = {
+  dueReceivableAmount: 0,
+  duePaidAmount: 0,
+  outstandingAmount: 0,
+  prepaidAmount: 0,
+  unallocatedAmount: 0,
+};
 
 function parseIsoDate(dateString: string) {
   const [year, month, day] = dateString.split("-").map((value) => Number(value));
@@ -47,6 +55,7 @@ export class UnitsService {
     private readonly contractsRepository: Repository<Contract>,
     @InjectRepository(UtilityMeterConfig)
     private readonly meterConfigsRepository: Repository<UtilityMeterConfig>,
+    private readonly rentReceivablesService: RentReceivablesService,
   ) {}
 
   async list() {
@@ -62,7 +71,8 @@ export class UnitsService {
       },
     });
 
-    return units.map((unit) => this.serializeUnit(unit));
+    const summaries = await this.getContractSummaries(units);
+    return units.map((unit) => this.serializeUnit(unit, summaries));
   }
 
   async findOneOrFail(id: string) {
@@ -85,7 +95,8 @@ export class UnitsService {
 
   async getDetail(id: string) {
     const unit = await this.findOneOrFail(id);
-    return this.serializeUnit(unit);
+    const summaries = await this.getContractSummaries([unit]);
+    return this.serializeUnit(unit, summaries);
   }
 
   async create(dto: CreateUnitDto) {
@@ -160,13 +171,29 @@ export class UnitsService {
     );
   }
 
-  private serializeUnit(unit: FactoryUnit) {
+  private async getContractSummaries(units: FactoryUnit[]) {
+    return this.rentReceivablesService.getContractSummaries(
+      units.flatMap((unit) =>
+        (unit.contracts ?? []).map((contract) => contract.id),
+      ),
+    );
+  }
+
+  private serializeUnit(
+    unit: FactoryUnit,
+    summaries: Map<string, RentContractFinancialSummary>,
+  ) {
     const contracts = unit.contracts ?? [];
     const activeContract = this.resolveActiveContract(contracts);
     const status = this.resolveUnitStatus(contracts, activeContract);
     const serializedContracts = [...(unit.contracts ?? [])]
       .sort((a, b) => b.startDate.localeCompare(a.startDate))
-      .map((contract) => this.serializeContract(contract));
+      .map((contract) =>
+        this.serializeContract(
+          contract,
+          this.resolveFinancialSummary(contract, summaries),
+        ),
+      );
 
     return {
       id: unit.id,
@@ -175,25 +202,10 @@ export class UnitsService {
       area: unit.area ?? null,
       status,
       activeContract: activeContract
-          ? {
-            id: activeContract.id,
-            lessorName: activeContract.lessorName,
-            lessorLicenseCode: activeContract.lessorLicenseCode,
-            lessorContactName: activeContract.lessorContactName,
-            lessorPhone: activeContract.lessorPhone,
-            tenantName: activeContract.tenantName,
-            contactName: activeContract.contactName,
-            tenantPhone: activeContract.tenantPhone,
-            licenseCode: activeContract.licenseCode,
-            startDate: activeContract.startDate,
-            endDate: activeContract.endDate,
-            annualRent: activeContract.annualRent,
-            depositAmount: activeContract.depositAmount,
-            receivableAmount: this.resolveReceivableAmount(activeContract),
-            paidAmount: this.resolvePaidAmount(activeContract),
-            outstandingAmount: this.resolveOutstandingAmount(activeContract),
-            status: resolveContractStatus(activeContract.startDate, activeContract.endDate),
-          }
+        ? this.serializeContract(
+            activeContract,
+            this.resolveFinancialSummary(activeContract, summaries),
+          )
         : null,
       contractCount: (unit.contracts ?? []).length,
       meterConfigs: [...(unit.meterConfigs ?? [])].sort((a, b) => a.type.localeCompare(b.type) || a.name.localeCompare(b.name)),
@@ -201,7 +213,10 @@ export class UnitsService {
     };
   }
 
-  private serializeContract(contract: Contract) {
+  private serializeContract(
+    contract: Contract,
+    summary: RentContractFinancialSummary,
+  ) {
     return {
       id: contract.id,
       unitId: contract.unitId,
@@ -217,9 +232,12 @@ export class UnitsService {
       endDate: contract.endDate,
       annualRent: contract.annualRent,
       depositAmount: contract.depositAmount,
-      receivableAmount: this.resolveReceivableAmount(contract),
-      paidAmount: this.resolvePaidAmount(contract),
-      outstandingAmount: this.resolveOutstandingAmount(contract),
+      billingFrequency: contract.billingFrequency,
+      depositSettlementMode: contract.depositSettlementMode,
+      depositCarryoverAmount: contract.depositCarryoverAmount,
+      depositCarryoverSourceContractId:
+        contract.depositCarryoverSourceContractId,
+      ...summary,
       status: resolveContractStatus(contract.startDate, contract.endDate),
       businessLicenseFileId: contract.businessLicenseFileId,
       businessLicenseFile: contract.businessLicenseFile,
@@ -243,20 +261,10 @@ export class UnitsService {
     return daysUntil(activeContract.endDate) <= EXPIRING_DAYS_THRESHOLD ? "expiring" as const : "occupied" as const;
   }
 
-  private resolvePaidAmount(contract: Contract) {
-    return Number(
-      (contract.rentPayments ?? [])
-        .filter((payment) => payment.deletedAt === null || payment.deletedAt === undefined)
-        .reduce((sum, payment) => sum + Number(payment.amount ?? 0), 0)
-        .toFixed(2),
-    );
-  }
-
-  private resolveOutstandingAmount(contract: Contract) {
-    return Number(Math.max(this.resolveReceivableAmount(contract) - this.resolvePaidAmount(contract), 0).toFixed(2));
-  }
-
-  private resolveReceivableAmount(contract: Contract) {
-    return calculateAccruedReceivable(contract, today());
+  private resolveFinancialSummary(
+    contract: Contract,
+    summaries: Map<string, RentContractFinancialSummary>,
+  ) {
+    return summaries.get(contract.id) ?? EMPTY_FINANCIAL_SUMMARY;
   }
 }
