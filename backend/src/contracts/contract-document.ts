@@ -4,7 +4,9 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { PDFDocument, PDFPage, rgb } from "pdf-lib";
 import { toChineseCurrencyUppercase } from "../common/format/chinese-currency";
+import { fromCents, toCents } from "../common/money/cents";
 import { Contract } from "./contract.entity";
+import { BillingFrequency, DepositSettlementMode } from "./contract.enums";
 import { FactoryUnit } from "../units/factory-unit.entity";
 import { UtilityMeterConfig } from "../utilities/utility-meter-config.entity";
 
@@ -98,6 +100,31 @@ function formatMoney(value: number) {
   });
 }
 
+function buildRentPaymentClause(contract: Contract) {
+  return contract.billingFrequency === BillingFrequency.SEMIANNUAL
+    ? "租金按半年支付，先付后用；每期租金应于该期开始日支付。"
+    : "租金按年支付，先付后用；每期租金应于该租赁年度开始日支付。";
+}
+
+function buildDepositClause(contract: Contract) {
+  if (contract.depositSettlementMode === DepositSettlementMode.CARRYOVER) {
+    const agreedCents = toCents(contract.depositAmount);
+    const carriedCents = toCents(contract.depositCarryoverAmount);
+
+    if (carriedCents < agreedCents) {
+      return `原已支付押金人民币${formatMoney(contract.depositCarryoverAmount)}元继续作为本合同履约保证金，乙方尚需补足人民币${formatMoney(fromCents(agreedCents - carriedCents))}元。`;
+    }
+
+    if (carriedCents > agreedCents) {
+      return `原已支付押金人民币${formatMoney(contract.depositCarryoverAmount)}元，其中人民币${formatMoney(contract.depositAmount)}元继续作为本合同履约保证金，甲方应退还人民币${formatMoney(fromCents(carriedCents - agreedCents))}元。`;
+    }
+
+    return `原已支付押金人民币${formatMoney(contract.depositCarryoverAmount)}元继续作为本合同履约保证金。`;
+  }
+
+  return `乙方应向甲方支付履约保证金人民币${formatMoney(contract.depositAmount)}元。`;
+}
+
 function buildUtilityClause(meters: UtilityMeterConfig[]) {
   const enabled = meters.filter((item) => item.enabled);
   const electricMeters = enabled.filter((item) => item.type === "electric");
@@ -174,7 +201,6 @@ export function buildStandardLeaseContractPages({
   const endParts = splitDateParts(contract.endDate);
   const annualRentUppercase = toChineseCurrencyUppercase(contract.annualRent);
   const annualRentText = formatMoney(contract.annualRent);
-  const depositText = formatMoney(contract.depositAmount);
   const utilityText = stripClauseNumber(buildUtilityClause(unit.meterConfigs));
   const unitAddress = buildUnitFullAddress(unit);
   const lessorName = normalizeOptionalText(contract.lessorName);
@@ -206,8 +232,8 @@ export function buildStandardLeaseContractPages({
     {
       sections: [
         "三、租金支付、押金及逾期违约",
-        `1. 双方约定年租金为人民币${annualRentText}元，大写：${annualRentUppercase}。租金按年支付，先付后用；首期租金应于合同签署或起租日前支付，后续租金应于每个租赁年度开始前七日内支付。`,
-        `2. 乙方应向甲方支付履约保证金人民币${depositText}元；双方另有书面约定或系统押金记录、甲方收款凭证载明金额不一致的，以实际书面确认和收款凭证为准。押金不计利息。`,
+        `1. 双方约定年租金为人民币${annualRentText}元，大写：${annualRentUppercase}。${buildRentPaymentClause(contract)}`,
+        `2. ${buildDepositClause(contract)}押金不计利息。`,
         "3. 乙方逾期支付租金、押金、水电费、公摊费或其他应付款项的，每逾期一日，应按逾期未付金额的万分之五向甲方支付违约金；逾期超过十五日仍未支付的，甲方有权解除合同、收回厂房，并要求乙方承担欠付款项、违约金、恢复原状费用、清场费用及由此造成的损失。",
         "4. 乙方逾期付款期间，甲方有权暂停非紧急维修、门禁便利、开票协助等非基本服务；乙方仍应承担逾期期间产生的水电、公摊、安全环保及第三方责任。",
         "5. 押金用于担保乙方履行本合同项下付款、使用、维修、恢复原状、交还厂房、安全环保等义务。合同期满且乙方结清全部费用、迁出并完成交还后，甲方在扣除应由乙方承担的费用和损失后无息退还剩余押金。",

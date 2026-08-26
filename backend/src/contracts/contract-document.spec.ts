@@ -247,6 +247,113 @@ describe("buildContractDocumentOverlays", () => {
     expect(bodyText).not.toContain("8333.33元");
   });
 
+  it("states annual rent payments using the contract billing frequency snapshot", () => {
+    const pages = buildStandardLeaseContractPages({
+      contract: buildContractFixture(),
+      unit: buildUnitFixture(),
+      generatedDate: "2026-07-01",
+    });
+    const bodyText = pages.flatMap((page) => page.sections).join("\n");
+
+    expect(bodyText).toContain("租金按年支付，先付后用；每期租金应于该租赁年度开始日支付。");
+  });
+
+  it("states semiannual rent payments using the contract billing frequency snapshot", () => {
+    const contract = buildContractFixture();
+    contract.billingFrequency = BillingFrequency.SEMIANNUAL;
+    const pages = buildStandardLeaseContractPages({
+      contract,
+      unit: buildUnitFixture(),
+      generatedDate: "2026-07-01",
+    });
+    const bodyText = pages.flatMap((page) => page.sections).join("\n");
+
+    expect(bodyText).toContain("租金按半年支付，先付后用；每期租金应于该期开始日支付。");
+  });
+
+  it("describes an initial zero deposit without using a carryover snapshot", () => {
+    const contract = buildContractFixture();
+    contract.depositAmount = 0;
+    const pages = buildStandardLeaseContractPages({
+      contract,
+      unit: buildUnitFixture(),
+      generatedDate: "2026-07-01",
+    });
+    const bodyText = pages.flatMap((page) => page.sections).join("\n");
+
+    expect(bodyText).toContain("乙方应向甲方支付履约保证金人民币0.00元。押金不计利息。");
+    expect(bodyText).not.toContain("原已支付押金");
+  });
+
+  it("describes an unchanged carried deposit without requesting a second payment", () => {
+    const contract = buildContractFixture();
+    contract.depositSettlementMode = DepositSettlementMode.CARRYOVER;
+    contract.depositAmount = 10000;
+    contract.depositCarryoverAmount = 10000;
+    const pages = buildStandardLeaseContractPages({
+      contract,
+      unit: buildUnitFixture(),
+      generatedDate: "2026-07-01",
+    });
+    const bodyText = pages.flatMap((page) => page.sections).join("\n");
+
+    expect(bodyText).toContain("原已支付押金人民币10000.00元继续作为本合同履约保证金。押金不计利息。");
+    expect(bodyText).not.toContain("再次支付履约保证金");
+    expect(bodyText).not.toContain("乙方尚需补足");
+    expect(bodyText).not.toContain("甲方应退还");
+  });
+
+  it("states the required carried-deposit supplement from the contract snapshot", () => {
+    const contract = buildContractFixture();
+    contract.depositSettlementMode = DepositSettlementMode.CARRYOVER;
+    contract.depositAmount = 15000;
+    contract.depositCarryoverAmount = 10000;
+    const pages = buildStandardLeaseContractPages({
+      contract,
+      unit: buildUnitFixture(),
+      generatedDate: "2026-07-01",
+    });
+    const bodyText = pages.flatMap((page) => page.sections).join("\n");
+
+    expect(bodyText).toContain(
+      "原已支付押金人民币10000.00元继续作为本合同履约保证金，乙方尚需补足人民币5000.00元。押金不计利息。",
+    );
+  });
+
+  it("states the carried-deposit refund from the contract snapshot", () => {
+    const contract = buildContractFixture();
+    contract.depositSettlementMode = DepositSettlementMode.CARRYOVER;
+    contract.depositAmount = 10000;
+    contract.depositCarryoverAmount = 15000;
+    const pages = buildStandardLeaseContractPages({
+      contract,
+      unit: buildUnitFixture(),
+      generatedDate: "2026-07-01",
+    });
+    const bodyText = pages.flatMap((page) => page.sections).join("\n");
+
+    expect(bodyText).toContain(
+      "原已支付押金人民币15000.00元，其中人民币10000.00元继续作为本合同履约保证金，甲方应退还人民币5000.00元。押金不计利息。",
+    );
+  });
+
+  it("compares carried deposits in cents at decimal boundaries", () => {
+    const contract = buildContractFixture();
+    contract.depositSettlementMode = DepositSettlementMode.CARRYOVER;
+    contract.depositAmount = 10000.006;
+    contract.depositCarryoverAmount = 10000.004;
+    const pages = buildStandardLeaseContractPages({
+      contract,
+      unit: buildUnitFixture(),
+      generatedDate: "2026-07-01",
+    });
+    const bodyText = pages.flatMap((page) => page.sections).join("\n");
+
+    expect(bodyText).toContain(
+      "原已支付押金人民币10000.00元继续作为本合同履约保证金，乙方尚需补足人民币0.01元。",
+    );
+  });
+
   it("states that the lessor provides invoicing and the tenant bears resulting taxes", () => {
     const pages = buildStandardLeaseContractPages({
       contract: buildContractFixture(),
