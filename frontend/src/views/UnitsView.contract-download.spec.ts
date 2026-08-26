@@ -806,6 +806,108 @@ describe("UnitsView contract download", () => {
     );
   });
 
+  it("blocks an unchanged edited carryover while lookup is pending but allows it after failure", async () => {
+    const lookup = deferred<DepositAccountSummary[]>();
+    const historicalContract: Contract = {
+      ...oldContract,
+      depositSettlementMode: "carryover",
+      depositCarryoverAmount: 6000,
+      depositCarryoverSourceContractId: "contract-source",
+    };
+    const historicalUnit = { ...unit, contracts: [historicalContract] };
+    vi.mocked(unitsApi.list).mockResolvedValue([historicalUnit]);
+    vi.mocked(unitsApi.detail).mockResolvedValue(historicalUnit);
+    vi.mocked(depositsApi.listAccounts).mockReturnValueOnce(lookup.promise);
+    const wrapper = mountUnitsView();
+    await flushPromises();
+    await findButton(wrapper, "管理").trigger("click");
+    await flushPromises();
+    await findButton(wrapper, "编辑").trigger("click");
+    await flushPromises();
+
+    expect(wrapper.text()).toContain("正在核对押金账户");
+    await findButton(wrapper, "保存").trigger("click");
+    await flushPromises();
+    expect(contractsApi.update).not.toHaveBeenCalled();
+    expect(ElMessage.error).toHaveBeenCalledWith("押金账户正在查询，请稍后再保存");
+
+    lookup.reject(new Error("network unavailable"));
+    await flushPromises();
+    expect(wrapper.text()).toContain("押金账户查询失败，请重试");
+    await findButton(wrapper, "保存").trigger("click");
+    await flushPromises();
+    expect(contractsApi.update).toHaveBeenCalledWith(
+      "contract-old",
+      expect.objectContaining({
+        depositSettlementMode: "carryover",
+        depositCarryoverAmount: 6000,
+        depositCarryoverSourceContractId: "contract-source",
+      }),
+    );
+  });
+
+  it("does not allow lookup failure fallback after changing an edited deposit mode", async () => {
+    const lookup = deferred<DepositAccountSummary[]>();
+    const historicalContract: Contract = {
+      ...oldContract,
+      depositSettlementMode: "carryover",
+      depositCarryoverAmount: 6000,
+      depositCarryoverSourceContractId: "contract-source",
+    };
+    const historicalUnit = { ...unit, contracts: [historicalContract] };
+    vi.mocked(unitsApi.list).mockResolvedValue([historicalUnit]);
+    vi.mocked(unitsApi.detail).mockResolvedValue(historicalUnit);
+    vi.mocked(depositsApi.listAccounts).mockReturnValueOnce(lookup.promise);
+    const wrapper = mountUnitsView();
+    await flushPromises();
+    await findButton(wrapper, "管理").trigger("click");
+    await flushPromises();
+    await findButton(wrapper, "编辑").trigger("click");
+    await flushPromises();
+
+    await wrapper.get('[aria-label="押金处理-首次收取"]').trigger("click");
+    lookup.reject(new Error("network unavailable"));
+    await flushPromises();
+    await findButton(wrapper, "保存").trigger("click");
+    await flushPromises();
+
+    expect(contractsApi.update).not.toHaveBeenCalled();
+    expect(ElMessage.error).toHaveBeenCalledWith("押金账户查询失败，请重试");
+  });
+
+  it("does not allow lookup failure fallback after changing an edited tenant", async () => {
+    const tenantLookup = deferred<DepositAccountSummary[]>();
+    const historicalContract: Contract = {
+      ...oldContract,
+      depositSettlementMode: "carryover",
+      depositCarryoverAmount: 6000,
+      depositCarryoverSourceContractId: "contract-source",
+    };
+    const historicalUnit = { ...unit, contracts: [historicalContract] };
+    vi.mocked(unitsApi.list).mockResolvedValue([historicalUnit]);
+    vi.mocked(unitsApi.detail).mockResolvedValue(historicalUnit);
+    vi.mocked(depositsApi.listAccounts)
+      .mockResolvedValueOnce([
+        { ...depositAccount, heldAmount: 6000, latestContractId: "contract-source" },
+      ])
+      .mockReturnValueOnce(tenantLookup.promise);
+    const wrapper = mountUnitsView();
+    await flushPromises();
+    await findButton(wrapper, "管理").trigger("click");
+    await flushPromises();
+    await findButton(wrapper, "编辑").trigger("click");
+    await flushPromises();
+
+    await findInputByLabel(wrapper, "乙方名称").setValue("新租户");
+    tenantLookup.reject(new Error("network unavailable"));
+    await flushPromises();
+    await findButton(wrapper, "保存").trigger("click");
+    await flushPromises();
+
+    expect(contractsApi.update).not.toHaveBeenCalled();
+    expect(ElMessage.error).toHaveBeenCalledWith("押金账户查询失败，请重试");
+  });
+
   it("shows the latest source contract as read-only audit information", async () => {
     const wrapper = mountUnitsView();
     await flushPromises();

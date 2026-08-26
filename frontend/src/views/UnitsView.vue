@@ -901,6 +901,15 @@ import { buildRentSchedulePreview } from "../utils/rent-schedule-preview";
 const DEFAULT_LESSOR_CONTACT_NAME = "吴孝斌";
 const DEFAULT_LESSOR_PHONE = "18651510352";
 
+type DepositSettlementSnapshot = {
+  contractId: string;
+  unitId: string;
+  tenantName: string;
+  mode: Contract["depositSettlementMode"];
+  amount: number;
+  sourceContractId: string;
+};
+
 const loading = ref(false);
 const units = ref<UnitSummary[]>([]);
 const selectedUnit = ref<UnitSummary | null>(null);
@@ -977,6 +986,7 @@ const depositLookupError = ref("");
 const depositLookupSucceeded = ref(false);
 const depositLookupRequiredForSubmit = ref(false);
 const depositSelectionTouchedVersion = ref(-1);
+const preservedDepositSettlementSnapshot = ref<DepositSettlementSnapshot | null>(null);
 let depositAccountRequestSequence = 0;
 let depositDecisionVersion = 0;
 
@@ -1372,6 +1382,7 @@ function resetContractForm() {
   depositLookupError.value = "";
   depositLookupSucceeded.value = false;
   depositLookupRequiredForSubmit.value = false;
+  preservedDepositSettlementSnapshot.value = null;
 }
 
 async function openCreateContract() {
@@ -1420,6 +1431,14 @@ async function openEditContract(contract: Contract) {
   contractForm.attachmentFileIds = contract.attachmentFiles.map((item) => item.id);
   existingBusinessLicense.value = contract.businessLicenseFile;
   existingAttachments.value = [...contract.attachmentFiles];
+  preservedDepositSettlementSnapshot.value = {
+    contractId: contractForm.id,
+    unitId: selectedUnit.value?.id ?? "",
+    tenantName: contractForm.tenantName.trim(),
+    mode: contractForm.depositSettlementMode,
+    amount: Number(contractForm.depositCarryoverAmount),
+    sourceContractId: contractForm.depositCarryoverSourceContractId,
+  };
   contractDialogVisible.value = true;
   const decisionVersion = beginDepositAutoDecision(true);
   await loadDepositAccounts(true, decisionVersion);
@@ -1468,6 +1487,22 @@ function findCurrentDepositAccount(sourceContractId?: string) {
         Boolean(account.latestContractId) &&
         (sourceContractId === undefined || account.latestContractId === sourceContractId),
     ) ?? null
+  );
+}
+
+function isPreservedDepositSettlementSnapshotUnchanged() {
+  const snapshot = preservedDepositSettlementSnapshot.value;
+  if (!snapshot) {
+    return false;
+  }
+
+  return (
+    snapshot.contractId === contractForm.id &&
+    snapshot.unitId === (selectedUnit.value?.id ?? "") &&
+    snapshot.tenantName === contractForm.tenantName.trim() &&
+    snapshot.mode === contractForm.depositSettlementMode &&
+    snapshot.amount === Number(contractForm.depositCarryoverAmount) &&
+    snapshot.sourceContractId === contractForm.depositCarryoverSourceContractId
   );
 }
 
@@ -1573,6 +1608,7 @@ function handleContractDialogClosed() {
   depositLookupSucceeded.value = false;
   depositLookupRequiredForSubmit.value = false;
   availableDepositAccounts.value = [];
+  preservedDepositSettlementSnapshot.value = null;
 }
 
 function onBusinessLicenseChange(event: Event) {
@@ -1604,19 +1640,27 @@ function validateContractForm() {
   if (Number(contractForm.depositAmount) < 0) {
     throw new Error("押金不能小于 0");
   }
+  const preservedSnapshotUnchanged = isPreservedDepositSettlementSnapshotUnchanged();
+  const preservedSnapshotChanged =
+    Boolean(preservedDepositSettlementSnapshot.value) && !preservedSnapshotUnchanged;
+  const lookupMustSucceed =
+    depositLookupRequiredForSubmit.value ||
+    preservedSnapshotChanged ||
+    contractForm.depositSettlementMode === "carryover";
+  const canUsePreservedSnapshotAfterFailure =
+    Boolean(depositLookupError.value) && preservedSnapshotUnchanged;
   if (
     contractForm.tenantName.trim() &&
-    depositLookupRequiredForSubmit.value &&
-    !depositLookupSucceeded.value
+    !depositLookupSucceeded.value &&
+    lookupMustSucceed &&
+    !canUsePreservedSnapshotAfterFailure
   ) {
     throw new Error(
       depositLookupError.value ||
         (depositLookupLoading.value ? "押金账户正在查询，请稍后再保存" : "请先查询押金账户"),
     );
   }
-  if (
-    contractForm.depositSettlementMode === "carryover"
-  ) {
+  if (contractForm.depositSettlementMode === "carryover") {
     const sourceContractId = contractForm.depositCarryoverSourceContractId;
     const shouldValidateCurrentAccount =
       depositLookupSucceeded.value || depositLookupRequiredForSubmit.value;
