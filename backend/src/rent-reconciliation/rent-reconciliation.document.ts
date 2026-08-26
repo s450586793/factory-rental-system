@@ -39,7 +39,8 @@ export async function renderRentReconciliationPdf(
       },
     });
     const contentWidth = doc.page.width - PAGE_MARGIN * 2;
-    const pageBottom = () => doc.page.height - PAGE_MARGIN - FOOTER_RESERVED_HEIGHT;
+    const pageBottom = () =>
+      doc.page.height - PAGE_MARGIN - FOOTER_RESERVED_HEIGHT;
     let cursorY = PAGE_MARGIN;
 
     doc.on("data", (chunk: Buffer) => chunks.push(chunk));
@@ -48,9 +49,16 @@ export async function renderRentReconciliationPdf(
     doc.font(fontPath);
 
     const drawContinuationHeader = () => {
-      doc.fillColor(CONTENT_COLOR).fontSize(12).text(`房租对账单（续）  ${detail.tenantName}`, PAGE_MARGIN, cursorY);
+      doc
+        .fillColor(CONTENT_COLOR)
+        .fontSize(12)
+        .text(`房租对账单（续）  ${detail.tenantName}`, PAGE_MARGIN, cursorY);
       cursorY += 24;
-      doc.moveTo(PAGE_MARGIN, cursorY).lineTo(PAGE_MARGIN + contentWidth, cursorY).strokeColor(BORDER_COLOR).stroke();
+      doc
+        .moveTo(PAGE_MARGIN, cursorY)
+        .lineTo(PAGE_MARGIN + contentWidth, cursorY)
+        .strokeColor(BORDER_COLOR)
+        .stroke();
       cursorY += 14;
     };
 
@@ -74,7 +82,11 @@ export async function renderRentReconciliationPdf(
       x: number,
       y: number,
       width: number,
-      options: { align?: "left" | "right" | "center"; color?: string; size?: number } = {},
+      options: {
+        align?: "left" | "right" | "center";
+        color?: string;
+        size?: number;
+      } = {},
     ) => {
       doc
         .fillColor(options.color ?? CONTENT_COLOR)
@@ -90,22 +102,46 @@ export async function renderRentReconciliationPdf(
       const widths = [76, 82, 68, 118, contentWidth - 344];
       const labels = ["付款日期", "金额", "方式", "收据", "备注"];
       let x = PAGE_MARGIN;
-      doc.save().fillColor(HEADER_BACKGROUND).rect(PAGE_MARGIN, cursorY, contentWidth, 24).fill().restore();
+      doc
+        .save()
+        .fillColor(HEADER_BACKGROUND)
+        .rect(PAGE_MARGIN, cursorY, contentWidth, 24)
+        .fill()
+        .restore();
       labels.forEach((label, index) => {
-        drawCellText(label, x, cursorY, widths[index], { size: 8.5, color: MUTED_COLOR });
+        drawCellText(label, x, cursorY, widths[index], {
+          size: 8.5,
+          color: MUTED_COLOR,
+        });
         x += widths[index];
       });
       cursorY += 24;
     };
 
-    const drawRightAlignedSegments = (segments: PdfTextSegment[], x: number, y: number, width: number) => {
+    const drawRightAlignedSegments = (
+      segments: PdfTextSegment[],
+      x: number,
+      y: number,
+      width: number,
+    ) => {
       const preferredFontSize = 8.5;
       doc.fontSize(preferredFontSize);
-      const preferredWidth = segments.reduce((total, segment) => total + doc.widthOfString(segment.text), 0);
-      const fontSize = preferredWidth > width ? Math.max(7, (preferredFontSize * width) / preferredWidth) : preferredFontSize;
+      const preferredWidth = segments.reduce(
+        (total, segment) => total + doc.widthOfString(segment.text),
+        0,
+      );
+      const fontSize =
+        preferredWidth > width
+          ? Math.max(7, (preferredFontSize * width) / preferredWidth)
+          : preferredFontSize;
       doc.fontSize(fontSize);
-      const segmentWidths = segments.map((segment) => doc.widthOfString(segment.text));
-      const totalWidth = segmentWidths.reduce((total, segmentWidth) => total + segmentWidth, 0);
+      const segmentWidths = segments.map((segment) =>
+        doc.widthOfString(segment.text),
+      );
+      const totalWidth = segmentWidths.reduce(
+        (total, segmentWidth) => total + segmentWidth,
+        0,
+      );
       let segmentX = x + Math.max(0, width - totalWidth);
 
       segments.forEach((segment, index) => {
@@ -120,14 +156,23 @@ export async function renderRentReconciliationPdf(
       const widths = [76, 82, 68, 118, contentWidth - 344];
       const note = payment.note?.trim() || "--";
       doc.fontSize(8.5);
-      const noteHeight = doc.heightOfString(note, { width: widths[4] - 10, lineGap: 1 });
+      const noteHeight = doc.heightOfString(note, {
+        width: widths[4] - 10,
+        lineGap: 1,
+      });
       const rowHeight = Math.max(28, noteHeight + 14);
       if (ensureSpace(rowHeight)) {
         drawPaymentHeader();
       }
 
       const receiptText = payment.activeReceipt?.receiptNo ?? "未开收据";
-      const values = [payment.paymentDate, formatMoney(payment.amount), payment.method, receiptText, note];
+      const values = [
+        payment.paymentDate,
+        formatMoney(payment.amount),
+        payment.method,
+        receiptText,
+        note,
+      ];
       let x = PAGE_MARGIN;
       values.forEach((value, index) => {
         drawCellText(value, x, cursorY, widths[index], {
@@ -147,19 +192,34 @@ export async function renderRentReconciliationPdf(
 
     const drawPeriod = (period: ContractPeriodReconciliation) => {
       ensureSpace(98);
-      doc.save().fillColor(HEADER_BACKGROUND).rect(PAGE_MARGIN, cursorY, contentWidth, 54).fill().restore();
+      doc
+        .save()
+        .fillColor(HEADER_BACKGROUND)
+        .rect(PAGE_MARGIN, cursorY, contentWidth, 54)
+        .fill()
+        .restore();
       doc
         .fillColor(CONTENT_COLOR)
         .fontSize(11)
-        .text(`${period.unit.code} / ${period.unit.location}`, PAGE_MARGIN + 10, cursorY + 8, {
-          width: contentWidth - 20,
-        });
+        .text(
+          `${period.unit.code} / ${period.unit.location}`,
+          PAGE_MARGIN + 10,
+          cursorY + 8,
+          {
+            width: contentWidth - 20,
+          },
+        );
       doc
         .fillColor(MUTED_COLOR)
         .fontSize(8.5)
-        .text(`${period.startDate} 至 ${period.endDate}`, PAGE_MARGIN + 10, cursorY + 29, {
-          width: 165,
-        });
+        .text(
+          `${period.startDate} 至 ${period.endDate}`,
+          PAGE_MARGIN + 10,
+          cursorY + 29,
+          {
+            width: 165,
+          },
+        );
       drawRightAlignedSegments(
         buildPeriodAmountSegments(period),
         PAGE_MARGIN + 175,
@@ -169,9 +229,12 @@ export async function renderRentReconciliationPdf(
       cursorY += 66;
 
       if (!period.payments.length) {
-        doc.fillColor(MUTED_COLOR).fontSize(9).text("本期暂无实付记录", PAGE_MARGIN + 8, cursorY, {
-          width: contentWidth - 16,
-        });
+        doc
+          .fillColor(MUTED_COLOR)
+          .fontSize(9)
+          .text("本期暂无实付记录", PAGE_MARGIN + 8, cursorY, {
+            width: contentWidth - 16,
+          });
         cursorY += 30;
         return;
       }
@@ -181,50 +244,81 @@ export async function renderRentReconciliationPdf(
       cursorY += 18;
     };
 
-    doc.fillColor(CONTENT_COLOR).fontSize(22).text("房租对账单", PAGE_MARGIN, cursorY, {
-      width: contentWidth,
-      align: "center",
-    });
+    doc
+      .fillColor(CONTENT_COLOR)
+      .fontSize(22)
+      .text("房租对账单", PAGE_MARGIN, cursorY, {
+        width: contentWidth,
+        align: "center",
+      });
     cursorY += 40;
-    doc.fontSize(11).text(`租户：${detail.tenantName}`, PAGE_MARGIN, cursorY, { width: contentWidth / 2 });
+    doc.fontSize(11).text(`租户：${detail.tenantName}`, PAGE_MARGIN, cursorY, {
+      width: contentWidth / 2,
+    });
     doc
       .fillColor(MUTED_COLOR)
       .fontSize(9)
-      .text(`生成日期：${generatedDate}`, PAGE_MARGIN + contentWidth / 2, cursorY + 2, {
-        width: contentWidth / 2,
-        align: "right",
-      });
+      .text(
+        `生成日期：${generatedDate}`,
+        PAGE_MARGIN + contentWidth / 2,
+        cursorY + 2,
+        {
+          width: contentWidth / 2,
+          align: "right",
+        },
+      );
     cursorY += 28;
 
     const summaryGap = 6;
     const summaries = buildSummaryItems(detail);
-    const summaryWidth = (contentWidth - summaryGap * (summaries.length - 1)) / summaries.length;
+    const summaryWidth =
+      (contentWidth - summaryGap * (summaries.length - 1)) / summaries.length;
     summaries.forEach(({ label, amount, tone }, index) => {
       const x = PAGE_MARGIN + index * (summaryWidth + summaryGap);
-      doc.save().fillColor(HEADER_BACKGROUND).rect(x, cursorY, summaryWidth, 54).fill().restore();
+      doc
+        .save()
+        .fillColor(HEADER_BACKGROUND)
+        .rect(x, cursorY, summaryWidth, 54)
+        .fill()
+        .restore();
       const labelColor = tone === "danger" ? DANGER_COLOR : MUTED_COLOR;
       const amountColor = tone === "danger" ? DANGER_COLOR : CONTENT_COLOR;
-      doc.fillColor(labelColor).fontSize(8.5).text(label, x + 8, cursorY + 8, { width: summaryWidth - 16 });
-      doc.fillColor(amountColor).fontSize(13).text(formatMoney(amount), x + 8, cursorY + 27, {
-        width: summaryWidth - 16,
-      });
+      doc
+        .fillColor(labelColor)
+        .fontSize(8.5)
+        .text(label, x + 8, cursorY + 8, { width: summaryWidth - 16 });
+      doc
+        .fillColor(amountColor)
+        .fontSize(13)
+        .text(formatMoney(amount), x + 8, cursorY + 27, {
+          width: summaryWidth - 16,
+        });
     });
     cursorY += 74;
 
     detail.periods.forEach((period) => drawPeriod(period));
 
     const pageRange = doc.bufferedPageRange();
-    for (let pageIndex = pageRange.start; pageIndex < pageRange.start + pageRange.count; pageIndex += 1) {
+    for (
+      let pageIndex = pageRange.start;
+      pageIndex < pageRange.start + pageRange.count;
+      pageIndex += 1
+    ) {
       doc.switchToPage(pageIndex);
       doc
         .font(fontPath)
         .fillColor(MUTED_COLOR)
         .fontSize(8)
-        .text(`${pageIndex + 1} / ${pageRange.count}`, PAGE_MARGIN, doc.page.height - PAGE_MARGIN - 20, {
-          width: contentWidth,
-          align: "center",
-          lineBreak: false,
-        });
+        .text(
+          `${pageIndex + 1} / ${pageRange.count}`,
+          PAGE_MARGIN,
+          doc.page.height - PAGE_MARGIN - 20,
+          {
+            width: contentWidth,
+            align: "center",
+            lineBreak: false,
+          },
+        );
     }
 
     doc.end();

@@ -1,7 +1,16 @@
 export enum RentReconciliationStatus {
   OUTSTANDING = "outstanding",
   SETTLED = "settled",
+  PREPAID = "prepaid",
   CREDIT = "credit",
+}
+
+export enum RentReconciliationPeriodStatus {
+  NOT_DUE = "not-due",
+  PARTIALLY_PREPAID = "partially-prepaid",
+  PREPAID = "prepaid",
+  OVERDUE = "overdue",
+  SETTLED = "settled",
 }
 
 export type ReconciliationFile = {
@@ -30,7 +39,9 @@ export type RentReconciliationPayment = {
 };
 
 export type ContractPeriodReconciliation = {
+  scheduleId: string;
   contractId: string;
+  sequence: number;
   unit: {
     id: string;
     code: string;
@@ -38,21 +49,23 @@ export type ContractPeriodReconciliation = {
   };
   startDate: string;
   endDate: string;
+  dueDate: string;
   receivableAmount: number;
   paidAmount: number;
   outstandingAmount: number;
-  creditAmount: number;
-  status: RentReconciliationStatus;
+  prepaidAmount: number;
+  status: RentReconciliationPeriodStatus;
   payments: RentReconciliationPayment[];
 };
 
 export type TenantReconciliationSummary = {
   tenantName: string;
   contractCount: number;
-  receivableAmount: number;
-  paidAmount: number;
+  dueReceivableAmount: number;
+  duePaidAmount: number;
   outstandingAmount: number;
-  creditAmount: number;
+  prepaidAmount: number;
+  unallocatedAmount: number;
   lastPaymentDate: string | null;
   status: RentReconciliationStatus;
 };

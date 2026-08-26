@@ -1,5 +1,8 @@
-import type { ContractPeriodReconciliation, TenantReconciliationDetail } from "./rent-reconciliation.types";
-import { RentReconciliationStatus } from "./rent-reconciliation.types";
+import type {
+  ContractPeriodReconciliation,
+  TenantReconciliationDetail,
+} from "./rent-reconciliation.types";
+import { RentReconciliationPeriodStatus } from "./rent-reconciliation.types";
 
 export type PdfTextTone = "default" | "danger";
 
@@ -18,18 +21,21 @@ function formatMoney(value: number) {
   return `￥${Number(value).toFixed(2)}`;
 }
 
-function statusLabel(status: RentReconciliationStatus) {
-  if (status === RentReconciliationStatus.OUTSTANDING) {
-    return "欠款";
+function futureStatusLabel(status: RentReconciliationPeriodStatus) {
+  if (status === RentReconciliationPeriodStatus.PARTIALLY_PREPAID) {
+    return "部分预收";
   }
-  if (status === RentReconciliationStatus.CREDIT) {
-    return "有结余";
+  if (status === RentReconciliationPeriodStatus.PREPAID) {
+    return "已预收";
   }
-  return "已结清";
+  return "未到期";
 }
 
 export function buildSummaryItems(
-  detail: Pick<TenantReconciliationDetail, "outstandingAmount" | "creditAmount">,
+  detail: Pick<
+    TenantReconciliationDetail,
+    "outstandingAmount" | "prepaidAmount" | "unallocatedAmount"
+  >,
 ): PdfSummaryItem[] {
   return [
     {
@@ -37,27 +43,50 @@ export function buildSummaryItems(
       amount: detail.outstandingAmount,
       tone: detail.outstandingAmount !== 0 ? "danger" : "default",
     },
-    { label: "当前结余", amount: detail.creditAmount, tone: "default" },
+    { label: "预收", amount: detail.prepaidAmount, tone: "default" },
+    { label: "未分配结余", amount: detail.unallocatedAmount, tone: "default" },
   ];
 }
 
 export function buildPeriodAmountSegments(
   period: Pick<
     ContractPeriodReconciliation,
-    "receivableAmount" | "paidAmount" | "outstandingAmount" | "creditAmount" | "status"
+    | "receivableAmount"
+    | "paidAmount"
+    | "outstandingAmount"
+    | "prepaidAmount"
+    | "status"
   >,
 ): PdfTextSegment[] {
+  const amounts = {
+    text: `应收 ${formatMoney(period.receivableAmount)}  实收 ${formatMoney(period.paidAmount)}  `,
+    tone: "default" as const,
+  };
+  if (
+    period.status === RentReconciliationPeriodStatus.NOT_DUE ||
+    period.status === RentReconciliationPeriodStatus.PARTIALLY_PREPAID ||
+    period.status === RentReconciliationPeriodStatus.PREPAID
+  ) {
+    return [
+      amounts,
+      {
+        text: `预收 ${formatMoney(period.prepaidAmount)}  ${futureStatusLabel(period.status)}`,
+        tone: "default",
+      },
+    ];
+  }
+
   return [
-    {
-      text: `应收 ${formatMoney(period.receivableAmount)}  实收 ${formatMoney(period.paidAmount)}  `,
-      tone: "default",
-    },
+    amounts,
     {
       text: `结欠 ${formatMoney(period.outstandingAmount)}`,
       tone: period.outstandingAmount !== 0 ? "danger" : "default",
     },
     {
-      text: `  结余 ${formatMoney(period.creditAmount)}  ${statusLabel(period.status)}`,
+      text:
+        period.status === RentReconciliationPeriodStatus.OVERDUE
+          ? "  欠款"
+          : "  已结清",
       tone: "default",
     },
   ];
