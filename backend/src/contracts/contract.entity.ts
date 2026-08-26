@@ -12,8 +12,10 @@ import { numericTransformer } from "../common/database/numeric.transformer";
 import { DepositRecord } from "../deposits/deposit-record.entity";
 import { StoredFile } from "../files/stored-file.entity";
 import { RentPayment } from "../rent-payments/rent-payment.entity";
+import { RentReceivableSchedule } from "../rent-receivables/rent-receivable-schedule.entity";
 import { FactoryUnit } from "../units/factory-unit.entity";
 import { UtilityChargeRecord } from "../utilities/utility-charge-record.entity";
+import { BillingFrequency, DepositSettlementMode } from "./contract.enums";
 
 export enum ContractStatus {
   FUTURE = "future",
@@ -78,6 +80,32 @@ export class Contract extends BaseEntityWithTimestamps {
 
   @Column({
     type: "enum",
+    enum: BillingFrequency,
+    default: BillingFrequency.ANNUAL,
+  })
+  billingFrequency!: BillingFrequency;
+
+  @Column({
+    type: "enum",
+    enum: DepositSettlementMode,
+    default: DepositSettlementMode.INITIAL,
+  })
+  depositSettlementMode!: DepositSettlementMode;
+
+  @Column({
+    type: "numeric",
+    precision: 14,
+    scale: 2,
+    default: 0,
+    transformer: numericTransformer,
+  })
+  depositCarryoverAmount!: number;
+
+  @Column({ type: "uuid", nullable: true })
+  depositCarryoverSourceContractId!: string | null;
+
+  @Column({
+    type: "enum",
     enum: ContractStatus,
   })
   status!: ContractStatus;
@@ -102,6 +130,9 @@ export class Contract extends BaseEntityWithTimestamps {
 
   @OneToMany(() => RentPayment, (rentPayment) => rentPayment.contract)
   rentPayments!: RentPayment[];
+
+  @OneToMany(() => RentReceivableSchedule, (schedule) => schedule.contract)
+  rentReceivableSchedules!: RentReceivableSchedule[];
 
   @OneToMany(() => DepositRecord, (depositRecord) => depositRecord.contract)
   deposits!: DepositRecord[];

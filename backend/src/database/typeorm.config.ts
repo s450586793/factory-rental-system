@@ -11,6 +11,7 @@ import { AddContractDepositAmount1712200000000 } from "./migrations/171220000000
 import { AddPaymentVoucherAttachments1712300000000 } from "./migrations/1712300000000-add-payment-voucher-attachments";
 import { AddContractLessorFields1712400000000 } from "./migrations/1712400000000-add-contract-lessor-fields";
 import { AddUtilityPaymentVoucherAttachments1712500000000 } from "./migrations/1712500000000-add-utility-payment-voucher-attachments";
+import { AddRentReceivableSchedules1712600000000 } from "./migrations/1712600000000-add-rent-receivable-schedules";
 
 export const databaseMigrations = [
   InitialSchema1711600000000,
@@ -21,6 +22,7 @@ export const databaseMigrations = [
   AddPaymentVoucherAttachments1712300000000,
   AddContractLessorFields1712400000000,
   AddUtilityPaymentVoucherAttachments1712500000000,
+  AddRentReceivableSchedules1712600000000,
 ];
 
 export function buildTypeOrmOptions(database: DatabaseConfig): DataSourceOptions {

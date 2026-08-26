@@ -10,6 +10,7 @@ import {
   buildStandardLeaseContractPages,
 } from "./contract-document";
 import { Contract, ContractStatus } from "./contract.entity";
+import { BillingFrequency, DepositSettlementMode } from "./contract.enums";
 import { FactoryUnit } from "../units/factory-unit.entity";
 import { UtilityMeterConfig, UtilityType } from "../utilities/utility-meter-config.entity";
 
@@ -36,6 +37,10 @@ function buildContractFixture() {
     endDate: "2026-06-30",
     annualRent: 50000,
     depositAmount: 10000,
+    billingFrequency: BillingFrequency.ANNUAL,
+    depositSettlementMode: DepositSettlementMode.INITIAL,
+    depositCarryoverAmount: 0,
+    depositCarryoverSourceContractId: null,
     status: ContractStatus.ACTIVE,
     businessLicenseFileId: null,
     businessLicenseFile: null,

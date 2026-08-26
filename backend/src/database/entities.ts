@@ -3,6 +3,8 @@ import { DepositRecord } from "../deposits/deposit-record.entity";
 import { StoredFile } from "../files/stored-file.entity";
 import { Receipt } from "../receipts/receipt.entity";
 import { RentPayment } from "../rent-payments/rent-payment.entity";
+import { RentPaymentAllocation } from "../rent-receivables/rent-payment-allocation.entity";
+import { RentReceivableSchedule } from "../rent-receivables/rent-receivable-schedule.entity";
 import { FactoryUnit } from "../units/factory-unit.entity";
 import { AdminUser } from "../users/admin-user.entity";
 import { UtilityChargeItem } from "../utilities/utility-charge-item.entity";
@@ -18,6 +20,8 @@ export const databaseEntities = [
   UtilityChargeRecord,
   UtilityChargeItem,
   RentPayment,
+  RentReceivableSchedule,
+  RentPaymentAllocation,
   DepositRecord,
   Receipt,
 ];
