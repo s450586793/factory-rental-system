@@ -452,6 +452,13 @@ function findInputByLabel(wrapper: ReturnType<typeof mountUnitsView>, label: str
   return input;
 }
 
+function setDepositCarryoverAmount(wrapper: ReturnType<typeof mountUnitsView>, amount: number) {
+  const vm = wrapper.vm as unknown as {
+    contractForm: { depositCarryoverAmount: number };
+  };
+  vm.contractForm.depositCarryoverAmount = amount;
+}
+
 describe("UnitsView contract download", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -844,6 +851,72 @@ describe("UnitsView contract download", () => {
         depositCarryoverSourceContractId: "contract-source",
       }),
     );
+  });
+
+  it("allows lookup failure fallback when an edited deposit amount remains equal in cents", async () => {
+    const lookup = deferred<DepositAccountSummary[]>();
+    const historicalContract: Contract = {
+      ...oldContract,
+      depositSettlementMode: "carryover",
+      depositCarryoverAmount: 0.3,
+      depositCarryoverSourceContractId: "contract-source",
+    };
+    const historicalUnit = { ...unit, contracts: [historicalContract] };
+    vi.mocked(unitsApi.list).mockResolvedValue([historicalUnit]);
+    vi.mocked(unitsApi.detail).mockResolvedValue(historicalUnit);
+    vi.mocked(depositsApi.listAccounts).mockReturnValueOnce(lookup.promise);
+    const wrapper = mountUnitsView();
+    await flushPromises();
+    await findButton(wrapper, "管理").trigger("click");
+    await flushPromises();
+    await findButton(wrapper, "编辑").trigger("click");
+    await flushPromises();
+
+    setDepositCarryoverAmount(wrapper, 0.30000000000000004);
+    await findInputByLabel(wrapper, "甲方联系人").setValue("新联系人");
+    lookup.reject(new Error("network unavailable"));
+    await flushPromises();
+    await findButton(wrapper, "保存").trigger("click");
+    await flushPromises();
+
+    expect(contractsApi.update).toHaveBeenCalledWith(
+      "contract-old",
+      expect.objectContaining({
+        lessorContactName: "新联系人",
+        depositSettlementMode: "carryover",
+        depositCarryoverAmount: 0.30000000000000004,
+        depositCarryoverSourceContractId: "contract-source",
+      }),
+    );
+  });
+
+  it("blocks lookup failure fallback when an edited deposit amount differs by one cent", async () => {
+    const lookup = deferred<DepositAccountSummary[]>();
+    const historicalContract: Contract = {
+      ...oldContract,
+      depositSettlementMode: "carryover",
+      depositCarryoverAmount: 0.3,
+      depositCarryoverSourceContractId: "contract-source",
+    };
+    const historicalUnit = { ...unit, contracts: [historicalContract] };
+    vi.mocked(unitsApi.list).mockResolvedValue([historicalUnit]);
+    vi.mocked(unitsApi.detail).mockResolvedValue(historicalUnit);
+    vi.mocked(depositsApi.listAccounts).mockReturnValueOnce(lookup.promise);
+    const wrapper = mountUnitsView();
+    await flushPromises();
+    await findButton(wrapper, "管理").trigger("click");
+    await flushPromises();
+    await findButton(wrapper, "编辑").trigger("click");
+    await flushPromises();
+
+    setDepositCarryoverAmount(wrapper, 0.31);
+    lookup.reject(new Error("network unavailable"));
+    await flushPromises();
+    await findButton(wrapper, "保存").trigger("click");
+    await flushPromises();
+
+    expect(contractsApi.update).not.toHaveBeenCalled();
+    expect(ElMessage.error).toHaveBeenCalledWith("押金账户查询失败，请重试");
   });
 
   it("does not allow lookup failure fallback after changing an edited deposit mode", async () => {

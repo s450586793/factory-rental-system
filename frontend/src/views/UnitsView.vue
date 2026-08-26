@@ -901,12 +901,16 @@ import { buildRentSchedulePreview } from "../utils/rent-schedule-preview";
 const DEFAULT_LESSOR_CONTACT_NAME = "吴孝斌";
 const DEFAULT_LESSOR_PHONE = "18651510352";
 
+function toCents(value: number | string | null | undefined) {
+  return Math.round(Number(value) * 100);
+}
+
 type DepositSettlementSnapshot = {
   contractId: string;
   unitId: string;
   tenantName: string;
   mode: Contract["depositSettlementMode"];
-  amount: number;
+  amountInCents: number;
   sourceContractId: string;
 };
 
@@ -1436,7 +1440,7 @@ async function openEditContract(contract: Contract) {
     unitId: selectedUnit.value?.id ?? "",
     tenantName: contractForm.tenantName.trim(),
     mode: contractForm.depositSettlementMode,
-    amount: Number(contractForm.depositCarryoverAmount),
+    amountInCents: toCents(contractForm.depositCarryoverAmount),
     sourceContractId: contractForm.depositCarryoverSourceContractId,
   };
   contractDialogVisible.value = true;
@@ -1501,7 +1505,7 @@ function isPreservedDepositSettlementSnapshotUnchanged() {
     snapshot.unitId === (selectedUnit.value?.id ?? "") &&
     snapshot.tenantName === contractForm.tenantName.trim() &&
     snapshot.mode === contractForm.depositSettlementMode &&
-    snapshot.amount === Number(contractForm.depositCarryoverAmount) &&
+    snapshot.amountInCents === toCents(contractForm.depositCarryoverAmount) &&
     snapshot.sourceContractId === contractForm.depositCarryoverSourceContractId
   );
 }
