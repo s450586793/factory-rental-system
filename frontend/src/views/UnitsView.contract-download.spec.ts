@@ -2,14 +2,25 @@ import { flushPromises, mount } from "@vue/test-utils";
 import { defineComponent, h, provide, inject } from "vue";
 import { ElMessage } from "element-plus";
 import UnitsView from "./UnitsView.vue";
-import { contractsApi, unitsApi } from "../api";
-import type { Contract, UnitSummary } from "../types/models";
+import { contractsApi, depositsApi, rentPaymentsApi, rentReceivablesApi, unitsApi } from "../api";
+import type {
+  Contract,
+  DepositAccountSummary,
+  RentPayment,
+  RentPaymentAllocationPreview,
+  RentPaymentMutationResult,
+  RentReceivable,
+  UnitSummary,
+} from "../types/models";
 
 vi.mock("../api", () => ({
   contractsApi: {
     create: vi.fn(),
     update: vi.fn(),
     generateDocument: vi.fn(),
+  },
+  depositsApi: {
+    listAccounts: vi.fn(),
   },
   filesApi: {
     upload: vi.fn(),
@@ -20,6 +31,18 @@ vi.mock("../api", () => ({
     create: vi.fn(),
     update: vi.fn(),
     remove: vi.fn(),
+  },
+  rentPaymentsApi: {
+    list: vi.fn(),
+    create: vi.fn(),
+    update: vi.fn(),
+    remove: vi.fn(),
+    previewAllocation: vi.fn(),
+  },
+  rentReceivablesApi: {
+    list: vi.fn(),
+    detail: vi.fn(),
+    update: vi.fn(),
   },
   utilitiesApi: {
     createMeterConfig: vi.fn(),
@@ -65,9 +88,15 @@ const activeContract = {
   endDate: "2027-06-30",
   annualRent: 50000,
   depositAmount: 10000,
-  receivableAmount: 50000,
-  paidAmount: 0,
+  billingFrequency: "annual",
+  depositSettlementMode: "initial",
+  depositCarryoverAmount: 0,
+  depositCarryoverSourceContractId: null,
+  dueReceivableAmount: 50000,
+  duePaidAmount: 0,
   outstandingAmount: 0,
+  prepaidAmount: 0,
+  unallocatedAmount: 0,
   status: "active",
 } satisfies UnitSummary["activeContract"];
 
@@ -86,9 +115,15 @@ const oldContract = {
   endDate: "2027-06-30",
   annualRent: 50000,
   depositAmount: 10000,
-  receivableAmount: 50000,
-  paidAmount: 0,
+  billingFrequency: "annual",
+  depositSettlementMode: "initial",
+  depositCarryoverAmount: 0,
+  depositCarryoverSourceContractId: null,
+  dueReceivableAmount: 50000,
+  duePaidAmount: 0,
   outstandingAmount: 0,
+  prepaidAmount: 0,
+  unallocatedAmount: 0,
   status: "active",
   businessLicenseFileId: null,
   businessLicenseFile: null,
@@ -122,9 +157,15 @@ const savedContract = {
   endDate: "2028-06-30",
   annualRent: 50000,
   depositAmount: 10000,
-  receivableAmount: 0,
-  paidAmount: 0,
+  billingFrequency: "annual",
+  depositSettlementMode: "initial",
+  depositCarryoverAmount: 0,
+  depositCarryoverSourceContractId: null,
+  dueReceivableAmount: 0,
+  duePaidAmount: 0,
   outstandingAmount: 0,
+  prepaidAmount: 0,
+  unallocatedAmount: 0,
   status: "active",
   businessLicenseFileId: null,
   businessLicenseFile: null,
@@ -142,6 +183,32 @@ const vacantUnit = {
   contracts: [],
   meterConfigs: [],
 } satisfies UnitSummary;
+
+const depositAccount = {
+  unitId: "unit-1",
+  unit: { id: "unit-1", code: "5", location: "测试厂房" },
+  tenantName: "曹忠",
+  agreedDepositAmount: 10000,
+  heldAmount: 10000,
+  supplementAmount: 0,
+  refundAmount: 0,
+  latestContractId: "contract-old",
+  lastTransactionDate: "2026-07-01",
+} satisfies DepositAccountSummary;
+
+const receivable = {
+  id: "schedule-1",
+  contractId: "contract-old",
+  sequence: 1,
+  periodStart: "2026-07-01",
+  periodEnd: "2027-06-30",
+  dueDate: "2026-07-01",
+  receivableAmount: 50000,
+  paidAmount: 50000,
+  outstandingAmount: 0,
+  prepaidAmount: 0,
+  status: "settled",
+} satisfies RentReceivable;
 
 function passthroughStub(tag = "div") {
   return defineComponent({
@@ -162,6 +229,7 @@ const dialogStub = defineComponent({
 
 function mountUnitsView() {
   const tableRowsKey = Symbol("tableRows");
+  const radioGroupKey = Symbol("radioGroup");
   type TableRowsContext = {
     getRows: () => unknown[];
   };
@@ -213,19 +281,73 @@ function mountUnitsView() {
             return () =>
               h(
                 "div",
-                table.getRows().map((row) =>
-                  slots.default
-                    ? slots.default({ row })
-                    : h("span", String((row as Record<string, unknown>)[props.prop as string] ?? "")),
-                ),
+                [
+                  h("span", String(props.label ?? "")),
+                  ...table.getRows().map((row) =>
+                    slots.default
+                      ? slots.default({ row })
+                      : h("span", String((row as Record<string, unknown>)[props.prop as string] ?? "")),
+                  ),
+                ],
               );
           },
         }),
         "el-tag": passthroughStub("span"),
-        "el-select": passthroughStub("select"),
+        "el-select": defineComponent({
+          props: ["modelValue"],
+          emits: ["update:modelValue", "change"],
+          setup(props, { attrs, emit, slots }) {
+            return () =>
+              h(
+                "select",
+                {
+                  ...attrs,
+                  value: props.modelValue,
+                  onChange: (event: Event) => {
+                    const value = (event.target as HTMLSelectElement).value;
+                    emit("update:modelValue", value);
+                    emit("change", value);
+                  },
+                },
+                slots.default?.(),
+              );
+          },
+        }),
         "el-option": defineComponent({
-          setup() {
-            return () => null;
+          props: ["label", "value"],
+          setup(props) {
+            return () => h("option", { value: props.value }, String(props.label ?? ""));
+          },
+        }),
+        "el-radio-group": defineComponent({
+          props: ["modelValue"],
+          emits: ["update:modelValue", "change"],
+          setup(props, { emit, slots }) {
+            provide(radioGroupKey, {
+              value: () => props.modelValue,
+              select: (value: unknown) => {
+                emit("update:modelValue", value);
+                emit("change", value);
+              },
+            });
+            return () => h("div", slots.default?.());
+          },
+        }),
+        "el-radio-button": defineComponent({
+          props: ["label"],
+          setup(props, { attrs, slots }) {
+            const group = inject<{ value: () => unknown; select: (value: unknown) => void }>(radioGroupKey)!;
+            return () =>
+              h(
+                "button",
+                {
+                  ...attrs,
+                  type: "button",
+                  "aria-pressed": group.value() === props.label,
+                  onClick: () => group.select(props.label),
+                },
+                slots.default?.(),
+              );
           },
         }),
         "el-switch": passthroughStub("button"),
@@ -308,6 +430,9 @@ describe("UnitsView contract download", () => {
     vi.mocked(unitsApi.list).mockResolvedValue([unit]);
     vi.mocked(unitsApi.detail).mockResolvedValue(unit);
     vi.mocked(contractsApi.create).mockResolvedValue(savedContract);
+    vi.mocked(contractsApi.update).mockResolvedValue(savedContract);
+    vi.mocked(depositsApi.listAccounts).mockResolvedValue([depositAccount]);
+    vi.mocked(rentReceivablesApi.list).mockResolvedValue({ items: [receivable] });
     vi.mocked(contractsApi.generateDocument).mockResolvedValue({
       file: {
         id: "contract-document--contract-new",
@@ -319,9 +444,11 @@ describe("UnitsView contract download", () => {
     });
   });
 
-  it("shows the accrued receivable instead of one annual rent in contract history", async () => {
+  it("shows due receivable, prepaid amount and billing frequency in contract history", async () => {
     const accruedContract = Object.assign({}, oldContract, {
-      receivableAmount: 100000,
+      billingFrequency: "semiannual",
+      dueReceivableAmount: 100000,
+      prepaidAmount: 25000,
     }) as Contract;
     const accruedUnit = {
       ...unit,
@@ -336,7 +463,203 @@ describe("UnitsView contract download", () => {
     await findButton(wrapper, "管理").trigger("click");
     await flushPromises();
 
+    expect(wrapper.text()).toContain("已到期应收");
+    expect(wrapper.text()).toContain("按半年");
     expect(wrapper.text()).toContain("¥100,000.00");
+    expect(wrapper.text()).toContain("¥25,000.00");
+  });
+
+  it("renders zero contract summary amounts instead of placeholders", async () => {
+    const zeroUnit = { ...unit, activeContract: savedContract, contracts: [savedContract] };
+    vi.mocked(unitsApi.list).mockResolvedValue([zeroUnit]);
+    vi.mocked(unitsApi.detail).mockResolvedValue(zeroUnit);
+    const wrapper = mountUnitsView();
+    await flushPromises();
+
+    await findButton(wrapper, "显示").trigger("click");
+    await findButton(wrapper, "管理").trigger("click");
+    await flushPromises();
+
+    expect(wrapper.text()).toContain("已到期应收¥0.00");
+    expect(wrapper.text()).toContain("已到期已收¥0.00");
+    expect(wrapper.text()).toContain("预收¥0.00");
+  });
+
+  it("keeps the initial unit contract fixed to annual billing and initial deposit collection", async () => {
+    vi.mocked(unitsApi.create).mockResolvedValue(vacantUnit);
+    const wrapper = mountUnitsView();
+    await flushPromises();
+    await openCreateUnitDialog(wrapper);
+
+    expect(wrapper.text()).toContain("按年");
+    expect(wrapper.text()).toContain("首次收取");
+    await wrapper.find('input[placeholder="例如 A-01"]').setValue("6");
+    await wrapper.find('input[placeholder="例如 东区 1 号车间"]').setValue("空置厂房");
+    await findInputByLabel(wrapper, "初始合同开始").setValue("2026-09-01");
+    await findInputByLabel(wrapper, "初始合同年租金").setValue("50000");
+    await findButton(wrapper, "保存").trigger("click");
+    await flushPromises();
+
+    expect(contractsApi.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        billingFrequency: "annual",
+        depositSettlementMode: "initial",
+        depositCarryoverAmount: 0,
+      }),
+    );
+    expect(vi.mocked(contractsApi.create).mock.calls[0][0]).not.toHaveProperty(
+      "depositCarryoverSourceContractId",
+    );
+  });
+
+  it("defaults a same-tenant renewal to carried deposit and previews semiannual periods", async () => {
+    const wrapper = mountUnitsView();
+    await flushPromises();
+    await openCreateContractDialog(wrapper);
+
+    expect(depositsApi.listAccounts).toHaveBeenCalledWith({ unitId: "unit-1", tenantName: "曹忠" });
+    expect(wrapper.get('[aria-label="押金处理方式"]').text()).toContain("沿用已有押金");
+    await wrapper.get('[aria-label="收租周期-按半年"]').trigger("click");
+    expect(wrapper.text()).toContain("预计 2 期");
+    expect(wrapper.text()).toContain("首期到期日 2027-07-01");
+    await findButton(wrapper, "保存").trigger("click");
+    await flushPromises();
+
+    expect(contractsApi.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        billingFrequency: "semiannual",
+        depositSettlementMode: "carryover",
+        depositCarryoverAmount: 10000,
+        depositCarryoverSourceContractId: "contract-old",
+      }),
+    );
+  });
+
+  it("resets carryover when the tenant changes and omits the source contract", async () => {
+    const wrapper = mountUnitsView();
+    await flushPromises();
+    await openCreateContractDialog(wrapper);
+
+    await findInputByLabel(wrapper, "乙方名称").setValue(" 新租户 ");
+    await flushPromises();
+    expect(depositsApi.listAccounts).toHaveBeenLastCalledWith({ unitId: "unit-1", tenantName: "新租户" });
+    expect(wrapper.get('[aria-label="押金处理方式"]').text()).toContain("首次收取");
+    await findButton(wrapper, "保存").trigger("click");
+    await flushPromises();
+
+    const payload = vi.mocked(contractsApi.create).mock.calls.at(-1)?.[0];
+    expect(payload).toMatchObject({ depositSettlementMode: "initial", depositCarryoverAmount: 0 });
+    expect(payload).not.toHaveProperty("depositCarryoverSourceContractId");
+  });
+
+  it("resets carryover immediately when the tenant is cleared", async () => {
+    const wrapper = mountUnitsView();
+    await flushPromises();
+    await openCreateContractDialog(wrapper);
+
+    await findInputByLabel(wrapper, "乙方名称").setValue("");
+    await flushPromises();
+    expect(wrapper.get('[aria-label="押金处理方式"]').text()).toContain("首次收取");
+    await findButton(wrapper, "保存").trigger("click");
+    await flushPromises();
+
+    const payload = vi.mocked(contractsApi.create).mock.calls.at(-1)?.[0];
+    expect(payload).toMatchObject({ depositSettlementMode: "initial", depositCarryoverAmount: 0 });
+    expect(payload).not.toHaveProperty("depositCarryoverSourceContractId");
+  });
+
+  it("allows manually switching a renewal back to initial deposit collection", async () => {
+    const wrapper = mountUnitsView();
+    await flushPromises();
+    await openCreateContractDialog(wrapper);
+
+    await wrapper.get('[aria-label="押金处理-首次收取"]').trigger("click");
+    await findButton(wrapper, "保存").trigger("click");
+    await flushPromises();
+
+    const payload = vi.mocked(contractsApi.create).mock.calls.at(-1)?.[0];
+    expect(payload).toMatchObject({ depositSettlementMode: "initial", depositCarryoverAmount: 0 });
+    expect(payload).not.toHaveProperty("depositCarryoverSourceContractId");
+  });
+
+  it("preserves an edited contract's saved deposit snapshot despite a newer account balance", async () => {
+    const historicalContract: Contract = {
+      ...oldContract,
+      depositSettlementMode: "carryover",
+      depositCarryoverAmount: 6000,
+      depositCarryoverSourceContractId: "contract-source",
+    };
+    const historicalUnit = { ...unit, contracts: [historicalContract] };
+    vi.mocked(unitsApi.list).mockResolvedValue([historicalUnit]);
+    vi.mocked(unitsApi.detail).mockResolvedValue(historicalUnit);
+    vi.mocked(depositsApi.listAccounts).mockResolvedValue([
+      { ...depositAccount, heldAmount: 8000, latestContractId: "contract-source" },
+    ]);
+    const wrapper = mountUnitsView();
+    await flushPromises();
+    await findButton(wrapper, "管理").trigger("click");
+    await flushPromises();
+    await findButton(wrapper, "编辑").trigger("click");
+    await flushPromises();
+
+    expect(wrapper.text()).toContain("已结转¥6,000.00");
+    expect(wrapper.text()).toContain("当前持有¥8,000.00");
+    await findButton(wrapper, "保存").trigger("click");
+    await flushPromises();
+    expect(contractsApi.update).toHaveBeenCalledWith(
+      "contract-old",
+      expect.objectContaining({
+        depositSettlementMode: "carryover",
+        depositCarryoverAmount: 6000,
+        depositCarryoverSourceContractId: "contract-source",
+      }),
+    );
+  });
+
+  it("recalculates carryover only after selecting another source", async () => {
+    vi.mocked(depositsApi.listAccounts).mockResolvedValue([
+      depositAccount,
+      { ...depositAccount, heldAmount: 7000, latestContractId: "contract-other", lastTransactionDate: "2026-08-01" },
+    ]);
+    const wrapper = mountUnitsView();
+    await flushPromises();
+    await openCreateContractDialog(wrapper);
+
+    await wrapper.get('select[aria-label="押金结转来源合同"]').setValue("contract-other");
+    await flushPromises();
+    expect(wrapper.text()).toContain("已结转¥7,000.00");
+    await findButton(wrapper, "保存").trigger("click");
+    await flushPromises();
+    expect(contractsApi.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        depositCarryoverAmount: 7000,
+        depositCarryoverSourceContractId: "contract-other",
+      }),
+    );
+  });
+
+  it("loads contract receivable periods in the schedule dialog", async () => {
+    const wrapper = mountUnitsView();
+    await flushPromises();
+    await findButton(wrapper, "管理").trigger("click");
+    await flushPromises();
+    await findButton(wrapper, "查看期次").trigger("click");
+    await flushPromises();
+
+    expect(rentReceivablesApi.list).toHaveBeenCalledWith({ contractId: "contract-old" });
+    expect(wrapper.text()).toContain("第 1 期");
+    expect(wrapper.text()).toContain("2026-07-01");
+    expect(wrapper.text()).toContain("已结清");
+  });
+
+  it("keeps rent payment mutation and list return types distinct", () => {
+    expectTypeOf<Awaited<ReturnType<typeof rentPaymentsApi.list>>>().toEqualTypeOf<RentPayment[]>();
+    expectTypeOf<Awaited<ReturnType<typeof rentPaymentsApi.create>>>().toEqualTypeOf<RentPaymentMutationResult>();
+    expectTypeOf<Awaited<ReturnType<typeof rentPaymentsApi.update>>>().toEqualTypeOf<RentPaymentMutationResult>();
+    expectTypeOf<Awaited<ReturnType<typeof rentPaymentsApi.remove>>>().toEqualTypeOf<RentPaymentMutationResult>();
+    expectTypeOf<Awaited<ReturnType<typeof rentPaymentsApi.previewAllocation>>>().toEqualTypeOf<RentPaymentAllocationPreview>();
+    expectTypeOf<Awaited<ReturnType<typeof depositsApi.listAccounts>>>().toEqualTypeOf<DepositAccountSummary[]>();
+    expectTypeOf<Awaited<ReturnType<typeof rentReceivablesApi.list>>>().toEqualTypeOf<{ items: RentReceivable[] }>();
   });
 
   it("defaults a new contract deposit from the previous contract and submits it", async () => {

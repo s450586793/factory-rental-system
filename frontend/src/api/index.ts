@@ -1,9 +1,13 @@
 import type {
   Contract,
+  DepositAccountSummary,
   DepositRecord,
   MeterConfig,
   Receipt,
   RentPayment,
+  RentPaymentAllocationPreview,
+  RentPaymentMutationResult,
+  RentReceivable,
   StoredFile,
   UnitSummary,
   User,
@@ -11,6 +15,16 @@ import type {
   UtilityPrefillMeter,
 } from "../types/models";
 import { apiFetch } from "./client";
+
+function buildSearch(query: Record<string, string | number | undefined>) {
+  const search = new URLSearchParams();
+  for (const [key, value] of Object.entries(query)) {
+    if (value !== undefined && value !== "") {
+      search.set(key, String(value));
+    }
+  }
+  return search.size ? `?${search}` : "";
+}
 
 type GeneratedContractDocumentPayload = {
   file: {
@@ -150,23 +164,41 @@ export const utilitiesApi = {
 export const rentPaymentsApi = {
   list: () => apiFetch<RentPayment[]>("/rent-payments"),
   create: (payload: Record<string, unknown>) =>
-    apiFetch<RentPayment>("/rent-payments", {
+    apiFetch<RentPaymentMutationResult>("/rent-payments", {
       method: "POST",
       body: JSON.stringify(payload),
     }),
   update: (id: string, payload: Record<string, unknown>) =>
-    apiFetch<RentPayment>(`/rent-payments/${id}`, {
+    apiFetch<RentPaymentMutationResult>(`/rent-payments/${id}`, {
       method: "PATCH",
       body: JSON.stringify(payload),
     }),
   remove: (id: string) =>
-    apiFetch<{ success: boolean }>(`/rent-payments/${id}`, {
+    apiFetch<RentPaymentMutationResult>(`/rent-payments/${id}`, {
       method: "DELETE",
+    }),
+  previewAllocation: (payload: Record<string, unknown>) =>
+    apiFetch<RentPaymentAllocationPreview>("/rent-payments/allocation-preview", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+};
+
+export const rentReceivablesApi = {
+  list: (query: Record<string, string | number | undefined>) =>
+    apiFetch<{ items: RentReceivable[] }>(`/rent-receivables${buildSearch(query)}`),
+  detail: (id: string) => apiFetch<RentReceivable>(`/rent-receivables/${id}`),
+  update: (id: string, payload: Record<string, unknown>) =>
+    apiFetch<RentReceivable>(`/rent-receivables/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(payload),
     }),
 };
 
 export const depositsApi = {
   list: () => apiFetch<DepositRecord[]>("/deposits"),
+  listAccounts: (query: Record<string, string | number | undefined> = {}) =>
+    apiFetch<DepositAccountSummary[]>(`/deposits/accounts${buildSearch(query)}`),
   create: (payload: Record<string, unknown>) =>
     apiFetch<DepositRecord>("/deposits", {
       method: "POST",

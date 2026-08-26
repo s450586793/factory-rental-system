@@ -33,9 +33,15 @@ export type Contract = {
   endDate: string;
   annualRent: number;
   depositAmount: number;
-  receivableAmount: number;
-  paidAmount: number;
+  billingFrequency: "annual" | "semiannual";
+  depositSettlementMode: "initial" | "carryover";
+  depositCarryoverAmount: number;
+  depositCarryoverSourceContractId: string | null;
+  dueReceivableAmount: number;
+  duePaidAmount: number;
   outstandingAmount: number;
+  prepaidAmount: number;
+  unallocatedAmount: number;
   status: "future" | "active" | "expired";
   businessLicenseFileId: string | null;
   businessLicenseFile: StoredFile | null;
@@ -74,9 +80,15 @@ export type UnitSummary = {
     endDate: string;
     annualRent: number;
     depositAmount: number;
-    receivableAmount: number;
-    paidAmount: number;
+    billingFrequency: "annual" | "semiannual";
+    depositSettlementMode: "initial" | "carryover";
+    depositCarryoverAmount: number;
+    depositCarryoverSourceContractId: string | null;
+    dueReceivableAmount: number;
+    duePaidAmount: number;
     outstandingAmount: number;
+    prepaidAmount: number;
+    unallocatedAmount: number;
     status: "future" | "active" | "expired";
   } | null;
   contractCount: number;
@@ -143,6 +155,47 @@ export type RentPayment = {
   unit: { id: string; code: string; location: string };
   contract: Contract;
   attachmentFiles: StoredFile[];
+};
+
+export type RentReceivable = {
+  id: string;
+  contractId: string;
+  sequence: number;
+  periodStart: string;
+  periodEnd: string;
+  dueDate: string;
+  receivableAmount: number;
+  paidAmount: number;
+  outstandingAmount: number;
+  prepaidAmount: number;
+  status: "not-due" | "partially-prepaid" | "prepaid" | "overdue" | "settled";
+};
+
+export type RentPaymentAllocationPreview = {
+  allocations: Array<{
+    scheduleId: string;
+    sequence: number;
+    periodStart: string;
+    periodEnd: string;
+    allocatedAmount: number;
+  }>;
+  unallocatedAmount: number;
+};
+
+export type RentPaymentMutationResult = RentPaymentAllocationPreview & {
+  payment: RentPayment;
+};
+
+export type DepositAccountSummary = {
+  unitId: string;
+  unit: { id: string; code: string; location: string };
+  tenantName: string;
+  agreedDepositAmount: number;
+  heldAmount: number;
+  supplementAmount: number;
+  refundAmount: number;
+  latestContractId: string | null;
+  lastTransactionDate: string | null;
 };
 
 export type DepositRecord = {

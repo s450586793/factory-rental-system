@@ -44,9 +44,15 @@ const contract = {
   endDate: "2026-12-31",
   annualRent: 12000,
   depositAmount: 1000,
-  receivableAmount: 12000,
-  paidAmount: 0,
+  billingFrequency: "annual",
+  depositSettlementMode: "initial",
+  depositCarryoverAmount: 0,
+  depositCarryoverSourceContractId: null,
+  dueReceivableAmount: 12000,
+  duePaidAmount: 0,
   outstandingAmount: 12000,
+  prepaidAmount: 0,
+  unallocatedAmount: 0,
   status: "active",
   businessLicenseFileId: null,
   businessLicenseFile: null,
@@ -87,6 +93,12 @@ const existingPayment = {
   unit,
   contract,
 } satisfies RentPayment;
+
+const paymentMutationResult = {
+  payment: existingPayment,
+  allocations: [],
+  unallocatedAmount: 0,
+};
 
 function passthroughStub(tag = "div") {
   return defineComponent({
@@ -177,8 +189,8 @@ describe("RentPaymentsView 收款凭证", () => {
     vi.mocked(unitsApi.list).mockResolvedValue([unit]);
     vi.mocked(rentPaymentsApi.list).mockResolvedValue([]);
     vi.mocked(receiptsApi.list).mockResolvedValue([]);
-    vi.mocked(rentPaymentsApi.create).mockResolvedValue(existingPayment);
-    vi.mocked(rentPaymentsApi.update).mockResolvedValue(existingPayment);
+    vi.mocked(rentPaymentsApi.create).mockResolvedValue(paymentMutationResult);
+    vi.mocked(rentPaymentsApi.update).mockResolvedValue(paymentMutationResult);
     vi.mocked(filesApi.upload).mockResolvedValue([
       { id: "uploaded-1", originalName: "one.png", mimeType: "image/png", size: 1, category: "payment-voucher", storagePath: "payment-voucher/one.png" },
       { id: "uploaded-2", originalName: "two.webp", mimeType: "image/webp", size: 1, category: "payment-voucher", storagePath: "payment-voucher/two.webp" },

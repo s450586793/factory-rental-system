@@ -253,6 +253,19 @@
                     :precision="2"
                     style="width: 100%"
                   />
+                  <el-radio-group
+                    v-model="unitContractForm.billingFrequency"
+                    class="billing-frequency-control"
+                    aria-label="初始合同收租周期"
+                    disabled
+                  >
+                    <el-radio-button label="annual" aria-label="初始合同收租周期-按年">按年</el-radio-button>
+                    <el-radio-button label="semiannual" aria-label="初始合同收租周期-按半年">按半年</el-radio-button>
+                  </el-radio-group>
+                  <div v-if="unitContractPreview.count" class="schedule-preview-line">
+                    <span>预计 {{ unitContractPreview.count }} 期</span>
+                    <span>首期到期日 {{ unitContractPreview.firstDueDate }}</span>
+                  </div>
                 </el-form-item>
               </el-col>
               <el-col :span="12">
@@ -267,6 +280,20 @@
                 </el-form-item>
               </el-col>
             </el-row>
+
+            <div class="deposit-settlement-panel" aria-label="初始合同押金处理方式">
+              <div class="deposit-settlement-head">
+                <strong>押金处理</strong>
+                <span>首次收取</span>
+              </div>
+              <div class="deposit-summary-grid">
+                <div><small>约定押金</small><strong>{{ formatCurrency(Number(unitContractForm.depositAmount)) }}</strong></div>
+                <div><small>当前持有</small><strong>{{ formatCurrency(0) }}</strong></div>
+                <div><small>已结转</small><strong>{{ formatCurrency(0) }}</strong></div>
+                <div><small>需补</small><strong>{{ formatCurrency(Number(unitContractForm.depositAmount)) }}</strong></div>
+                <div><small>应退</small><strong>{{ formatCurrency(0) }}</strong></div>
+              </div>
+            </div>
 
             <el-form-item label="营业执照">
               <div class="detail-grid">
@@ -385,14 +412,19 @@
             <el-table-column prop="tenantName" label="公司名称" min-width="116" show-overflow-tooltip />
             <el-table-column prop="contactName" label="负责人" width="78" show-overflow-tooltip />
             <el-table-column prop="tenantPhone" label="电话" width="108" show-overflow-tooltip />
-            <el-table-column label="合同周期" min-width="148" show-overflow-tooltip>
+            <el-table-column label="合同期限" min-width="148" show-overflow-tooltip>
               <template #default="{ row }">
                 {{ formatCompactContractPeriod(row.startDate, row.endDate) }}
               </template>
             </el-table-column>
-            <el-table-column label="应收" width="90">
+            <el-table-column label="收租周期" width="82">
               <template #default="{ row }">
-                {{ displayRentAmount(row.receivableAmount) }}
+                {{ billingFrequencyLabel(row.billingFrequency) }}
+              </template>
+            </el-table-column>
+            <el-table-column label="已到期应收" width="104">
+              <template #default="{ row }">
+                {{ displayRentAmount(row.dueReceivableAmount) }}
               </template>
             </el-table-column>
             <el-table-column label="押金" width="90">
@@ -400,14 +432,19 @@
                 {{ displayRentAmount(row.depositAmount) }}
               </template>
             </el-table-column>
-            <el-table-column label="已收" width="90">
+            <el-table-column label="已到期已收" width="104">
               <template #default="{ row }">
-                {{ displayRentAmount(row.paidAmount) }}
+                {{ displayRentAmount(row.duePaidAmount) }}
               </template>
             </el-table-column>
             <el-table-column label="欠费" width="90">
               <template #default="{ row }">
                 {{ displayRentAmount(row.outstandingAmount) }}
+              </template>
+            </el-table-column>
+            <el-table-column label="预收" width="90">
+              <template #default="{ row }">
+                {{ displayRentAmount(row.prepaidAmount) }}
               </template>
             </el-table-column>
             <el-table-column label="状态" width="80">
@@ -440,9 +477,10 @@
                 </div>
               </template>
             </el-table-column>
-            <el-table-column label="操作" width="164">
+            <el-table-column label="操作" width="218">
               <template #default="{ row }">
                 <el-space wrap size="small" class="contracts-actions">
+                  <el-button text @click="openRentSchedule(row)">查看期次</el-button>
                   <el-button
                     text
                     type="primary"
@@ -541,7 +579,7 @@
           <el-row :gutter="14">
             <el-col :span="12">
             <el-form-item label="乙方名称">
-              <el-input v-model="contractForm.tenantName" aria-label="乙方名称" />
+              <el-input v-model="contractForm.tenantName" aria-label="乙方名称" @input="handleContractTenantChange" />
             </el-form-item>
           </el-col>
           <el-col :span="12">
@@ -569,6 +607,7 @@
             <el-form-item label="合同开始">
               <el-date-picker
                 v-model="contractForm.startDate"
+                aria-label="合同开始"
                 type="date"
                 value-format="YYYY-MM-DD"
                 style="width: 100%"
@@ -578,7 +617,13 @@
           </el-col>
           <el-col :span="12">
             <el-form-item label="合同结束">
-              <el-date-picker v-model="contractForm.endDate" type="date" value-format="YYYY-MM-DD" style="width: 100%" />
+              <el-date-picker
+                v-model="contractForm.endDate"
+                aria-label="合同结束"
+                type="date"
+                value-format="YYYY-MM-DD"
+                style="width: 100%"
+              />
             </el-form-item>
           </el-col>
         </el-row>
@@ -593,6 +638,18 @@
                 :precision="2"
                 style="width: 100%"
               />
+              <el-radio-group
+                v-model="contractForm.billingFrequency"
+                class="billing-frequency-control"
+                aria-label="收租周期"
+              >
+                <el-radio-button label="annual" aria-label="收租周期-按年">按年</el-radio-button>
+                <el-radio-button label="semiannual" aria-label="收租周期-按半年">按半年</el-radio-button>
+              </el-radio-group>
+              <div v-if="contractPreview.count" class="schedule-preview-line">
+                <span>预计 {{ contractPreview.count }} 期</span>
+                <span>首期到期日 {{ contractPreview.firstDueDate }}</span>
+              </div>
             </el-form-item>
           </el-col>
           <el-col :span="12">
@@ -607,6 +664,42 @@
             </el-form-item>
           </el-col>
         </el-row>
+
+        <div class="deposit-settlement-panel" aria-label="押金处理方式">
+          <div class="deposit-settlement-head">
+            <strong>押金处理</strong>
+            <el-radio-group
+              v-model="contractForm.depositSettlementMode"
+              size="small"
+              @change="handleDepositSettlementModeChange"
+            >
+              <el-radio-button label="initial" aria-label="押金处理-首次收取">首次收取</el-radio-button>
+              <el-radio-button label="carryover" aria-label="押金处理-沿用已有押金">沿用已有押金</el-radio-button>
+            </el-radio-group>
+          </div>
+          <el-form-item v-if="contractForm.depositSettlementMode === 'carryover'" label="结转来源合同">
+            <el-select
+              v-model="contractForm.depositCarryoverSourceContractId"
+              aria-label="押金结转来源合同"
+              style="width: 100%"
+              @change="handleDepositSourceChange"
+            >
+              <el-option
+                v-for="account in availableDepositAccounts"
+                :key="account.latestContractId || `${account.unitId}-${account.tenantName}`"
+                :label="depositAccountLabel(account)"
+                :value="account.latestContractId || ''"
+              />
+            </el-select>
+          </el-form-item>
+          <div class="deposit-summary-grid">
+            <div><small>约定押金</small><strong>{{ formatCurrency(depositSummary.agreed) }}</strong></div>
+            <div><small>当前持有</small><strong>{{ formatCurrency(depositSummary.held) }}</strong></div>
+            <div><small>已结转</small><strong>{{ formatCurrency(depositSummary.carried) }}</strong></div>
+            <div><small>需补</small><strong>{{ formatCurrency(depositSummary.supplement) }}</strong></div>
+            <div><small>应退</small><strong>{{ formatCurrency(depositSummary.refund) }}</strong></div>
+          </div>
+        </div>
 
         <el-form-item label="营业执照">
           <div class="detail-grid">
@@ -649,6 +742,31 @@
         <el-button :loading="submittingContract" @click="saveContract(false)">保存</el-button>
         <el-button type="primary" :loading="submittingContract" @click="saveContract(true)">保存并下载合同</el-button>
       </template>
+    </el-dialog>
+
+    <el-dialog v-model="rentScheduleDialogVisible" title="合同期次" width="820px">
+      <div class="table-shell">
+        <el-table :data="rentScheduleItems" v-loading="rentScheduleLoading" size="small" class="rent-schedule-table">
+          <el-table-column label="期次" width="72">
+            <template #default="{ row }">第 {{ row.sequence }} 期</template>
+          </el-table-column>
+          <el-table-column prop="periodStart" label="周期开始" width="112" />
+          <el-table-column prop="periodEnd" label="周期结束" width="112" />
+          <el-table-column prop="dueDate" label="到期日" width="112" />
+          <el-table-column label="应收" width="112">
+            <template #default="{ row }">{{ formatCurrency(row.receivableAmount) }}</template>
+          </el-table-column>
+          <el-table-column label="已收" width="112">
+            <template #default="{ row }">{{ formatCurrency(row.paidAmount) }}</template>
+          </el-table-column>
+          <el-table-column label="预收" width="112">
+            <template #default="{ row }">{{ formatCurrency(row.prepaidAmount) }}</template>
+          </el-table-column>
+          <el-table-column label="状态" width="96">
+            <template #default="{ row }">{{ rentReceivableStatusLabel(row.status) }}</template>
+          </el-table-column>
+        </el-table>
+      </div>
     </el-dialog>
 
     <el-dialog v-model="meterDialogVisible" :title="meterForm.id ? '编辑表计' : '新增表计'" width="620px">
@@ -734,10 +852,18 @@ import { computed, onMounted, reactive, ref } from "vue";
 import { ElMessage, ElMessageBox } from "element-plus";
 import AppShell from "../components/AppShell.vue";
 import { apiFileUrl, apiGeneratedContractDocumentUrl } from "../api/client";
-import { contractsApi, filesApi, unitsApi, utilitiesApi } from "../api";
+import { contractsApi, depositsApi, filesApi, rentReceivablesApi, unitsApi, utilitiesApi } from "../api";
 import { useViewportWidth } from "../composables/useViewportWidth";
-import type { Contract, MeterConfig, StoredFile, UnitSummary } from "../types/models";
+import type {
+  Contract,
+  DepositAccountSummary,
+  MeterConfig,
+  RentReceivable,
+  StoredFile,
+  UnitSummary,
+} from "../types/models";
 import { formatCurrency } from "../utils/format";
+import { buildRentSchedulePreview } from "../utils/rent-schedule-preview";
 
 const DEFAULT_LESSOR_CONTACT_NAME = "吴孝斌";
 const DEFAULT_LESSOR_PHONE = "18651510352";
@@ -775,6 +901,10 @@ const unitContractForm = reactive({
   endDate: "",
   annualRent: 0,
   depositAmount: 0,
+  billingFrequency: "annual" as const,
+  depositSettlementMode: "initial" as const,
+  depositCarryoverAmount: 0,
+  depositCarryoverSourceContractId: "",
 });
 const unitBusinessLicenseUpload = ref<File | null>(null);
 const unitAttachmentUploads = ref<File[]>([]);
@@ -797,6 +927,10 @@ const contractForm = reactive({
   endDate: "",
   annualRent: 0,
   depositAmount: 0,
+  billingFrequency: "annual" as Contract["billingFrequency"],
+  depositSettlementMode: "initial" as Contract["depositSettlementMode"],
+  depositCarryoverAmount: 0,
+  depositCarryoverSourceContractId: "",
   businessLicenseFileId: "",
   attachmentFileIds: [] as string[],
 });
@@ -804,6 +938,12 @@ const existingBusinessLicense = ref<StoredFile | null>(null);
 const existingAttachments = ref<StoredFile[]>([]);
 const businessLicenseUpload = ref<File | null>(null);
 const attachmentUploads = ref<File[]>([]);
+const availableDepositAccounts = ref<DepositAccountSummary[]>([]);
+let depositAccountRequestSequence = 0;
+
+const rentScheduleDialogVisible = ref(false);
+const rentScheduleLoading = ref(false);
+const rentScheduleItems = ref<RentReceivable[]>([]);
 
 const meterDialogVisible = ref(false);
 const submittingMeter = ref(false);
@@ -834,6 +974,39 @@ const activeRentSum = computed(() =>
   units.value.reduce((sum, item) => sum + Number(item.activeContract?.annualRent ?? 0), 0),
 );
 const actionColumnFixed = computed<false | "right">(() => (viewportWidth.value < 768 ? false : "right"));
+const unitContractPreview = computed(() =>
+  buildRentSchedulePreview(
+    unitContractForm.startDate,
+    unitContractForm.endDate,
+    unitContractForm.billingFrequency,
+  ),
+);
+const contractPreview = computed(() =>
+  buildRentSchedulePreview(contractForm.startDate, contractForm.endDate, contractForm.billingFrequency),
+);
+const selectedDepositAccount = computed(() => {
+  const sourceContractId = contractForm.depositCarryoverSourceContractId;
+  return (
+    availableDepositAccounts.value.find((account) => account.latestContractId === sourceContractId) ??
+    availableDepositAccounts.value.find((account) => account.unitId === selectedUnit.value?.id) ??
+    null
+  );
+});
+const depositSummary = computed(() => {
+  const agreed = Number(contractForm.depositAmount) || 0;
+  const held = Number(selectedDepositAccount.value?.heldAmount ?? 0);
+  const carried =
+    contractForm.depositSettlementMode === "carryover"
+      ? Number(contractForm.depositCarryoverAmount) || 0
+      : 0;
+  return {
+    agreed,
+    held,
+    carried,
+    supplement: Math.max(agreed - carried, 0),
+    refund: Math.max(carried - agreed, 0),
+  };
+});
 
 onMounted(loadUnits);
 
@@ -875,6 +1048,8 @@ function resetUnitContractForm() {
   unitContractForm.endDate = "";
   unitContractForm.annualRent = 0;
   unitContractForm.depositAmount = 0;
+  unitContractForm.depositCarryoverAmount = 0;
+  unitContractForm.depositCarryoverSourceContractId = "";
   unitBusinessLicenseUpload.value = null;
   unitAttachmentUploads.value = [];
   if (unitBusinessLicenseInput.value) {
@@ -934,6 +1109,9 @@ async function saveUnit() {
             endDate: unitContractForm.endDate,
             annualRent: Number(unitContractForm.annualRent),
             depositAmount: Number(unitContractForm.depositAmount),
+            billingFrequency: unitContractForm.billingFrequency,
+            depositSettlementMode: unitContractForm.depositSettlementMode,
+            depositCarryoverAmount: unitContractForm.depositCarryoverAmount,
             businessLicenseFileId,
             attachmentFileIds,
           });
@@ -1136,15 +1314,20 @@ function resetContractForm() {
   contractForm.endDate = "";
   contractForm.annualRent = 0;
   contractForm.depositAmount = 0;
+  contractForm.billingFrequency = "annual";
+  contractForm.depositSettlementMode = "initial";
+  contractForm.depositCarryoverAmount = 0;
+  contractForm.depositCarryoverSourceContractId = "";
   contractForm.businessLicenseFileId = "";
   contractForm.attachmentFileIds = [];
   existingBusinessLicense.value = null;
   existingAttachments.value = [];
   businessLicenseUpload.value = null;
   attachmentUploads.value = [];
+  availableDepositAccounts.value = [];
 }
 
-function openCreateContract() {
+async function openCreateContract() {
   resetContractForm();
   const latestContract = selectedUnit.value?.contracts?.[0];
   if (latestContract) {
@@ -1160,11 +1343,13 @@ function openCreateContract() {
     contractForm.endDate = deriveContractEndDate(contractForm.startDate);
     contractForm.annualRent = latestContract.annualRent;
     contractForm.depositAmount = latestContract.depositAmount;
+    contractForm.billingFrequency = latestContract.billingFrequency;
   }
   contractDialogVisible.value = true;
+  await loadDepositAccounts(false);
 }
 
-function openEditContract(contract: Contract) {
+async function openEditContract(contract: Contract) {
   resetContractForm();
   contractForm.id = contract.id;
   contractForm.lessorName = contract.lessorName;
@@ -1179,11 +1364,95 @@ function openEditContract(contract: Contract) {
   contractForm.endDate = contract.endDate;
   contractForm.annualRent = contract.annualRent;
   contractForm.depositAmount = contract.depositAmount;
+  contractForm.billingFrequency = contract.billingFrequency;
+  contractForm.depositSettlementMode = contract.depositSettlementMode;
+  contractForm.depositCarryoverAmount = contract.depositCarryoverAmount;
+  contractForm.depositCarryoverSourceContractId = contract.depositCarryoverSourceContractId ?? "";
   contractForm.businessLicenseFileId = contract.businessLicenseFile?.id ?? "";
   contractForm.attachmentFileIds = contract.attachmentFiles.map((item) => item.id);
   existingBusinessLicense.value = contract.businessLicenseFile;
   existingAttachments.value = [...contract.attachmentFiles];
   contractDialogVisible.value = true;
+  await loadDepositAccounts(true);
+}
+
+function resetDepositSettlement() {
+  contractForm.depositSettlementMode = "initial";
+  contractForm.depositCarryoverAmount = 0;
+  contractForm.depositCarryoverSourceContractId = "";
+}
+
+async function loadDepositAccounts(preserveSnapshot: boolean) {
+  const tenantName = contractForm.tenantName.trim();
+  const unitId = selectedUnit.value?.id;
+  const requestSequence = ++depositAccountRequestSequence;
+  if (!tenantName || !unitId) {
+    availableDepositAccounts.value = [];
+    if (!preserveSnapshot) {
+      resetDepositSettlement();
+    }
+    return;
+  }
+
+  if (!preserveSnapshot) {
+    resetDepositSettlement();
+  }
+
+  try {
+    const accounts = await depositsApi.listAccounts({ unitId, tenantName });
+    if (requestSequence !== depositAccountRequestSequence) {
+      return;
+    }
+    availableDepositAccounts.value = accounts.filter(
+      (account) =>
+        account.unitId === unitId &&
+        account.tenantName.trim() === tenantName &&
+        Number(account.heldAmount) > 0 &&
+        Boolean(account.latestContractId),
+    );
+    if (!preserveSnapshot) {
+      const account = availableDepositAccounts.value[0];
+      if (account?.latestContractId) {
+        contractForm.depositSettlementMode = "carryover";
+        contractForm.depositCarryoverAmount = Number(account.heldAmount);
+        contractForm.depositCarryoverSourceContractId = account.latestContractId;
+      }
+    }
+  } catch {
+    if (requestSequence === depositAccountRequestSequence) {
+      availableDepositAccounts.value = [];
+    }
+  }
+}
+
+function handleContractTenantChange() {
+  void loadDepositAccounts(false);
+}
+
+function handleDepositSettlementModeChange(mode: Contract["depositSettlementMode"]) {
+  if (mode === "initial") {
+    resetDepositSettlement();
+    return;
+  }
+  const account = availableDepositAccounts.value[0];
+  if (!account?.latestContractId) {
+    resetDepositSettlement();
+    return;
+  }
+  contractForm.depositSettlementMode = "carryover";
+  contractForm.depositCarryoverAmount = Number(account.heldAmount);
+  contractForm.depositCarryoverSourceContractId = account.latestContractId;
+}
+
+function handleDepositSourceChange(sourceContractId: string) {
+  const account = availableDepositAccounts.value.find(
+    (item) => item.latestContractId === sourceContractId,
+  );
+  contractForm.depositCarryoverAmount = Number(account?.heldAmount ?? 0);
+}
+
+function depositAccountLabel(account: DepositAccountSummary) {
+  return `${account.unit.code} · ${account.tenantName} · ${formatCurrency(account.heldAmount)}`;
 }
 
 function onBusinessLicenseChange(event: Event) {
@@ -1214,6 +1483,12 @@ function validateContractForm() {
   }
   if (Number(contractForm.depositAmount) < 0) {
     throw new Error("押金不能小于 0");
+  }
+  if (
+    contractForm.depositSettlementMode === "carryover" &&
+    !contractForm.depositCarryoverSourceContractId
+  ) {
+    throw new Error("请选择押金结转来源合同");
   }
 }
 
@@ -1250,6 +1525,10 @@ async function saveContract(generateDocumentAfterSave = false) {
       attachmentFileIds = [...attachmentFileIds, ...uploaded.map((item) => item.id)];
     }
 
+    const depositCarryoverPayload =
+      contractForm.depositSettlementMode === "carryover"
+        ? { depositCarryoverSourceContractId: contractForm.depositCarryoverSourceContractId }
+        : {};
     const payload = {
       unitId: selectedUnit.value.id,
       lessorName: contractForm.lessorName.trim(),
@@ -1264,6 +1543,13 @@ async function saveContract(generateDocumentAfterSave = false) {
       endDate: contractForm.endDate,
       annualRent: Number(contractForm.annualRent),
       depositAmount: Number(contractForm.depositAmount),
+      billingFrequency: contractForm.billingFrequency,
+      depositSettlementMode: contractForm.depositSettlementMode,
+      depositCarryoverAmount:
+        contractForm.depositSettlementMode === "carryover"
+          ? Number(contractForm.depositCarryoverAmount)
+          : 0,
+      ...depositCarryoverPayload,
       businessLicenseFileId,
       attachmentFileIds,
     };
@@ -1294,6 +1580,20 @@ async function saveContract(generateDocumentAfterSave = false) {
     ElMessage.error(error instanceof Error ? error.message : "保存合同失败");
   } finally {
     submittingContract.value = false;
+  }
+}
+
+async function openRentSchedule(contract: Contract) {
+  rentScheduleDialogVisible.value = true;
+  rentScheduleItems.value = [];
+  try {
+    rentScheduleLoading.value = true;
+    const result = await rentReceivablesApi.list({ contractId: contract.id });
+    rentScheduleItems.value = result.items;
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : "加载合同期次失败");
+  } finally {
+    rentScheduleLoading.value = false;
   }
 }
 
@@ -1416,6 +1716,18 @@ function contractTagType(status: Contract["status"]) {
   if (status === "active") return "success";
   if (status === "future") return "warning";
   return "info";
+}
+
+function billingFrequencyLabel(frequency: Contract["billingFrequency"]) {
+  return frequency === "semiannual" ? "按半年" : "按年";
+}
+
+function rentReceivableStatusLabel(status: RentReceivable["status"]) {
+  if (status === "settled") return "已结清";
+  if (status === "overdue") return "逾期";
+  if (status === "prepaid") return "已预付";
+  if (status === "partially-prepaid") return "部分预付";
+  return "未到期";
 }
 
 function unitStatusLabel(status: UnitSummary["status"]) {

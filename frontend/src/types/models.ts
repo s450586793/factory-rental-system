@@ -1,9 +1,13 @@
 export type {
   Contract,
+  DepositAccountSummary,
   DepositRecord,
   MeterConfig,
   Receipt,
   RentPayment,
+  RentPaymentAllocationPreview,
+  RentPaymentMutationResult,
+  RentReceivable,
   StoredFile,
   UnitSummary,
   User,
