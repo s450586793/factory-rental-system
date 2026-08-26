@@ -61,6 +61,11 @@ function buildService(
     existingPayment?: Record<string, unknown> | null;
     activeReceipt?: Record<string, unknown> | null;
     contract?: Record<string, unknown>;
+    contracts?: Record<string, Record<string, unknown> | null>;
+    previewContract?: Record<string, unknown> | null;
+    previewExcludePayment?: Record<string, unknown> | null;
+    previewPayments?: Array<Record<string, unknown>>;
+    schedules?: Array<Record<string, unknown>>;
     rebuildResult?: {
       allocations: Array<{
         rentPaymentId: string;
@@ -88,13 +93,22 @@ function buildService(
     softDelete: jest.fn().mockResolvedValue({ affected: 1 }),
   };
   const contractsRepository = {
-    findOne: jest.fn().mockResolvedValue(options.contract ?? contract),
+    findOne: jest.fn().mockImplementation(({ where }) => {
+      const contractId = (where as { id: string }).id;
+      if (options.contracts && contractId in options.contracts) {
+        return Promise.resolve(options.contracts[contractId]);
+      }
+      if (options.contract?.id === contractId) {
+        return Promise.resolve(options.contract);
+      }
+      return Promise.resolve({ ...contract, id: contractId });
+    }),
   };
   const receiptsRepository = {
     findOne: jest.fn().mockResolvedValue(options.activeReceipt ?? null),
   };
   const schedulesRepository = {
-    find: jest.fn().mockResolvedValue([schedule]),
+    find: jest.fn().mockResolvedValue(options.schedules ?? [schedule]),
   };
   const manager = {
     getRepository: jest.fn((entity) => {
@@ -121,9 +135,41 @@ function buildService(
   const dataSource = {
     transaction: jest.fn().mockImplementation((callback) => callback(manager)),
   };
+  const previewContract = Object.prototype.hasOwnProperty.call(
+    options,
+    "previewContract",
+  )
+    ? options.previewContract
+    : contract;
+  const previewExcludePayment = Object.prototype.hasOwnProperty.call(
+    options,
+    "previewExcludePayment",
+  )
+    ? options.previewExcludePayment
+    : existingPayment;
+  const rootContractsRepository = {
+    findOne: jest
+      .fn()
+      .mockResolvedValue(
+        (previewContract as { deletedAt?: Date | null } | null | undefined)
+          ?.deletedAt == null
+          ? previewContract
+          : null,
+      ),
+  };
+  const activePreviewExcludePayment =
+    previewExcludePayment?.contract &&
+    (previewExcludePayment.contract as { deletedAt?: Date | null }).deletedAt !=
+      null
+      ? null
+      : previewExcludePayment;
   const rentPaymentsRepository = {
-    find: jest.fn().mockResolvedValue(existingPayment ? [existingPayment] : []),
-    findOne: jest.fn().mockResolvedValue(existingPayment),
+    find: jest
+      .fn()
+      .mockResolvedValue(
+        options.previewPayments ?? (existingPayment ? [existingPayment] : []),
+      ),
+    findOne: jest.fn().mockResolvedValue(activePreviewExcludePayment),
     create: jest.fn(),
     save: jest.fn(),
     softDelete: jest.fn(),
@@ -152,6 +198,7 @@ function buildService(
   };
   const ServiceWithMocks = RentPaymentsService as unknown as new (
     rentPaymentsRepository: unknown,
+    contractsRepository: unknown,
     schedulesRepository: unknown,
     filesService: unknown,
     dataSource: unknown,
@@ -161,6 +208,7 @@ function buildService(
   return {
     service: new ServiceWithMocks(
       rentPaymentsRepository,
+      rootContractsRepository,
       schedulesRepository,
       filesService,
       dataSource,
@@ -173,6 +221,7 @@ function buildService(
     receiptsRepository,
     rentPaymentsRepository,
     rentReceivablesService,
+    rootContractsRepository,
     schedulesRepository,
     transactionalPaymentsRepository,
   };
@@ -182,6 +231,7 @@ describe("RentPaymentsService", () => {
   it("saves and rebuilds allocations with the same transaction manager", async () => {
     const {
       service,
+      contractsRepository,
       dataSource,
       filesService,
       manager,
@@ -196,6 +246,13 @@ describe("RentPaymentsService", () => {
       "voucher-1",
     ]);
     expect(dataSource.transaction).toHaveBeenCalledTimes(1);
+    expect(contractsRepository.findOne).toHaveBeenCalledWith({
+      where: {
+        id: "contract-1",
+        deletedAt: expect.objectContaining({ _type: "isNull" }),
+      },
+      lock: { mode: "pessimistic_write" },
+    });
     expect(transactionalPaymentsRepository.save).toHaveBeenCalledWith(
       expect.objectContaining({
         attachmentFiles: [{ id: "voucher-1" }],
@@ -249,27 +306,78 @@ describe("RentPaymentsService", () => {
   });
 
   it("rebuilds both contracts when moving a payment between contracts", async () => {
+    const oldContract = {
+      ...contract,
+      id: "contract-z",
+    };
     const newContract = {
-      id: "contract-2",
+      id: "contract-a",
       unitId: "unit-2",
       tenantName: "新租户",
     };
-    const { service, manager, rentReceivablesService } = buildService({
-      existingPayment: fullPayment,
-      contract: newContract,
+    const movingPayment = {
+      ...fullPayment,
+      contractId: oldContract.id,
+      contract: oldContract,
+    };
+    const {
+      service,
+      contractsRepository,
+      dataSource,
+      manager,
+      receiptsRepository,
+      rentReceivablesService,
+      transactionalPaymentsRepository,
+    } = buildService({
+      existingPayment: movingPayment,
+      contracts: {
+        [oldContract.id]: oldContract,
+        [newContract.id]: newContract,
+      },
     });
 
     await service.update(
       "payment-1",
-      createDto({ contractId: "contract-2" }) as never,
+      createDto({ contractId: newContract.id }) as never,
     );
 
+    expect(dataSource.transaction).toHaveBeenCalledTimes(1);
+    expect(transactionalPaymentsRepository.findOne).toHaveBeenCalledWith({
+      where: { id: "payment-1" },
+      lock: { mode: "pessimistic_write" },
+      loadEagerRelations: false,
+    });
+    expect(
+      contractsRepository.findOne.mock.calls.map(
+        ([query]) => (query.where as { id: string }).id,
+      ),
+    ).toEqual(["contract-a", "contract-z"]);
+    expect(contractsRepository.findOne).toHaveBeenNthCalledWith(1, {
+      where: {
+        id: "contract-a",
+        deletedAt: expect.objectContaining({ _type: "isNull" }),
+      },
+      lock: { mode: "pessimistic_write" },
+    });
+    expect(contractsRepository.findOne).toHaveBeenNthCalledWith(2, {
+      where: {
+        id: "contract-z",
+        deletedAt: expect.objectContaining({ _type: "isNull" }),
+      },
+      lock: { mode: "pessimistic_write" },
+    });
+    expect(
+      contractsRepository.findOne.mock.invocationCallOrder[1],
+    ).toBeLessThan(receiptsRepository.findOne.mock.invocationCallOrder[0]);
+    expect(receiptsRepository.findOne.mock.invocationCallOrder[0]).toBeLessThan(
+      transactionalPaymentsRepository.save.mock.invocationCallOrder[0],
+    );
     expect(
       rentReceivablesService.rebuildPaymentAllocations,
-    ).toHaveBeenNthCalledWith(1, manager, "contract-1");
+    ).toHaveBeenNthCalledWith(1, manager, "contract-a");
     expect(
       rentReceivablesService.rebuildPaymentAllocations,
-    ).toHaveBeenNthCalledWith(2, manager, "contract-2");
+    ).toHaveBeenNthCalledWith(2, manager, "contract-z");
   });
 
   it("rejects an update with an active receipt before saving or rebuilding", async () => {
@@ -291,16 +399,39 @@ describe("RentPaymentsService", () => {
   it("soft-deletes a payment and rebuilds later FIFO allocations in one transaction", async () => {
     const {
       service,
+      contractsRepository,
       manager,
+      receiptsRepository,
       rentReceivablesService,
       transactionalPaymentsRepository,
     } = buildService({ existingPayment: fullPayment });
 
     const result = await service.remove("payment-1");
 
+    expect(transactionalPaymentsRepository.findOne).toHaveBeenCalledWith({
+      where: { id: "payment-1" },
+      lock: { mode: "pessimistic_write" },
+      loadEagerRelations: false,
+    });
+    expect(contractsRepository.findOne).toHaveBeenCalledWith({
+      where: {
+        id: "contract-1",
+        deletedAt: expect.objectContaining({ _type: "isNull" }),
+      },
+      lock: { mode: "pessimistic_write" },
+    });
+    expect(
+      contractsRepository.findOne.mock.invocationCallOrder[0],
+    ).toBeLessThan(receiptsRepository.findOne.mock.invocationCallOrder[0]);
+    expect(receiptsRepository.findOne.mock.invocationCallOrder[0]).toBeLessThan(
+      transactionalPaymentsRepository.softDelete.mock.invocationCallOrder[0],
+    );
     expect(transactionalPaymentsRepository.softDelete).toHaveBeenCalledWith(
       "payment-1",
     );
+    expect(transactionalPaymentsRepository.findOneOrFail).toHaveBeenCalledWith({
+      where: { id: "payment-1" },
+    });
     expect(
       rentReceivablesService.rebuildPaymentAllocations,
     ).toHaveBeenCalledWith(manager, "contract-1");
@@ -399,6 +530,129 @@ describe("RentPaymentsService", () => {
     expect(
       rentReceivablesService.rebuildPaymentAllocations,
     ).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["missing", null],
+    ["soft-deleted", { ...contract, deletedAt: new Date("2026-08-01") }],
+  ])("rejects a %s preview target contract", async (_case, candidate) => {
+    const { service, rootContractsRepository, schedulesRepository } =
+      buildService({ previewContract: candidate });
+
+    await expect(
+      service.previewAllocation({
+        contractId: "contract-1",
+        paymentDate: "2026-09-01",
+        amount: 100,
+      }),
+    ).rejects.toThrow("目标合同不存在或已删除");
+
+    expect(rootContractsRepository.findOne).toHaveBeenCalledWith({
+      where: {
+        id: "contract-1",
+        deletedAt: expect.objectContaining({ _type: "isNull" }),
+      },
+    });
+    expect(schedulesRepository.find).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["is missing", null],
+    [
+      "belongs to a soft-deleted contract",
+      {
+        ...fullPayment,
+        contract: { ...contract, deletedAt: new Date("2026-08-01") },
+      },
+    ],
+  ])("rejects an excluded payment that is %s", async (_case, candidate) => {
+    const { service, rentPaymentsRepository, schedulesRepository } =
+      buildService({ previewExcludePayment: candidate });
+
+    await expect(
+      service.previewAllocation({
+        contractId: "contract-1",
+        paymentDate: "2026-09-01",
+        amount: 100,
+        excludePaymentId: "payment-1",
+      }),
+    ).rejects.toThrow("原房租收费记录不存在或已删除");
+
+    expect(rentPaymentsRepository.findOne).toHaveBeenCalledWith({
+      where: {
+        id: "payment-1",
+        contract: {
+          deletedAt: expect.objectContaining({ _type: "isNull" }),
+        },
+      },
+    });
+    expect(schedulesRepository.find).not.toHaveBeenCalled();
+  });
+
+  it("allows an excluded payment from a different active contract", async () => {
+    const oldContractPayment = {
+      ...fullPayment,
+      contractId: "contract-1",
+    };
+    const { service } = buildService({
+      previewContract: { ...contract, id: "contract-2" },
+      previewExcludePayment: oldContractPayment,
+      previewPayments: [],
+    });
+
+    await expect(
+      service.previewAllocation({
+        contractId: "contract-2",
+        paymentDate: "2026-09-01",
+        amount: 100000,
+        excludePaymentId: "payment-1",
+      }),
+    ).resolves.toMatchObject({ unallocatedAmount: 0 });
+  });
+
+  it("preserves the excluded payment id ordering for same-day edit preview", async () => {
+    const secondSchedule = {
+      ...schedule,
+      id: "schedule-2",
+      sequence: 2,
+      periodStart: "2027-09-01",
+      periodEnd: "2028-08-31",
+      dueDate: "2027-09-01",
+    };
+    const editedPayment = {
+      ...fullPayment,
+      id: "payment-b",
+      amount: 50000,
+      paymentDate: "2026-09-01",
+    };
+    const laterSameDayPayment = {
+      ...fullPayment,
+      id: "payment-a",
+      amount: 100000,
+      paymentDate: "2026-09-01",
+    };
+    const { service } = buildService({
+      previewExcludePayment: editedPayment,
+      previewPayments: [editedPayment, laterSameDayPayment],
+      schedules: [schedule, secondSchedule],
+    });
+
+    const result = await service.previewAllocation({
+      contractId: "contract-1",
+      paymentDate: "2026-09-01",
+      amount: 100000,
+      excludePaymentId: "payment-b",
+    });
+
+    expect(result.allocations).toEqual([
+      {
+        scheduleId: "schedule-2",
+        sequence: 2,
+        periodStart: "2027-09-01",
+        periodEnd: "2028-08-31",
+        allocatedAmount: 100000,
+      },
+    ]);
   });
 });
 
