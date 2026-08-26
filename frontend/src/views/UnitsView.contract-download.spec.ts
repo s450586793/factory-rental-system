@@ -210,6 +210,25 @@ const receivable = {
   status: "settled",
 } satisfies RentReceivable;
 
+const secondReceivable = {
+  ...receivable,
+  id: "schedule-2",
+  contractId: "contract-second",
+  periodStart: "2028-07-01",
+  periodEnd: "2029-06-30",
+  dueDate: "2028-07-01",
+} satisfies RentReceivable;
+
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((resolvePromise, rejectPromise) => {
+    resolve = resolvePromise;
+    reject = rejectPromise;
+  });
+  return { promise, resolve, reject };
+}
+
 function passthroughStub(tag = "div") {
   return defineComponent({
     props: ["modelValue"],
@@ -263,6 +282,7 @@ function mountUnitsView() {
         "el-row": passthroughStub("div"),
         "el-col": passthroughStub("div"),
         "el-space": passthroughStub("div"),
+        "el-tooltip": passthroughStub("div"),
         "el-table": defineComponent({
           props: ["data"],
           setup(props, { slots }) {
@@ -344,7 +364,15 @@ function mountUnitsView() {
                   ...attrs,
                   type: "button",
                   "aria-pressed": group.value() === props.label,
-                  onClick: () => group.select(props.label),
+                  onClick: (event: MouseEvent) => {
+                    const forwardedClick = attrs.onClick;
+                    if (Array.isArray(forwardedClick)) {
+                      forwardedClick.forEach((handler) => handler(event));
+                    } else if (typeof forwardedClick === "function") {
+                      forwardedClick(event);
+                    }
+                    group.select(props.label);
+                  },
                 },
                 slots.default?.(),
               );
@@ -582,6 +610,61 @@ describe("UnitsView contract download", () => {
     expect(payload).not.toHaveProperty("depositCarryoverSourceContractId");
   });
 
+  it("does not overwrite a manual initial choice when the pending account lookup resolves", async () => {
+    const lookup = deferred<DepositAccountSummary[]>();
+    vi.mocked(depositsApi.listAccounts).mockReturnValueOnce(lookup.promise);
+    const wrapper = mountUnitsView();
+    await flushPromises();
+    await openCreateContractDialog(wrapper);
+
+    expect(wrapper.text()).toContain("正在核对押金账户");
+    await findButton(wrapper, "保存").trigger("click");
+    await flushPromises();
+    expect(contractsApi.create).not.toHaveBeenCalled();
+    expect(ElMessage.error).toHaveBeenCalledWith("押金账户正在查询，请稍后再保存");
+    await wrapper.get('[aria-label="押金处理-首次收取"]').trigger("click");
+    lookup.resolve([depositAccount]);
+    await flushPromises();
+
+    expect(wrapper.get('[aria-label="押金处理方式"]').text()).toContain("首次收取");
+    expect(wrapper.text()).toContain("当前持有¥10,000.00");
+    await findButton(wrapper, "保存").trigger("click");
+    await flushPromises();
+    const payload = vi.mocked(contractsApi.create).mock.calls.at(-1)?.[0];
+    expect(payload).toMatchObject({ depositSettlementMode: "initial", depositCarryoverAmount: 0 });
+    expect(payload).not.toHaveProperty("depositCarryoverSourceContractId");
+  });
+
+  it("blocks renewal submit after account lookup failure and retries successfully", async () => {
+    vi.mocked(depositsApi.listAccounts).mockRejectedValueOnce(new Error("network unavailable"));
+    const retry = deferred<DepositAccountSummary[]>();
+    vi.mocked(depositsApi.listAccounts).mockReturnValueOnce(retry.promise);
+    const wrapper = mountUnitsView();
+    await flushPromises();
+    await openCreateContractDialog(wrapper);
+
+    expect(wrapper.text()).toContain("押金账户查询失败，请重试");
+    await findButton(wrapper, "保存").trigger("click");
+    await flushPromises();
+    expect(contractsApi.create).not.toHaveBeenCalled();
+    expect(ElMessage.error).toHaveBeenCalledWith("押金账户查询失败，请重试");
+
+    await wrapper.get('[aria-label="重试押金账户查询"]').trigger("click");
+    expect(wrapper.text()).toContain("正在核对押金账户");
+    retry.resolve([depositAccount]);
+    await flushPromises();
+    expect(wrapper.get('[aria-label="押金处理方式"]').text()).toContain("沿用已有押金");
+
+    await findButton(wrapper, "保存").trigger("click");
+    await flushPromises();
+    expect(contractsApi.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        depositSettlementMode: "carryover",
+        depositCarryoverSourceContractId: "contract-old",
+      }),
+    );
+  });
+
   it("preserves an edited contract's saved deposit snapshot despite a newer account balance", async () => {
     const historicalContract: Contract = {
       ...oldContract,
@@ -616,26 +699,67 @@ describe("UnitsView contract download", () => {
     );
   });
 
-  it("recalculates carryover only after selecting another source", async () => {
-    vi.mocked(depositsApi.listAccounts).mockResolvedValue([
-      depositAccount,
-      { ...depositAccount, heldAmount: 7000, latestContractId: "contract-other", lastTransactionDate: "2026-08-01" },
-    ]);
+  it("allows editing other fields after account lookup fails without changing the saved snapshot", async () => {
+    const historicalContract: Contract = {
+      ...oldContract,
+      depositSettlementMode: "carryover",
+      depositCarryoverAmount: 6000,
+      depositCarryoverSourceContractId: "contract-source",
+    };
+    const historicalUnit = { ...unit, contracts: [historicalContract] };
+    vi.mocked(unitsApi.list).mockResolvedValue([historicalUnit]);
+    vi.mocked(unitsApi.detail).mockResolvedValue(historicalUnit);
+    vi.mocked(depositsApi.listAccounts).mockRejectedValueOnce(new Error("network unavailable"));
+    const wrapper = mountUnitsView();
+    await flushPromises();
+    await findButton(wrapper, "管理").trigger("click");
+    await flushPromises();
+    await findButton(wrapper, "编辑").trigger("click");
+    await flushPromises();
+
+    expect(wrapper.text()).toContain("押金账户查询失败，请重试");
+    expect(wrapper.text()).toContain("已结转¥6,000.00");
+    await findInputByLabel(wrapper, "甲方联系人").setValue("新联系人");
+    await findButton(wrapper, "保存").trigger("click");
+    await flushPromises();
+    expect(contractsApi.update).toHaveBeenCalledWith(
+      "contract-old",
+      expect.objectContaining({
+        lessorContactName: "新联系人",
+        depositSettlementMode: "carryover",
+        depositCarryoverAmount: 6000,
+        depositCarryoverSourceContractId: "contract-source",
+      }),
+    );
+  });
+
+  it("shows the latest source contract as read-only audit information", async () => {
     const wrapper = mountUnitsView();
     await flushPromises();
     await openCreateContractDialog(wrapper);
 
-    await wrapper.get('select[aria-label="押金结转来源合同"]').setValue("contract-other");
+    expect(wrapper.find('select[aria-label="押金结转来源合同"]').exists()).toBe(false);
+    expect(wrapper.get('[aria-label="押金结转来源合同"]').text()).toContain("contract-old");
+  });
+
+  it("isolates account lookup state after closing and reopening the contract dialog", async () => {
+    const staleLookup = deferred<DepositAccountSummary[]>();
+    vi.mocked(depositsApi.listAccounts)
+      .mockReturnValueOnce(staleLookup.promise)
+      .mockResolvedValueOnce([depositAccount]);
+    const wrapper = mountUnitsView();
     await flushPromises();
-    expect(wrapper.text()).toContain("已结转¥7,000.00");
-    await findButton(wrapper, "保存").trigger("click");
+    await openCreateContractDialog(wrapper);
+    await wrapper.get('[aria-label="押金处理-首次收取"]').trigger("click");
+    await findButton(wrapper, "取消").trigger("click");
+    await openCreateContractDialog(wrapper);
     await flushPromises();
-    expect(contractsApi.create).toHaveBeenCalledWith(
-      expect.objectContaining({
-        depositCarryoverAmount: 7000,
-        depositCarryoverSourceContractId: "contract-other",
-      }),
-    );
+
+    expect(wrapper.get('[aria-label="押金处理方式"]').text()).toContain("沿用已有押金");
+    staleLookup.resolve([{ ...depositAccount, heldAmount: 7000 }]);
+    await flushPromises();
+    expect(wrapper.text()).toContain("已结转¥10,000.00");
+    expect(wrapper.text()).not.toContain("押金账户查询失败，请重试");
   });
 
   it("loads contract receivable periods in the schedule dialog", async () => {
@@ -650,6 +774,80 @@ describe("UnitsView contract download", () => {
     expect(wrapper.text()).toContain("第 1 期");
     expect(wrapper.text()).toContain("2026-07-01");
     expect(wrapper.text()).toContain("已结清");
+  });
+
+  it("ignores a late schedule success after closing contract A and opening contract B", async () => {
+    const contractB = { ...savedContract, id: "contract-second", startDate: "2028-07-01", endDate: "2029-06-30" };
+    const twoContractUnit = { ...unit, contracts: [oldContract, contractB] };
+    const requestA = deferred<{ items: RentReceivable[] }>();
+    const requestB = deferred<{ items: RentReceivable[] }>();
+    vi.mocked(unitsApi.list).mockResolvedValue([twoContractUnit]);
+    vi.mocked(unitsApi.detail).mockResolvedValue(twoContractUnit);
+    vi.mocked(rentReceivablesApi.list).mockImplementation((query) =>
+      query.contractId === "contract-old" ? requestA.promise : requestB.promise,
+    );
+    const wrapper = mountUnitsView();
+    await flushPromises();
+    await findButton(wrapper, "管理").trigger("click");
+    await flushPromises();
+
+    const viewScheduleButtons = wrapper.findAll("button").filter((button) => button.text() === "查看期次");
+    await viewScheduleButtons[0].trigger("click");
+    await findButton(wrapper, "关闭").trigger("click");
+    await viewScheduleButtons[1].trigger("click");
+    requestA.resolve({ items: [receivable] });
+    await flushPromises();
+    expect(wrapper.text()).toContain("正在加载期次");
+    expect(wrapper.get(".rent-schedule-table").text()).not.toContain("第 1 期");
+
+    requestB.resolve({ items: [secondReceivable] });
+    await flushPromises();
+    expect(wrapper.text()).toContain("2028-07-01");
+    expect(wrapper.text()).not.toContain("正在加载期次");
+  });
+
+  it("shows an error for the current schedule request", async () => {
+    vi.mocked(rentReceivablesApi.list).mockRejectedValueOnce(new Error("期次接口不可用"));
+    const wrapper = mountUnitsView();
+    await flushPromises();
+    await findButton(wrapper, "管理").trigger("click");
+    await flushPromises();
+    await findButton(wrapper, "查看期次").trigger("click");
+    await flushPromises();
+
+    expect(wrapper.text()).toContain("期次接口不可用");
+    expect(wrapper.text()).not.toContain("正在加载期次");
+    expect(ElMessage.error).toHaveBeenCalledWith("期次接口不可用");
+  });
+
+  it("ignores a late schedule error and finally after contract B starts loading", async () => {
+    const contractB = { ...savedContract, id: "contract-second", startDate: "2028-07-01", endDate: "2029-06-30" };
+    const twoContractUnit = { ...unit, contracts: [oldContract, contractB] };
+    const requestA = deferred<{ items: RentReceivable[] }>();
+    const requestB = deferred<{ items: RentReceivable[] }>();
+    vi.mocked(unitsApi.list).mockResolvedValue([twoContractUnit]);
+    vi.mocked(unitsApi.detail).mockResolvedValue(twoContractUnit);
+    vi.mocked(rentReceivablesApi.list).mockImplementation((query) =>
+      query.contractId === "contract-old" ? requestA.promise : requestB.promise,
+    );
+    const wrapper = mountUnitsView();
+    await flushPromises();
+    await findButton(wrapper, "管理").trigger("click");
+    await flushPromises();
+
+    const viewScheduleButtons = wrapper.findAll("button").filter((button) => button.text() === "查看期次");
+    await viewScheduleButtons[0].trigger("click");
+    await findButton(wrapper, "关闭").trigger("click");
+    await viewScheduleButtons[1].trigger("click");
+    requestA.reject(new Error("stale schedule failure"));
+    await flushPromises();
+    expect(wrapper.text()).toContain("正在加载期次");
+    expect(ElMessage.error).not.toHaveBeenCalledWith("stale schedule failure");
+
+    requestB.resolve({ items: [secondReceivable] });
+    await flushPromises();
+    expect(wrapper.text()).toContain("2028-07-01");
+    expect(wrapper.text()).not.toContain("正在加载期次");
   });
 
   it("keeps rent payment mutation and list return types distinct", () => {

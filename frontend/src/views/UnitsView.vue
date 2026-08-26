@@ -542,7 +542,12 @@
       </div>
     </el-dialog>
 
-    <el-dialog v-model="contractDialogVisible" :title="contractForm.id ? '编辑合同' : '新增合同'" width="760px">
+    <el-dialog
+      v-model="contractDialogVisible"
+      :title="contractForm.id ? '编辑合同' : '新增合同'"
+      width="760px"
+      @closed="handleContractDialogClosed"
+    >
         <el-form label-position="top">
         <h4 class="contract-party-heading">甲方信息</h4>
         <el-row :gutter="14">
@@ -673,25 +678,40 @@
               size="small"
               @change="handleDepositSettlementModeChange"
             >
-              <el-radio-button label="initial" aria-label="押金处理-首次收取">首次收取</el-radio-button>
-              <el-radio-button label="carryover" aria-label="押金处理-沿用已有押金">沿用已有押金</el-radio-button>
+              <el-radio-button
+                label="initial"
+                aria-label="押金处理-首次收取"
+                @click="markDepositSelectionTouched"
+              >首次收取</el-radio-button>
+              <el-radio-button
+                label="carryover"
+                aria-label="押金处理-沿用已有押金"
+                @click="markDepositSelectionTouched"
+              >沿用已有押金</el-radio-button>
             </el-radio-group>
           </div>
-          <el-form-item v-if="contractForm.depositSettlementMode === 'carryover'" label="结转来源合同">
-            <el-select
-              v-model="contractForm.depositCarryoverSourceContractId"
-              aria-label="押金结转来源合同"
-              style="width: 100%"
-              @change="handleDepositSourceChange"
-            >
-              <el-option
-                v-for="account in availableDepositAccounts"
-                :key="account.latestContractId || `${account.unitId}-${account.tenantName}`"
-                :label="depositAccountLabel(account)"
-                :value="account.latestContractId || ''"
+          <div v-if="depositLookupLoading" class="deposit-lookup-status" role="status">
+            正在核对押金账户
+          </div>
+          <div v-else-if="depositLookupError" class="deposit-lookup-status is-error" role="alert">
+            <span>{{ depositLookupError }}</span>
+            <el-tooltip content="重试押金账户查询" placement="top">
+              <el-button
+                circle
+                :icon="RefreshRight"
+                aria-label="重试押金账户查询"
+                @click="retryDepositAccountLookup"
               />
-            </el-select>
-          </el-form-item>
+            </el-tooltip>
+          </div>
+          <div
+            v-if="contractForm.depositSettlementMode === 'carryover'"
+            class="deposit-source-audit"
+            aria-label="押金结转来源合同"
+          >
+            <small>结转来源合同</small>
+            <strong>{{ contractForm.depositCarryoverSourceContractId || "--" }}</strong>
+          </div>
           <div class="deposit-summary-grid">
             <div><small>约定押金</small><strong>{{ formatCurrency(depositSummary.agreed) }}</strong></div>
             <div><small>当前持有</small><strong>{{ formatCurrency(depositSummary.held) }}</strong></div>
@@ -738,13 +758,22 @@
       </el-form>
 
       <template #footer>
-        <el-button @click="contractDialogVisible = false">取消</el-button>
+        <el-button @click="closeContractDialog">取消</el-button>
         <el-button :loading="submittingContract" @click="saveContract(false)">保存</el-button>
         <el-button type="primary" :loading="submittingContract" @click="saveContract(true)">保存并下载合同</el-button>
       </template>
     </el-dialog>
 
-    <el-dialog v-model="rentScheduleDialogVisible" title="合同期次" width="820px">
+    <el-dialog
+      v-model="rentScheduleDialogVisible"
+      title="合同期次"
+      width="820px"
+      @closed="handleRentScheduleDialogClosed"
+    >
+      <div v-if="rentScheduleLoading" class="rent-schedule-status" role="status">正在加载期次</div>
+      <div v-else-if="rentScheduleError" class="rent-schedule-status is-error" role="alert">
+        {{ rentScheduleError }}
+      </div>
       <div class="table-shell">
         <el-table :data="rentScheduleItems" v-loading="rentScheduleLoading" size="small" class="rent-schedule-table">
           <el-table-column label="期次" width="72">
@@ -767,6 +796,9 @@
           </el-table-column>
         </el-table>
       </div>
+      <template #footer>
+        <el-button @click="closeRentScheduleDialog">关闭</el-button>
+      </template>
     </el-dialog>
 
     <el-dialog v-model="meterDialogVisible" :title="meterForm.id ? '编辑表计' : '新增表计'" width="620px">
@@ -850,6 +882,7 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from "vue";
 import { ElMessage, ElMessageBox } from "element-plus";
+import { RefreshRight } from "@element-plus/icons-vue";
 import AppShell from "../components/AppShell.vue";
 import { apiFileUrl, apiGeneratedContractDocumentUrl } from "../api/client";
 import { contractsApi, depositsApi, filesApi, rentReceivablesApi, unitsApi, utilitiesApi } from "../api";
@@ -939,11 +972,20 @@ const existingAttachments = ref<StoredFile[]>([]);
 const businessLicenseUpload = ref<File | null>(null);
 const attachmentUploads = ref<File[]>([]);
 const availableDepositAccounts = ref<DepositAccountSummary[]>([]);
+const depositLookupLoading = ref(false);
+const depositLookupError = ref("");
+const depositLookupSucceeded = ref(false);
+const depositLookupRequiredForSubmit = ref(false);
+const depositSelectionTouchedVersion = ref(-1);
 let depositAccountRequestSequence = 0;
+let depositDecisionVersion = 0;
 
 const rentScheduleDialogVisible = ref(false);
 const rentScheduleLoading = ref(false);
 const rentScheduleItems = ref<RentReceivable[]>([]);
+const rentScheduleError = ref("");
+const rentScheduleContractId = ref("");
+let rentScheduleRequestSequence = 0;
 
 const meterDialogVisible = ref(false);
 const submittingMeter = ref(false);
@@ -985,12 +1027,7 @@ const contractPreview = computed(() =>
   buildRentSchedulePreview(contractForm.startDate, contractForm.endDate, contractForm.billingFrequency),
 );
 const selectedDepositAccount = computed(() => {
-  const sourceContractId = contractForm.depositCarryoverSourceContractId;
-  return (
-    availableDepositAccounts.value.find((account) => account.latestContractId === sourceContractId) ??
-    availableDepositAccounts.value.find((account) => account.unitId === selectedUnit.value?.id) ??
-    null
-  );
+  return availableDepositAccounts.value[0] ?? null;
 });
 const depositSummary = computed(() => {
   const agreed = Number(contractForm.depositAmount) || 0;
@@ -1301,6 +1338,7 @@ async function confirmRemoveUnit(unitId: string) {
 }
 
 function resetContractForm() {
+  invalidateDepositLookup();
   contractForm.id = "";
   contractForm.lessorName = "";
   contractForm.lessorLicenseCode = "";
@@ -1325,6 +1363,10 @@ function resetContractForm() {
   businessLicenseUpload.value = null;
   attachmentUploads.value = [];
   availableDepositAccounts.value = [];
+  depositLookupLoading.value = false;
+  depositLookupError.value = "";
+  depositLookupSucceeded.value = false;
+  depositLookupRequiredForSubmit.value = false;
 }
 
 async function openCreateContract() {
@@ -1346,7 +1388,8 @@ async function openCreateContract() {
     contractForm.billingFrequency = latestContract.billingFrequency;
   }
   contractDialogVisible.value = true;
-  await loadDepositAccounts(false);
+  const decisionVersion = beginDepositAutoDecision(false);
+  await loadDepositAccounts(false, decisionVersion);
 }
 
 async function openEditContract(contract: Contract) {
@@ -1373,7 +1416,8 @@ async function openEditContract(contract: Contract) {
   existingBusinessLicense.value = contract.businessLicenseFile;
   existingAttachments.value = [...contract.attachmentFiles];
   contractDialogVisible.value = true;
-  await loadDepositAccounts(true);
+  const decisionVersion = beginDepositAutoDecision(true);
+  await loadDepositAccounts(true, decisionVersion);
 }
 
 function resetDepositSettlement() {
@@ -1382,21 +1426,43 @@ function resetDepositSettlement() {
   contractForm.depositCarryoverSourceContractId = "";
 }
 
-async function loadDepositAccounts(preserveSnapshot: boolean) {
+function invalidateDepositLookup() {
+  depositAccountRequestSequence += 1;
+  depositDecisionVersion += 1;
+  depositSelectionTouchedVersion.value = -1;
+}
+
+function beginDepositAutoDecision(preserveSnapshot: boolean) {
+  depositDecisionVersion += 1;
+  depositSelectionTouchedVersion.value = -1;
+  if (!preserveSnapshot) {
+    resetDepositSettlement();
+  }
+  depositLookupRequiredForSubmit.value = !preserveSnapshot;
+  return depositDecisionVersion;
+}
+
+function markDepositSelectionTouched() {
+  depositSelectionTouchedVersion.value = depositDecisionVersion;
+}
+
+async function loadDepositAccounts(preserveSnapshot: boolean, decisionVersion: number) {
   const tenantName = contractForm.tenantName.trim();
   const unitId = selectedUnit.value?.id;
   const requestSequence = ++depositAccountRequestSequence;
+  depositLookupError.value = "";
+  depositLookupSucceeded.value = false;
   if (!tenantName || !unitId) {
     availableDepositAccounts.value = [];
+    depositLookupLoading.value = false;
+    depositLookupSucceeded.value = true;
     if (!preserveSnapshot) {
       resetDepositSettlement();
     }
     return;
   }
 
-  if (!preserveSnapshot) {
-    resetDepositSettlement();
-  }
+  depositLookupLoading.value = true;
 
   try {
     const accounts = await depositsApi.listAccounts({ unitId, tenantName });
@@ -1410,7 +1476,11 @@ async function loadDepositAccounts(preserveSnapshot: boolean) {
         Number(account.heldAmount) > 0 &&
         Boolean(account.latestContractId),
     );
-    if (!preserveSnapshot) {
+    depositLookupSucceeded.value = true;
+    if (
+      !preserveSnapshot &&
+      depositSelectionTouchedVersion.value !== decisionVersion
+    ) {
       const account = availableDepositAccounts.value[0];
       if (account?.latestContractId) {
         contractForm.depositSettlementMode = "carryover";
@@ -1421,15 +1491,27 @@ async function loadDepositAccounts(preserveSnapshot: boolean) {
   } catch {
     if (requestSequence === depositAccountRequestSequence) {
       availableDepositAccounts.value = [];
+      depositLookupError.value = "押金账户查询失败，请重试";
+      depositLookupSucceeded.value = false;
+    }
+  } finally {
+    if (requestSequence === depositAccountRequestSequence) {
+      depositLookupLoading.value = false;
     }
   }
 }
 
 function handleContractTenantChange() {
-  void loadDepositAccounts(false);
+  const decisionVersion = beginDepositAutoDecision(false);
+  void loadDepositAccounts(false, decisionVersion);
+}
+
+function retryDepositAccountLookup() {
+  void loadDepositAccounts(!depositLookupRequiredForSubmit.value, depositDecisionVersion);
 }
 
 function handleDepositSettlementModeChange(mode: Contract["depositSettlementMode"]) {
+  markDepositSelectionTouched();
   if (mode === "initial") {
     resetDepositSettlement();
     return;
@@ -1444,15 +1526,19 @@ function handleDepositSettlementModeChange(mode: Contract["depositSettlementMode
   contractForm.depositCarryoverSourceContractId = account.latestContractId;
 }
 
-function handleDepositSourceChange(sourceContractId: string) {
-  const account = availableDepositAccounts.value.find(
-    (item) => item.latestContractId === sourceContractId,
-  );
-  contractForm.depositCarryoverAmount = Number(account?.heldAmount ?? 0);
+function closeContractDialog() {
+  contractDialogVisible.value = false;
+  invalidateDepositLookup();
+  depositLookupLoading.value = false;
 }
 
-function depositAccountLabel(account: DepositAccountSummary) {
-  return `${account.unit.code} · ${account.tenantName} · ${formatCurrency(account.heldAmount)}`;
+function handleContractDialogClosed() {
+  invalidateDepositLookup();
+  depositLookupLoading.value = false;
+  depositLookupError.value = "";
+  depositLookupSucceeded.value = false;
+  depositLookupRequiredForSubmit.value = false;
+  availableDepositAccounts.value = [];
 }
 
 function onBusinessLicenseChange(event: Event) {
@@ -1485,10 +1571,20 @@ function validateContractForm() {
     throw new Error("押金不能小于 0");
   }
   if (
+    contractForm.tenantName.trim() &&
+    depositLookupRequiredForSubmit.value &&
+    !depositLookupSucceeded.value
+  ) {
+    throw new Error(
+      depositLookupError.value ||
+        (depositLookupLoading.value ? "押金账户正在查询，请稍后再保存" : "请先查询押金账户"),
+    );
+  }
+  if (
     contractForm.depositSettlementMode === "carryover" &&
     !contractForm.depositCarryoverSourceContractId
   ) {
-    throw new Error("请选择押金结转来源合同");
+    throw new Error("当前没有可结转的押金账户");
   }
 }
 
@@ -1565,7 +1661,7 @@ async function saveContract(generateDocumentAfterSave = false) {
       triggerFileDownload(apiGeneratedContractDocumentUrl(savedContract.id), buildGeneratedContractDownloadName(savedContract));
     }
 
-    contractDialogVisible.value = false;
+    closeContractDialog();
     await Promise.all([refreshSelectedUnit(), loadUnits()]);
     ElMessage.success(
       shouldGenerateDocument
@@ -1584,17 +1680,49 @@ async function saveContract(generateDocumentAfterSave = false) {
 }
 
 async function openRentSchedule(contract: Contract) {
+  const requestSequence = ++rentScheduleRequestSequence;
+  rentScheduleContractId.value = contract.id;
   rentScheduleDialogVisible.value = true;
   rentScheduleItems.value = [];
+  rentScheduleError.value = "";
   try {
     rentScheduleLoading.value = true;
     const result = await rentReceivablesApi.list({ contractId: contract.id });
-    rentScheduleItems.value = result.items;
+    if (isCurrentRentScheduleRequest(requestSequence, contract.id)) {
+      rentScheduleItems.value = result.items;
+    }
   } catch (error) {
-    ElMessage.error(error instanceof Error ? error.message : "加载合同期次失败");
+    if (isCurrentRentScheduleRequest(requestSequence, contract.id)) {
+      const message = error instanceof Error ? error.message : "加载合同期次失败";
+      rentScheduleError.value = message;
+      ElMessage.error(message);
+    }
   } finally {
-    rentScheduleLoading.value = false;
+    if (isCurrentRentScheduleRequest(requestSequence, contract.id)) {
+      rentScheduleLoading.value = false;
+    }
   }
+}
+
+function isCurrentRentScheduleRequest(requestSequence: number, contractId: string) {
+  return (
+    requestSequence === rentScheduleRequestSequence &&
+    contractId === rentScheduleContractId.value &&
+    rentScheduleDialogVisible.value
+  );
+}
+
+function closeRentScheduleDialog() {
+  rentScheduleDialogVisible.value = false;
+  handleRentScheduleDialogClosed();
+}
+
+function handleRentScheduleDialogClosed() {
+  rentScheduleRequestSequence += 1;
+  rentScheduleContractId.value = "";
+  rentScheduleLoading.value = false;
+  rentScheduleItems.value = [];
+  rentScheduleError.value = "";
 }
 
 async function downloadContractDocument(contractId: string) {
