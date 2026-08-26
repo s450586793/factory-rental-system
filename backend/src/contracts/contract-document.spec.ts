@@ -247,6 +247,59 @@ describe("buildContractDocumentOverlays", () => {
     expect(bodyText).not.toContain("8333.33元");
   });
 
+  it("uses a settlement-neutral delivery condition while retaining each deposit clause", () => {
+    const settlementCases = [
+      {
+        name: "initial",
+        expectedDepositClause: "乙方应向甲方支付履约保证金人民币10000.00元。",
+      },
+      {
+        name: "equal carryover",
+        expectedDepositClause: "原已支付押金人民币10000.00元继续作为本合同履约保证金。",
+        apply(contract: Contract) {
+          contract.depositSettlementMode = DepositSettlementMode.CARRYOVER;
+          contract.depositCarryoverAmount = 10000;
+        },
+      },
+      {
+        name: "supplement",
+        expectedDepositClause:
+          "原已支付押金人民币10000.00元继续作为本合同履约保证金，乙方尚需补足人民币5000.00元。",
+        apply(contract: Contract) {
+          contract.depositSettlementMode = DepositSettlementMode.CARRYOVER;
+          contract.depositAmount = 15000;
+          contract.depositCarryoverAmount = 10000;
+        },
+      },
+      {
+        name: "refund",
+        expectedDepositClause:
+          "原已支付押金人民币15000.00元，其中人民币10000.00元继续作为本合同履约保证金，甲方应退还人民币5000.00元。",
+        apply(contract: Contract) {
+          contract.depositSettlementMode = DepositSettlementMode.CARRYOVER;
+          contract.depositCarryoverAmount = 15000;
+        },
+      },
+    ];
+
+    for (const settlementCase of settlementCases) {
+      const contract = buildContractFixture();
+      settlementCase.apply?.(contract);
+      const pages = buildStandardLeaseContractPages({
+        contract,
+        unit: buildUnitFixture(),
+        generatedDate: "2026-07-01",
+      });
+      const bodyText = pages.flatMap((page) => page.sections).join("\n");
+
+      expect(bodyText).toContain(
+        "甲方应在乙方支付首期租金，并按本合同第三条完成履约保证金支付、结转、补足或退还安排后，将厂房按现状交付乙方使用。",
+      );
+      expect(bodyText).not.toContain("甲方应在乙方按约支付首期租金、押金并完成入驻资料提交后");
+      expect(bodyText).toContain(settlementCase.expectedDepositClause);
+    }
+  });
+
   it("states annual rent payments using the contract billing frequency snapshot", () => {
     const pages = buildStandardLeaseContractPages({
       contract: buildContractFixture(),
