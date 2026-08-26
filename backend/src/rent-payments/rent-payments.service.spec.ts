@@ -252,6 +252,7 @@ describe("RentPaymentsService", () => {
         deletedAt: expect.objectContaining({ _type: "isNull" }),
       },
       lock: { mode: "pessimistic_write" },
+      loadEagerRelations: false,
     });
     expect(transactionalPaymentsRepository.save).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -358,6 +359,7 @@ describe("RentPaymentsService", () => {
         deletedAt: expect.objectContaining({ _type: "isNull" }),
       },
       lock: { mode: "pessimistic_write" },
+      loadEagerRelations: false,
     });
     expect(contractsRepository.findOne).toHaveBeenNthCalledWith(2, {
       where: {
@@ -365,6 +367,7 @@ describe("RentPaymentsService", () => {
         deletedAt: expect.objectContaining({ _type: "isNull" }),
       },
       lock: { mode: "pessimistic_write" },
+      loadEagerRelations: false,
     });
     expect(
       contractsRepository.findOne.mock.invocationCallOrder[1],
@@ -419,6 +422,7 @@ describe("RentPaymentsService", () => {
         deletedAt: expect.objectContaining({ _type: "isNull" }),
       },
       lock: { mode: "pessimistic_write" },
+      loadEagerRelations: false,
     });
     expect(
       contractsRepository.findOne.mock.invocationCallOrder[0],
@@ -565,7 +569,7 @@ describe("RentPaymentsService", () => {
         contract: { ...contract, deletedAt: new Date("2026-08-01") },
       },
     ],
-  ])("rejects an excluded payment that is %s", async (_case, candidate) => {
+  ])("rejects an excluded payment that %s", async (_case, candidate) => {
     const { service, rentPaymentsRepository, schedulesRepository } =
       buildService({ previewExcludePayment: candidate });
 

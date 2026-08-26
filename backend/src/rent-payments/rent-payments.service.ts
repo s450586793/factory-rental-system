@@ -254,6 +254,7 @@ export class RentPaymentsService {
       const contract = await repository.findOne({
         where: { id: contractId, deletedAt: IsNull() },
         lock: { mode: "pessimistic_write" },
+        loadEagerRelations: false,
       });
       if (!contract) {
         throw new BadRequestException("合同不存在或已删除");
