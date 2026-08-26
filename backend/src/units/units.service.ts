@@ -7,6 +7,7 @@ import { InjectRepository } from "@nestjs/typeorm";
 import { QueryFailedError, Repository } from "typeorm";
 import { formatShanghaiDate } from "../common/date/shanghai-date";
 import { Contract, ContractStatus } from "../contracts/contract.entity";
+import { calculateAccruedReceivable } from "../contracts/contract-rent-schedule";
 import { UtilityMeterConfig } from "../utilities/utility-meter-config.entity";
 import { CreateUnitDto, UpdateUnitDto } from "./units.dto";
 import { FactoryUnit } from "./factory-unit.entity";
@@ -188,6 +189,7 @@ export class UnitsService {
             endDate: activeContract.endDate,
             annualRent: activeContract.annualRent,
             depositAmount: activeContract.depositAmount,
+            receivableAmount: this.resolveReceivableAmount(activeContract),
             paidAmount: this.resolvePaidAmount(activeContract),
             outstandingAmount: this.resolveOutstandingAmount(activeContract),
             status: resolveContractStatus(activeContract.startDate, activeContract.endDate),
@@ -215,6 +217,7 @@ export class UnitsService {
       endDate: contract.endDate,
       annualRent: contract.annualRent,
       depositAmount: contract.depositAmount,
+      receivableAmount: this.resolveReceivableAmount(contract),
       paidAmount: this.resolvePaidAmount(contract),
       outstandingAmount: this.resolveOutstandingAmount(contract),
       status: resolveContractStatus(contract.startDate, contract.endDate),
@@ -250,6 +253,10 @@ export class UnitsService {
   }
 
   private resolveOutstandingAmount(contract: Contract) {
-    return Number(Math.max(Number(contract.annualRent) - this.resolvePaidAmount(contract), 0).toFixed(2));
+    return Number(Math.max(this.resolveReceivableAmount(contract) - this.resolvePaidAmount(contract), 0).toFixed(2));
+  }
+
+  private resolveReceivableAmount(contract: Contract) {
+    return calculateAccruedReceivable(contract, today());
   }
 }

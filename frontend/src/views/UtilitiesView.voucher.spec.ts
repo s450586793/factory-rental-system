@@ -44,6 +44,7 @@ const contract = {
   endDate: "2026-12-31",
   annualRent: 12000,
   depositAmount: 1000,
+  receivableAmount: 12000,
   paidAmount: 0,
   outstandingAmount: 12000,
   status: "active",

@@ -65,6 +65,7 @@ const activeContract = {
   endDate: "2027-06-30",
   annualRent: 50000,
   depositAmount: 10000,
+  receivableAmount: 50000,
   paidAmount: 0,
   outstandingAmount: 0,
   status: "active",
@@ -85,6 +86,7 @@ const oldContract = {
   endDate: "2027-06-30",
   annualRent: 50000,
   depositAmount: 10000,
+  receivableAmount: 50000,
   paidAmount: 0,
   outstandingAmount: 0,
   status: "active",
@@ -120,6 +122,7 @@ const savedContract = {
   endDate: "2028-06-30",
   annualRent: 50000,
   depositAmount: 10000,
+  receivableAmount: 0,
   paidAmount: 0,
   outstandingAmount: 0,
   status: "active",
@@ -314,6 +317,26 @@ describe("UnitsView contract download", () => {
       filename: "厂房租赁合同_5_曹忠_2027-07-01_2028-06-30.pdf",
       mimeType: "application/pdf",
     });
+  });
+
+  it("shows the accrued receivable instead of one annual rent in contract history", async () => {
+    const accruedContract = Object.assign({}, oldContract, {
+      receivableAmount: 100000,
+    }) as Contract;
+    const accruedUnit = {
+      ...unit,
+      contracts: [accruedContract],
+    };
+    vi.mocked(unitsApi.list).mockResolvedValue([accruedUnit]);
+    vi.mocked(unitsApi.detail).mockResolvedValue(accruedUnit);
+    const wrapper = mountUnitsView();
+    await flushPromises();
+
+    await findButton(wrapper, "显示").trigger("click");
+    await findButton(wrapper, "管理").trigger("click");
+    await flushPromises();
+
+    expect(wrapper.text()).toContain("¥100,000.00");
   });
 
   it("defaults a new contract deposit from the previous contract and submits it", async () => {

@@ -7,6 +7,7 @@ import { In, Repository } from "typeorm";
 import { formatShanghaiDate } from "../common/date/shanghai-date";
 import type { StorageConfig } from "../config/storage.config";
 import { Contract } from "../contracts/contract.entity";
+import { buildAccruedRentPeriods } from "../contracts/contract-rent-schedule";
 import { StoredFile } from "../files/stored-file.entity";
 import { Receipt, ReceiptSourceType, ReceiptStatus } from "../receipts/receipt.entity";
 import {
@@ -53,10 +54,6 @@ function resolveStatus(receivableCents: number, paidCents: number) {
     return RentReconciliationStatus.CREDIT;
   }
   return RentReconciliationStatus.SETTLED;
-}
-
-function contractOverlapsYear(contract: Contract, year: number) {
-  return contract.startDate <= `${year}-12-31` && contract.endDate >= `${year}-01-01`;
 }
 
 @Injectable()
@@ -131,23 +128,24 @@ export class RentReconciliationService {
       },
     });
     const availableYears = this.resolveAvailableYears(contracts);
-    const selectedContracts = year ? contracts.filter((contract) => contractOverlapsYear(contract, year)) : contracts;
-    const activePayments = selectedContracts.flatMap((contract) =>
+    const activePayments = contracts.flatMap((contract) =>
       (contract.rentPayments ?? []).filter((payment) => !payment.deletedAt),
     );
     const receiptMap = await this.loadActiveReceiptMap(activePayments.map((payment) => payment.id));
     const contractsByTenant = new Map<string, Contract[]>();
 
-    selectedContracts.forEach((contract) => {
+    contracts.forEach((contract) => {
       const tenantName = normalizeTenantName(contract.tenantName);
       const tenantContracts = contractsByTenant.get(tenantName) ?? [];
       tenantContracts.push(contract);
       contractsByTenant.set(tenantName, tenantContracts);
     });
 
-    const ledgers = [...contractsByTenant.entries()].map(([tenantName, tenantContracts]) =>
-      this.buildTenantLedger(tenantName, tenantContracts, receiptMap),
-    );
+    const ledgers = [...contractsByTenant.entries()]
+      .map(([tenantName, tenantContracts]) =>
+        this.buildTenantLedger(tenantName, tenantContracts, receiptMap, year),
+      )
+      .filter((ledger) => ledger.periods.length > 0);
 
     return { ledgers, availableYears };
   }
@@ -175,9 +173,15 @@ export class RentReconciliationService {
     return receiptMap;
   }
 
-  private buildTenantLedger(tenantName: string, contracts: Contract[], receiptMap: Map<string, Receipt>) {
+  private buildTenantLedger(
+    tenantName: string,
+    contracts: Contract[],
+    receiptMap: Map<string, Receipt>,
+    year?: number,
+  ) {
     const periods = contracts
-      .map((contract) => this.buildContractPeriod(contract, receiptMap))
+      .flatMap((contract) => this.buildContractPeriods(contract, receiptMap))
+      .filter((period) => !year || Number(period.startDate.slice(0, 4)) === year)
       .sort((left, right) => right.startDate.localeCompare(left.startDate));
     const receivableCents = periods.reduce((sum, period) => sum + toCents(period.receivableAmount), 0);
     const paidCents = periods.reduce((sum, period) => sum + toCents(period.paidAmount), 0);
@@ -197,7 +201,10 @@ export class RentReconciliationService {
     } satisfies TenantReconciliationDetail;
   }
 
-  private buildContractPeriod(contract: Contract, receiptMap: Map<string, Receipt>): ContractPeriodReconciliation {
+  private buildContractPeriods(
+    contract: Contract,
+    receiptMap: Map<string, Receipt>,
+  ): ContractPeriodReconciliation[] {
     const payments = (contract.rentPayments ?? [])
       .filter((payment) => !payment.deletedAt)
       .map((payment) => ({
@@ -212,28 +219,75 @@ export class RentReconciliationService {
       }))
       .sort(
         (left, right) =>
-          right.paymentDate.localeCompare(left.paymentDate) || right.id.localeCompare(left.id),
+          left.paymentDate.localeCompare(right.paymentDate) || left.id.localeCompare(right.id),
       ) satisfies RentReconciliationPayment[];
-    const receivableCents = toCents(contract.annualRent);
-    const paidCents = payments.reduce((sum, payment) => sum + toCents(payment.amount), 0);
-    const { outstandingCents, creditCents } = resolveBalance(receivableCents, paidCents);
+    const allocatedPeriods = buildAccruedRentPeriods(contract, formatShanghaiDate()).map((period) => ({
+      ...period,
+      receivableCents: toCents(period.receivableAmount),
+      paidCents: 0,
+      payments: [] as RentReconciliationPayment[],
+    }));
 
-    return {
-      contractId: contract.id,
-      unit: {
-        id: contract.unit.id,
-        code: contract.unit.code,
-        location: contract.unit.location,
-      },
-      startDate: contract.startDate,
-      endDate: contract.endDate,
-      receivableAmount: fromCents(receivableCents),
-      paidAmount: fromCents(paidCents),
-      outstandingAmount: fromCents(outstandingCents),
-      creditAmount: fromCents(creditCents),
-      status: resolveStatus(receivableCents, paidCents),
-      payments,
-    };
+    payments.forEach((payment) => {
+      let remainingCents = toCents(payment.amount);
+      allocatedPeriods.forEach((period) => {
+        if (remainingCents <= 0) {
+          return;
+        }
+        const allocationCents = Math.min(
+          remainingCents,
+          Math.max(period.receivableCents - period.paidCents, 0),
+        );
+        if (allocationCents <= 0) {
+          return;
+        }
+        this.addPaymentAllocation(period.payments, payment, allocationCents);
+        period.paidCents += allocationCents;
+        remainingCents -= allocationCents;
+      });
+
+      const latestPeriod = allocatedPeriods.at(-1);
+      if (latestPeriod && remainingCents > 0) {
+        this.addPaymentAllocation(latestPeriod.payments, payment, remainingCents);
+        latestPeriod.paidCents += remainingCents;
+      }
+    });
+
+    return allocatedPeriods.map((period) => {
+      const { outstandingCents, creditCents } = resolveBalance(period.receivableCents, period.paidCents);
+      return {
+        contractId: contract.id,
+        unit: {
+          id: contract.unit.id,
+          code: contract.unit.code,
+          location: contract.unit.location,
+        },
+        startDate: period.startDate,
+        endDate: period.endDate,
+        receivableAmount: fromCents(period.receivableCents),
+        paidAmount: fromCents(period.paidCents),
+        outstandingAmount: fromCents(outstandingCents),
+        creditAmount: fromCents(creditCents),
+        status: resolveStatus(period.receivableCents, period.paidCents),
+        payments: period.payments.sort(
+          (left, right) =>
+            right.paymentDate.localeCompare(left.paymentDate) || right.id.localeCompare(left.id),
+        ),
+      };
+    });
+  }
+
+  private addPaymentAllocation(
+    allocations: RentReconciliationPayment[],
+    payment: RentReconciliationPayment,
+    allocationCents: number,
+  ) {
+    const existing = allocations.find((allocation) => allocation.id === payment.id);
+    if (existing) {
+      existing.amount = fromCents(toCents(existing.amount) + allocationCents);
+      return;
+    }
+    allocations.push({ ...payment, amount: fromCents(allocationCents) });
   }
 
   private serializeReceipt(receipt: Receipt | null): ReconciliationReceipt | null {
@@ -261,14 +315,12 @@ export class RentReconciliationService {
   private resolveAvailableYears(contracts: Contract[]) {
     const years = new Set<number>();
     contracts.forEach((contract) => {
-      const startYear = Number(contract.startDate.slice(0, 4));
-      const endYear = Number(contract.endDate.slice(0, 4));
-      if (!Number.isInteger(startYear) || !Number.isInteger(endYear)) {
-        return;
-      }
-      for (let year = startYear; year <= endYear; year += 1) {
-        years.add(year);
-      }
+      buildAccruedRentPeriods(contract, formatShanghaiDate()).forEach((period) => {
+        const year = Number(period.startDate.slice(0, 4));
+        if (Number.isInteger(year)) {
+          years.add(year);
+        }
+      });
     });
     return [...years].sort((left, right) => right - left);
   }

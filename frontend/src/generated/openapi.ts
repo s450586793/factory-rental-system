@@ -33,6 +33,7 @@ export type Contract = {
   endDate: string;
   annualRent: number;
   depositAmount: number;
+  receivableAmount: number;
   paidAmount: number;
   outstandingAmount: number;
   status: "future" | "active" | "expired";
@@ -73,6 +74,7 @@ export type UnitSummary = {
     endDate: string;
     annualRent: number;
     depositAmount: number;
+    receivableAmount: number;
     paidAmount: number;
     outstandingAmount: number;
     status: "future" | "active" | "expired";

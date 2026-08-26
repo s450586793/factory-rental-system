@@ -21,7 +21,7 @@
         <div class="page-header">
           <div>
             <h2>房租对账</h2>
-            <p>按租户汇总各合同期应收、实收、结欠和结余。</p>
+            <p>按租户汇总各租赁期应收、实收、结欠和结余。</p>
           </div>
         </div>
 
@@ -35,7 +35,7 @@
               :value="tenantName"
             />
           </el-select>
-          <el-select v-model="filters.year" placeholder="合同年度" aria-label="合同年度">
+          <el-select v-model="filters.year" placeholder="租赁年度" aria-label="租赁年度">
             <el-option label="全部年度" value="" />
             <el-option v-for="year in listResponse.availableYears" :key="year" :label="`${year} 年`" :value="year" />
           </el-select>
@@ -52,7 +52,7 @@
         <div class="table-shell">
           <el-table :data="listResponse.items" v-loading="loading" size="small" row-key="tenantName">
             <el-table-column prop="tenantName" label="租户" min-width="132" show-overflow-tooltip />
-            <el-table-column prop="contractCount" label="合同期" width="72" />
+            <el-table-column prop="contractCount" label="租赁期" width="72" />
             <el-table-column label="累计应收" min-width="112" align="right">
               <template #default="{ row }">{{ formatCurrency(row.receivableAmount) }}</template>
             </el-table-column>
@@ -95,7 +95,7 @@
           <div>
             <p class="reconciliation-eyebrow">房租对账单</p>
             <h2>{{ selectedTenantName }}</h2>
-            <p>{{ selectedYear ? `${selectedYear} 年合同范围` : "全部合同期间" }}</p>
+            <p>{{ selectedYear ? `${selectedYear} 租赁年度` : "全部租赁期间" }}</p>
           </div>
           <el-tag v-if="detail" :type="statusTagType(detail.status)" size="large">
             {{ statusLabel(detail.status) }}
@@ -117,7 +117,11 @@
 
         <div v-if="detailLoading" class="reconciliation-empty">正在加载对账明细...</div>
         <div v-else-if="detail" class="reconciliation-period-list">
-          <section v-for="period in detail.periods" :key="period.contractId" class="reconciliation-period">
+          <section
+            v-for="period in detail.periods"
+            :key="`${period.contractId}-${period.startDate}`"
+            class="reconciliation-period"
+          >
             <div class="reconciliation-period-header">
               <div>
                 <h3>{{ period.unit.code }} / {{ period.unit.location }}</h3>

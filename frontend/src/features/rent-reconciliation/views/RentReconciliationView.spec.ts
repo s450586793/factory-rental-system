@@ -247,6 +247,9 @@ describe("RentReconciliationView", () => {
 
     expect(wrapper.text()).toContain("大理石");
     expect(wrapper.text()).toContain("100,000.00");
+    expect(wrapper.text()).toContain("租赁期");
+    expect(wrapper.text()).not.toContain("合同期");
+    expect(wrapper.find('select[aria-label="租赁年度"]').exists()).toBe(true);
 
     await findButton(wrapper, "查看对账").trigger("click");
     await flushPromises();

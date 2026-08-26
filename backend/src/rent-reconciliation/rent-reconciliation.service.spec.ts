@@ -98,7 +98,71 @@ function createService(contracts: unknown[], receipts: unknown[] = []) {
 }
 
 describe("RentReconciliationService", () => {
-  it("aggregates a tenant across contract periods with cent-safe balances and payment evidence", async () => {
+  it("splits a multi-year contract into lease years and allocates payments oldest first", async () => {
+    const payment = paymentFixture({
+      id: "payment-1",
+      contractId: "contract-1",
+      paymentDate: "2025-11-01",
+      amount: 100000,
+    });
+    const { service } = createService([
+      contractFixture({
+        id: "contract-1",
+        tenantName: "王长建",
+        startDate: "2024-10-08",
+        endDate: "2026-10-07",
+        annualRent: 90000,
+        payments: [payment],
+      }),
+    ]);
+
+    const result = await service.detail({ tenantName: "王长建" });
+
+    expect(result).toEqual(
+      expect.objectContaining({
+        contractCount: 2,
+        receivableAmount: 180000,
+        paidAmount: 100000,
+        outstandingAmount: 80000,
+      }),
+    );
+    expect(result.periods).toEqual([
+      expect.objectContaining({
+        startDate: "2025-10-08",
+        endDate: "2026-10-07",
+        receivableAmount: 90000,
+        paidAmount: 10000,
+        outstandingAmount: 80000,
+        payments: [expect.objectContaining({ id: "payment-1", amount: 10000 })],
+      }),
+      expect.objectContaining({
+        startDate: "2024-10-08",
+        endDate: "2025-10-07",
+        receivableAmount: 90000,
+        paidAmount: 90000,
+        outstandingAmount: 0,
+        payments: [expect.objectContaining({ id: "payment-1", amount: 90000 })],
+      }),
+    ]);
+
+    const filtered = await service.detail({ tenantName: "王长建", year: 2025 });
+    expect(filtered).toEqual(
+      expect.objectContaining({
+        contractCount: 1,
+        receivableAmount: 90000,
+        paidAmount: 10000,
+        outstandingAmount: 80000,
+      }),
+    );
+    expect(filtered.periods).toEqual([
+      expect.objectContaining({
+        startDate: "2025-10-08",
+        endDate: "2026-10-07",
+      }),
+    ]);
+  });
+
+  it("aggregates started lease periods with cent-safe balances and payment evidence", async () => {
     const firstPayment = paymentFixture({
       id: "payment-1",
       contractId: "contract-1",
@@ -146,33 +210,33 @@ describe("RentReconciliationService", () => {
       [receiptFixture("payment-1"), receiptFixture("payment-1", "void")],
     );
 
-    const result = await service.detail({ tenantName: " 大理石 ", year: 2026 });
+    const result = await service.detail({ tenantName: " 大理石 ", year: 2025 });
 
     expect(result).toEqual(
       expect.objectContaining({
         tenantName: "大理石",
-        contractCount: 2,
-        receivableAmount: 200000.01,
-        paidAmount: 175000.02,
+        contractCount: 1,
+        receivableAmount: 100000.01,
+        paidAmount: 75000.02,
         outstandingAmount: 24999.99,
         creditAmount: 0,
         status: "outstanding",
-        lastPaymentDate: "2026-10-01",
+        lastPaymentDate: "2025-11-01",
       }),
     );
-    expect(result.periods).toHaveLength(2);
+    expect(result.periods).toHaveLength(1);
     expect(result.periods[0]).toEqual(
       expect.objectContaining({
-        contractId: "contract-2",
-        receivableAmount: 100000,
-        paidAmount: 100000,
-        outstandingAmount: 0,
+        contractId: "contract-1",
+        receivableAmount: 100000.01,
+        paidAmount: 75000.02,
+        outstandingAmount: 24999.99,
         creditAmount: 0,
-        status: "settled",
+        status: "outstanding",
       }),
     );
-    expect(result.periods[1].payments).toHaveLength(2);
-    expect(result.periods[1].payments[0]).toEqual(
+    expect(result.periods[0].payments).toHaveLength(2);
+    expect(result.periods[0].payments[0]).toEqual(
       expect.objectContaining({
         id: "payment-2",
         contractId: "contract-1",
@@ -180,7 +244,7 @@ describe("RentReconciliationService", () => {
         activeReceipt: null,
       }),
     );
-    expect(result.periods[1].payments[1]).toEqual(
+    expect(result.periods[0].payments[1]).toEqual(
       expect.objectContaining({
         id: "payment-1",
         activeReceipt: expect.objectContaining({
@@ -233,11 +297,11 @@ describe("RentReconciliationService", () => {
 
     const result = await service.list({
       keyword: " 大理 ",
-      year: 2026,
+      year: 2025,
       status: "credit" as never,
     });
 
-    expect(result.availableYears).toEqual([2026, 2025, 2024]);
+    expect(result.availableYears).toEqual([2025, 2024]);
     expect(result.items).toEqual([
       expect.objectContaining({
         tenantName: "大理石",
@@ -310,7 +374,7 @@ describe("RentReconciliationService", () => {
       }),
     ]);
 
-    const generated = await service.generatePdf({ tenantName: "大理石/仓储", year: 2026 });
+    const generated = await service.generatePdf({ tenantName: "大理石/仓储", year: 2025 });
 
     expect(generated.buffer.subarray(0, 4).toString()).toBe("%PDF");
     expect(generated.filename).toMatch(/^房租对账单_大理石_仓储_\d{4}-\d{2}-\d{2}\.pdf$/);

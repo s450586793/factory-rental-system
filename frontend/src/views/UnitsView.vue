@@ -392,7 +392,7 @@
             </el-table-column>
             <el-table-column label="应收" width="90">
               <template #default="{ row }">
-                {{ displayRentAmount(row.annualRent) }}
+                {{ displayRentAmount(row.receivableAmount) }}
               </template>
             </el-table-column>
             <el-table-column label="押金" width="90">
