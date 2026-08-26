@@ -43,7 +43,11 @@ function normalizeTenantName(value: string) {
 }
 
 function activeAllocation(allocation: RentPaymentAllocation) {
-  return allocation.deletedAt == null && allocation.payment?.deletedAt == null;
+  return (
+    allocation.deletedAt == null &&
+    allocation.payment != null &&
+    allocation.payment.deletedAt == null
+  );
 }
 
 function resolvePeriodStatus(

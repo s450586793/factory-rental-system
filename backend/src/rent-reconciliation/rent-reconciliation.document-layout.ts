@@ -17,6 +17,28 @@ export interface PdfTextSegment {
   tone: PdfTextTone;
 }
 
+export const PAYMENT_CELL_HORIZONTAL_INSET = 5;
+export const PAYMENT_CELL_VERTICAL_INSET = 7;
+export const PAYMENT_ROW_MIN_HEIGHT = 28;
+
+export function measurePaymentRowHeight(
+  values: string[],
+  widths: number[],
+  measureHeight: (text: string, width: number) => number,
+) {
+  return Math.max(
+    PAYMENT_ROW_MIN_HEIGHT,
+    ...values.map(
+      (value, index) =>
+        measureHeight(
+          value,
+          widths[index] - PAYMENT_CELL_HORIZONTAL_INSET * 2,
+        ) +
+        PAYMENT_CELL_VERTICAL_INSET * 2,
+    ),
+  );
+}
+
 function formatMoney(value: number) {
   return `￥${Number(value).toFixed(2)}`;
 }

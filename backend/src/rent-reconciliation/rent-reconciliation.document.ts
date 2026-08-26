@@ -7,6 +7,9 @@ import type {
 import {
   buildPeriodAmountSegments,
   buildSummaryItems,
+  measurePaymentRowHeight,
+  PAYMENT_CELL_HORIZONTAL_INSET,
+  PAYMENT_CELL_VERTICAL_INSET,
   type PdfTextSegment,
 } from "./rent-reconciliation.document-layout";
 
@@ -91,11 +94,16 @@ export async function renderRentReconciliationPdf(
       doc
         .fillColor(options.color ?? CONTENT_COLOR)
         .fontSize(options.size ?? 9)
-        .text(text, x + 5, y + 7, {
-          width: width - 10,
-          align: options.align ?? "left",
-          lineGap: 1,
-        });
+        .text(
+          text,
+          x + PAYMENT_CELL_HORIZONTAL_INSET,
+          y + PAYMENT_CELL_VERTICAL_INSET,
+          {
+            width: width - PAYMENT_CELL_HORIZONTAL_INSET * 2,
+            align: options.align ?? "left",
+            lineGap: 1,
+          },
+        );
     };
 
     const drawPaymentHeader = () => {
@@ -155,16 +163,6 @@ export async function renderRentReconciliationPdf(
     const drawPayment = (payment: RentReconciliationPayment) => {
       const widths = [76, 82, 68, 118, contentWidth - 344];
       const note = payment.note?.trim() || "--";
-      doc.fontSize(8.5);
-      const noteHeight = doc.heightOfString(note, {
-        width: widths[4] - 10,
-        lineGap: 1,
-      });
-      const rowHeight = Math.max(28, noteHeight + 14);
-      if (ensureSpace(rowHeight)) {
-        drawPaymentHeader();
-      }
-
       const receiptText = payment.activeReceipt?.receiptNo ?? "未开收据";
       const values = [
         payment.paymentDate,
@@ -173,6 +171,20 @@ export async function renderRentReconciliationPdf(
         receiptText,
         note,
       ];
+      doc.fontSize(8.5);
+      const rowHeight = measurePaymentRowHeight(
+        values,
+        widths,
+        (value, width) =>
+          doc.heightOfString(value, {
+            width,
+            lineGap: 1,
+          }),
+      );
+      if (ensureSpace(rowHeight)) {
+        drawPaymentHeader();
+      }
+
       let x = PAGE_MARGIN;
       values.forEach((value, index) => {
         drawCellText(value, x, cursorY, widths[index], {

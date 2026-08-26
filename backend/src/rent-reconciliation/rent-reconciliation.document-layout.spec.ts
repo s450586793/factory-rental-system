@@ -2,6 +2,7 @@ import { RentReconciliationPeriodStatus } from "./rent-reconciliation.types";
 import {
   buildPeriodAmountSegments,
   buildSummaryItems,
+  measurePaymentRowHeight,
 } from "./rent-reconciliation.document-layout";
 
 describe("rent reconciliation PDF layout", () => {
@@ -74,5 +75,29 @@ describe("rent reconciliation PDF layout", () => {
       amount: 0,
       tone: "default",
     });
+  });
+
+  it("measures every payment column and uses the tallest wrapped value", () => {
+    const values = [
+      "2026-01-15",
+      "￥50000.00",
+      "转".repeat(50),
+      `RC-${"9".repeat(80)}`,
+      "长备注",
+    ];
+    const widths = [76, 82, 68, 118, 167];
+    const heights = [10, 10, 72, 54, 20];
+    const measureHeight = jest
+      .fn<number, [string, number]>()
+      .mockImplementation(
+        (_text, width) => heights[widths.indexOf(width + 10)],
+      );
+
+    const rowHeight = measurePaymentRowHeight(values, widths, measureHeight);
+
+    expect(measureHeight.mock.calls).toEqual(
+      values.map((value, index) => [value, widths[index] - 10]),
+    );
+    expect(rowHeight).toBe(86);
   });
 });

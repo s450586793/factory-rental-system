@@ -104,4 +104,43 @@ describe("renderRentReconciliationPdf", () => {
     expect(pageCount(buffer)).toBeGreaterThan(1);
     expect(pageCount(buffer)).toBeLessThan(10);
   });
+
+  it("expands rows for a payment method at the 50-character DTO limit", async () => {
+    const shortDetail = detailFixture(10);
+    const wrappedDetail = detailFixture(10);
+    wrappedDetail.periods[0].payments.forEach((payment) => {
+      payment.method = "转".repeat(50);
+      payment.note = "短备注";
+      payment.activeReceipt = null;
+    });
+
+    const [shortBuffer, wrappedBuffer] = await Promise.all([
+      renderRentReconciliationPdf(shortDetail, fontPath, "2026-08-21"),
+      renderRentReconciliationPdf(wrappedDetail, fontPath, "2026-08-21"),
+    ]);
+
+    expect(pageCount(shortBuffer)).toBe(1);
+    expect(pageCount(wrappedBuffer)).toBe(3);
+  });
+
+  it("uses the tallest long payment cell without appending a blank page", async () => {
+    const detail = detailFixture(10);
+    detail.periods[0].payments.forEach((payment, index) => {
+      payment.method = "转".repeat(50);
+      payment.note = "组合备注".repeat(20);
+      payment.activeReceipt = {
+        id: `receipt-${index}`,
+        receiptNo: `RC-${"9".repeat(80)}`,
+        pdfFile: null,
+      };
+    });
+
+    const buffer = await renderRentReconciliationPdf(
+      detail,
+      fontPath,
+      "2026-08-21",
+    );
+
+    expect(pageCount(buffer)).toBe(3);
+  });
 });

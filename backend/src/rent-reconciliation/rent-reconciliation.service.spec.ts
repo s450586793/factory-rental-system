@@ -344,6 +344,41 @@ describe("RentReconciliationService", () => {
     ]);
   });
 
+  it.each([undefined, null])(
+    "ignores an allocation whose payment relation is %s",
+    async (missingPayment) => {
+      const payment = paymentFixture({
+        id: "payment-missing-relation",
+        contractId: "contract-1",
+        amount: 90000,
+        paymentDate: "2026-01-01",
+      });
+      const schedule = scheduleFixture({
+        id: "schedule-missing-relation",
+        sequence: 1,
+        periodStart: "2025-01-01",
+        periodEnd: "2025-12-31",
+        dueDate: "2025-01-01",
+        allocations: [{ payment, allocatedAmount: 90000 }],
+      });
+      schedule.allocations[0].payment = missingPayment as never;
+      const { service } = createService({
+        schedules: [schedule],
+        payments: [payment],
+      });
+
+      const detail = await service.detail({ tenantName: "大理石" });
+
+      expect(detail).toMatchObject({
+        duePaidAmount: 0,
+        outstandingAmount: 90000,
+        unallocatedAmount: 90000,
+      });
+      expect(detail.periods[0]).toMatchObject({ paidAmount: 0 });
+      expect(detail.periods[0].payments).toEqual([]);
+    },
+  );
+
   it("filters by periodStart year and derived status while retaining every saved-plan year", async () => {
     const creditPayment = paymentFixture({
       id: "payment-credit",
