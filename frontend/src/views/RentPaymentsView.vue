@@ -4,7 +4,7 @@
       <div class="toolbar-row">
         <el-button type="primary" :icon="Plus" @click="openCreate">新增房租收费</el-button>
         <el-tooltip content="刷新房租数据" placement="bottom">
-          <el-button :icon="Refresh" aria-label="刷新" @click="loadPageData">刷新</el-button>
+          <el-button :icon="Refresh" :loading="loading" aria-label="刷新" @click="loadPageData">刷新</el-button>
         </el-tooltip>
       </div>
     </template>
@@ -433,6 +433,8 @@ const viewportWidth = useViewportWidth();
 
 let allocationPreviewTimer: ReturnType<typeof setTimeout> | undefined;
 let allocationPreviewRequestSequence = 0;
+let pageLoadRequestSequence = 0;
+let componentMounted = false;
 
 const form = reactive({
   id: "",
@@ -572,10 +574,21 @@ watch(dialogVisible, (visible) => {
   }
 });
 
-onMounted(loadPageData);
-onBeforeUnmount(invalidateAllocationPreview);
+onMounted(() => {
+  componentMounted = true;
+  void loadPageData();
+});
+onBeforeUnmount(() => {
+  componentMounted = false;
+  pageLoadRequestSequence += 1;
+  invalidateAllocationPreview();
+});
 
 async function loadPageData() {
+  if (!componentMounted) {
+    return;
+  }
+  const requestSequence = ++pageLoadRequestSequence;
   try {
     loading.value = true;
     const [unitList, paymentList, receiptList, receivableList] = await Promise.all([
@@ -584,15 +597,25 @@ async function loadPageData() {
       receiptsApi.list(),
       rentReceivablesApi.list({}),
     ]);
-    units.value = unitList;
-    payments.value = paymentList;
-    receipts.value = receiptList;
-    receivables.value = receivableList.items;
+    if (isCurrentPageLoadRequest(requestSequence)) {
+      units.value = unitList;
+      payments.value = paymentList;
+      receipts.value = receiptList;
+      receivables.value = receivableList.items;
+    }
   } catch (error) {
-    ElMessage.error(error instanceof Error ? error.message : "加载房租收费数据失败");
+    if (isCurrentPageLoadRequest(requestSequence)) {
+      ElMessage.error(error instanceof Error ? error.message : "加载房租收费数据失败");
+    }
   } finally {
-    loading.value = false;
+    if (isCurrentPageLoadRequest(requestSequence)) {
+      loading.value = false;
+    }
   }
+}
+
+function isCurrentPageLoadRequest(requestSequence: number) {
+  return componentMounted && requestSequence === pageLoadRequestSequence;
 }
 
 function resetForm() {

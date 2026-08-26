@@ -1,9 +1,11 @@
 import { flushPromises, mount } from "@vue/test-utils";
 import { computed, defineComponent, h, inject, nextTick, provide, type ComputedRef } from "vue";
+import { ElMessage } from "element-plus";
 import RentPaymentsView from "./RentPaymentsView.vue";
 import { receiptsApi, rentPaymentsApi, rentReceivablesApi, unitsApi } from "../api";
 import type {
   Contract,
+  Receipt,
   RentPayment,
   RentPaymentAllocationPreview,
   RentReceivable,
@@ -164,6 +166,22 @@ const existingPayment = {
   contract,
   attachmentFiles: [],
 } satisfies RentPayment;
+
+const activeReceipt = {
+  id: "receipt-1",
+  receiptNo: "R202608001",
+  sourceType: "rent-payment",
+  sourceId: "payment-1",
+  tenantNameSnapshot: "甲租户",
+  unitCodeSnapshot: "A1",
+  amountSnapshot: 20000,
+  issueDate: "2026-08-01",
+  summary: "房租",
+  pdfFileId: null,
+  pdfFile: null,
+  status: "active",
+  voidedAt: null,
+} satisfies Receipt;
 
 const preview = {
   allocations: [
@@ -536,5 +554,95 @@ describe("RentPaymentsView 应收计划", () => {
     expect(rentReceivablesApi.list).toHaveBeenCalledTimes(2);
     expect(rentPaymentsApi.list).toHaveBeenCalledTimes(2);
     expect(receiptsApi.list).toHaveBeenCalledTimes(2);
+  });
+
+  it("旧页面请求晚到时不覆盖保存后刷新的四类数据", async () => {
+    const oldUnits = deferred<UnitSummary[]>();
+    const oldPayments = deferred<RentPayment[]>();
+    const oldReceipts = deferred<Receipt[]>();
+    const oldReceivables = deferred<{ items: RentReceivable[] }>();
+    const freshUnit = { ...unit, code: "NEW" } satisfies UnitSummary;
+    const freshPayment = { ...existingPayment, tenantNameSnapshot: "新收款", unit: freshUnit } satisfies RentPayment;
+    const freshReceivable = {
+      ...overdueSchedule,
+      periodStart: "2028-01-01",
+      periodEnd: "2028-12-31",
+      dueDate: "2028-01-01",
+    } satisfies RentReceivable;
+    vi.mocked(unitsApi.list).mockReturnValueOnce(oldUnits.promise).mockResolvedValueOnce([freshUnit]);
+    vi.mocked(rentPaymentsApi.list).mockReturnValueOnce(oldPayments.promise).mockResolvedValueOnce([freshPayment]);
+    vi.mocked(receiptsApi.list).mockReturnValueOnce(oldReceipts.promise).mockResolvedValueOnce([activeReceipt]);
+    vi.mocked(rentReceivablesApi.list)
+      .mockReturnValueOnce(oldReceivables.promise)
+      .mockResolvedValueOnce({ items: [freshReceivable] });
+    const wrapper = mountView();
+
+    await findButton(wrapper, "新增房租收费").trigger("click");
+    await findButton(wrapper, "保存").trigger("click");
+    await flushPromises();
+    expect(wrapper.get(".rent-receivables-table").text()).toContain("NEW");
+    expect(wrapper.get(".rent-receivables-table").text()).toContain("2028-01-01");
+
+    oldUnits.resolve([{ ...unit, code: "OLD" }]);
+    oldPayments.resolve([{ ...existingPayment, tenantNameSnapshot: "旧收款" }]);
+    oldReceipts.resolve([]);
+    oldReceivables.resolve({ items: [overdueSchedule] });
+    await flushPromises();
+
+    expect(wrapper.get(".rent-receivables-table").text()).toContain("NEW");
+    expect(wrapper.get(".rent-receivables-table").text()).toContain("2028-01-01");
+    expect(wrapper.get(".rent-receivables-table").text()).not.toContain("OLD");
+    await wrapper.get('[data-test="payments-tab"]').trigger("click");
+    await nextTick();
+    expect(wrapper.get(".rent-payments-table").text()).toContain("新收款");
+    expect(wrapper.get(".rent-payments-table").text()).toContain("已开");
+    expect(wrapper.get(".rent-payments-table").text()).not.toContain("旧收款");
+    expect(wrapper.get('button[aria-label="刷新"]').attributes("disabled")).toBeUndefined();
+  });
+
+  it("旧页面请求失败时不覆盖新成功，也不能结束最新请求的 loading", async () => {
+    const oldUnits = deferred<UnitSummary[]>();
+    const latestUnits = deferred<UnitSummary[]>();
+    const latestPayments = deferred<RentPayment[]>();
+    const latestReceipts = deferred<Receipt[]>();
+    const latestReceivables = deferred<{ items: RentReceivable[] }>();
+    const freshUnit = { ...unit, code: "NEW" } satisfies UnitSummary;
+    vi.mocked(unitsApi.list)
+      .mockReturnValueOnce(oldUnits.promise)
+      .mockResolvedValueOnce([freshUnit])
+      .mockReturnValueOnce(latestUnits.promise);
+    vi.mocked(rentPaymentsApi.list)
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([existingPayment])
+      .mockReturnValueOnce(latestPayments.promise);
+    vi.mocked(receiptsApi.list)
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([])
+      .mockReturnValueOnce(latestReceipts.promise);
+    vi.mocked(rentReceivablesApi.list)
+      .mockResolvedValueOnce({ items: [] })
+      .mockResolvedValueOnce({ items: [overdueSchedule] })
+      .mockReturnValueOnce(latestReceivables.promise);
+    const wrapper = mountView();
+
+    await findButton(wrapper, "新增房租收费").trigger("click");
+    await findButton(wrapper, "保存").trigger("click");
+    await flushPromises();
+    expect(wrapper.get(".rent-receivables-table").text()).toContain("NEW");
+
+    await wrapper.get('button[aria-label="刷新"]').trigger("click");
+    expect(wrapper.get('button[aria-label="刷新"]').attributes("disabled")).toBeDefined();
+    oldUnits.reject(new Error("旧请求失败"));
+    await flushPromises();
+    expect(ElMessage.error).not.toHaveBeenCalledWith("旧请求失败");
+    expect(wrapper.get(".rent-receivables-table").text()).toContain("NEW");
+    expect(wrapper.get('button[aria-label="刷新"]').attributes("disabled")).toBeDefined();
+
+    latestUnits.resolve([freshUnit]);
+    latestPayments.resolve([existingPayment]);
+    latestReceipts.resolve([]);
+    latestReceivables.resolve({ items: [overdueSchedule] });
+    await flushPromises();
+    expect(wrapper.get('button[aria-label="刷新"]').attributes("disabled")).toBeUndefined();
   });
 });
