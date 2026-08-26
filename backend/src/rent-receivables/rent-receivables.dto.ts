@@ -7,8 +7,13 @@ import {
   IsOptional,
   IsString,
   IsUUID,
+  Matches,
   Min,
+  ValidateIf,
 } from "class-validator";
+
+const DATE_ONLY_PATTERN = /^(?!0000)\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/;
+const INVALID_DUE_DATE_MESSAGE = "应收日期必须是有效的 YYYY-MM-DD 日期";
 
 export enum RentReceivableStatus {
   NOT_DUE = "not-due",
@@ -51,8 +56,12 @@ export class ListRentReceivablesQueryDto {
 }
 
 export class UpdateRentReceivableDto {
-  @IsDateString()
-  @IsOptional()
+  @Matches(DATE_ONLY_PATTERN, { message: INVALID_DUE_DATE_MESSAGE })
+  @IsDateString(
+    { strict: true, strictSeparator: true },
+    { message: INVALID_DUE_DATE_MESSAGE },
+  )
+  @ValidateIf((_object, value) => value !== undefined)
   dueDate?: string;
 
   @IsNumber()

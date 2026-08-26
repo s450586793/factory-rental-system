@@ -32,6 +32,27 @@ import { buildRentSchedule } from "./rent-schedule";
 
 const PROTECTED_SCHEDULE_ERROR =
   "合同修改会改变已到期或已收款期次，请先核对合同日期和收租周期";
+const INVALID_DUE_DATE_ERROR = "应收日期必须是有效的 YYYY-MM-DD 日期";
+const DATE_ONLY_PATTERN = /^(?!0000)(\d{4})-(\d{2})-(\d{2})$/;
+
+function isValidDateOnly(value: unknown): value is string {
+  if (typeof value !== "string") {
+    return false;
+  }
+  const match = DATE_ONLY_PATTERN.exec(value);
+  if (!match) {
+    return false;
+  }
+
+  const [, year, month, day] = match.map(Number);
+  const parsed = new Date(`${value}T00:00:00.000Z`);
+  return (
+    !Number.isNaN(parsed.getTime()) &&
+    parsed.getUTCFullYear() === year &&
+    parsed.getUTCMonth() === month - 1 &&
+    parsed.getUTCDate() === day
+  );
+}
 
 function activeAllocatedAmount(schedule: RentReceivableSchedule): number {
   return fromCents(
@@ -196,6 +217,10 @@ export class RentReceivablesService {
   }
 
   async update(id: string, dto: UpdateRentReceivableDto) {
+    if (dto.dueDate !== undefined && !isValidDateOnly(dto.dueDate)) {
+      throw new BadRequestException(INVALID_DUE_DATE_ERROR);
+    }
+
     try {
       return await this.dataSource.transaction(async (manager) => {
         const schedulesRepository = manager.getRepository(
@@ -238,9 +263,19 @@ export class RentReceivablesService {
         if (dto.receivableAmount !== undefined) {
           schedule.receivableAmount = dto.receivableAmount;
         }
-        const saved = await schedulesRepository.save(schedule);
+        await schedulesRepository.save(schedule);
         await this.rebuildPaymentAllocations(manager, schedule.contractId);
-        return this.serializeSchedule(saved);
+        const reloaded = await schedulesRepository.findOne({
+          where: {
+            id,
+            contract: { deletedAt: IsNull() },
+          },
+          relations: { contract: true, allocations: true },
+        });
+        if (!reloaded) {
+          throw new NotFoundException("应收计划不存在");
+        }
+        return this.serializeSchedule(reloaded);
       });
     } catch (error) {
       if (error instanceof HttpException) {

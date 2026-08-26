@@ -1,7 +1,11 @@
 import { BadRequestException, NotFoundException } from "@nestjs/common";
+import { validate } from "class-validator";
 import { BillingFrequency } from "../contracts/contract.enums";
 import { Contract } from "../contracts/contract.entity";
-import { RentReceivableStatus } from "./rent-receivables.dto";
+import {
+  RentReceivableStatus,
+  UpdateRentReceivableDto,
+} from "./rent-receivables.dto";
 import { RentReceivablesService } from "./rent-receivables.service";
 
 function schedule(overrides: Record<string, unknown> = {}) {
@@ -94,6 +98,39 @@ function buildService(options: {
 }
 
 describe("RentReceivablesService", () => {
+  it.each(["2027-02-29", "2027-02-28T00:00:00Z"])(
+    "rejects a non-date-only or nonexistent due date in the DTO: %s",
+    async (dueDate) => {
+      const dto = Object.assign(new UpdateRentReceivableDto(), { dueDate });
+
+      const errors = await validate(dto);
+
+      expect(errors).toEqual([
+        expect.objectContaining({ property: "dueDate" }),
+      ]);
+    },
+  );
+
+  it("rejects an explicit null due date in the DTO", async () => {
+    const dto = Object.assign(new UpdateRentReceivableDto(), {
+      dueDate: null,
+    });
+
+    const errors = await validate(dto);
+
+    expect(errors).toEqual([
+      expect.objectContaining({ property: "dueDate" }),
+    ]);
+  });
+
+  it("accepts a valid leap-day date in the DTO", async () => {
+    const dto = Object.assign(new UpdateRentReceivableDto(), {
+      dueDate: "2028-02-29",
+    });
+
+    await expect(validate(dto)).resolves.toEqual([]);
+  });
+
   it("keeps due or allocated schedules and replaces only unprotected future schedules", async () => {
     const existingSchedules = [
       schedule({
@@ -323,6 +360,36 @@ describe("RentReceivablesService", () => {
     expect(result).toMatchObject({ dueDate: "2027-10-01", receivableAmount: 95000 });
   });
 
+  it("reloads allocations with the same manager after rebuilding them", async () => {
+    const editable = schedule({ dueDate: "2027-09-01" });
+    const reloaded = schedule({
+      dueDate: "2027-08-01",
+      allocations: [{ allocatedAmount: 1000, deletedAt: null }],
+    });
+    const { service, schedulesRepository } = buildService();
+    schedulesRepository.findOne
+      .mockResolvedValueOnce(editable)
+      .mockResolvedValueOnce(reloaded);
+
+    const result = await service.update("schedule-1", {
+      dueDate: "2027-08-01",
+    });
+
+    expect(schedulesRepository.findOne).toHaveBeenCalledTimes(2);
+    expect(schedulesRepository.findOne).toHaveBeenLastCalledWith({
+      where: {
+        id: "schedule-1",
+        contract: { deletedAt: expect.any(Object) },
+      },
+      relations: { contract: true, allocations: true },
+    });
+    expect(result).toMatchObject({
+      paidAmount: 1000,
+      prepaidAmount: 1000,
+      status: RentReceivableStatus.PARTIALLY_PREPAID,
+    });
+  });
+
   it.each([
     [schedule({ dueDate: "2025-09-01" }), "已到期应收计划不能修改"],
     [
@@ -357,6 +424,23 @@ describe("RentReceivablesService", () => {
       }),
     ).rejects.toThrow("应收金额必须大于 0");
   });
+
+  it.each(["2027-02-29", "2027-02-28T00:00:00Z"])(
+    "rejects an invalid date when DTO validation is bypassed: %s",
+    async (dueDate) => {
+      const { service, schedulesRepository } = buildService();
+      schedulesRepository.findOne.mockResolvedValue(
+        schedule({ dueDate: "2027-09-01" }),
+      );
+
+      await expect(
+        service.update("schedule-1", { dueDate }),
+      ).rejects.toEqual(
+        new BadRequestException("应收日期必须是有效的 YYYY-MM-DD 日期"),
+      );
+      expect(schedulesRepository.save).not.toHaveBeenCalled();
+    },
+  );
 
   it("rejects an amount below the amount already allocated", async () => {
     const { service, schedulesRepository } = buildService();
