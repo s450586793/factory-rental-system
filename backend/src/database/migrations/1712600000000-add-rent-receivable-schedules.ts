@@ -7,6 +7,20 @@ export class AddRentReceivableSchedules1712600000000 implements MigrationInterfa
     await queryRunner.query(`
       DO $$
       BEGIN
+        IF EXISTS (
+          SELECT 1
+          FROM "contracts"
+          WHERE "deletedAt" IS NULL
+            AND "annualRent" <= 0
+        ) THEN
+          RAISE EXCEPTION '存在年租金小于或等于 0 的有效合同，请先人工修正年租金后再执行迁移';
+        END IF;
+      END $$;
+    `);
+
+    await queryRunner.query(`
+      DO $$
+      BEGIN
         IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'contracts_billingfrequency_enum') THEN
           CREATE TYPE "contracts_billingfrequency_enum" AS ENUM ('annual', 'semiannual');
         END IF;

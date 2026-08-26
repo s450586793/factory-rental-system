@@ -531,6 +531,136 @@ describe("RentReconciliationService", () => {
     });
   });
 
+  it("marks an unpaid future period as not due", async () => {
+    const { service } = createService({
+      schedules: [
+        scheduleFixture({
+          id: "future-unpaid",
+          sequence: 1,
+          periodStart: "2027-09-01",
+          periodEnd: "2028-08-31",
+          dueDate: "2027-09-01",
+        }),
+      ],
+    });
+
+    const detail = await service.detail({ tenantName: "大理石" });
+
+    expect(detail).toMatchObject({
+      dueReceivableAmount: 0,
+      outstandingAmount: 0,
+      status: "settled",
+    });
+    expect(detail.periods[0]).toMatchObject({
+      paidAmount: 0,
+      outstandingAmount: 0,
+      prepaidAmount: 0,
+      status: "not-due",
+    });
+  });
+
+  it("sorts equal outstanding balances by tenant name", async () => {
+    const { service } = createService({
+      schedules: [
+        scheduleFixture({
+          id: "tenant-b",
+          contractId: "contract-b",
+          tenantName: "B租户",
+          sequence: 1,
+          periodStart: "2025-01-01",
+          periodEnd: "2025-12-31",
+          dueDate: "2025-01-01",
+        }),
+        scheduleFixture({
+          id: "tenant-a",
+          contractId: "contract-a",
+          tenantName: "A租户",
+          sequence: 1,
+          periodStart: "2025-01-01",
+          periodEnd: "2025-12-31",
+          dueDate: "2025-01-01",
+        }),
+      ],
+    });
+
+    const result = await service.list({});
+
+    expect(result.items.map((item) => item.tenantName)).toEqual([
+      "A租户",
+      "B租户",
+    ]);
+  });
+
+  it("aggregates duplicate allocations for the same payment defensively", async () => {
+    const payment = paymentFixture({
+      id: "payment-duplicate",
+      contractId: "contract-1",
+      amount: 50000,
+      paymentDate: "2026-01-01",
+    });
+    const { service } = createService({
+      schedules: [
+        scheduleFixture({
+          id: "duplicate-allocation",
+          sequence: 1,
+          periodStart: "2025-01-01",
+          periodEnd: "2025-12-31",
+          dueDate: "2025-01-01",
+          allocations: [
+            { payment, allocatedAmount: 20000 },
+            { payment, allocatedAmount: 30000 },
+          ],
+        }),
+      ],
+      payments: [payment],
+    });
+
+    const detail = await service.detail({ tenantName: "大理石" });
+
+    expect(detail.periods[0]).toMatchObject({ paidAmount: 50000 });
+    expect(detail.periods[0].payments).toEqual([
+      expect.objectContaining({ id: "payment-duplicate", amount: 50000 }),
+    ]);
+  });
+
+  it("sorts payments on the same date by id", async () => {
+    const paymentA = paymentFixture({
+      id: "payment-a",
+      contractId: "contract-1",
+      amount: 20000,
+      paymentDate: "2026-01-01",
+    });
+    const paymentB = paymentFixture({
+      id: "payment-b",
+      contractId: "contract-1",
+      amount: 30000,
+      paymentDate: "2026-01-01",
+    });
+    const { service } = createService({
+      schedules: [
+        scheduleFixture({
+          id: "same-day-payments",
+          sequence: 1,
+          periodStart: "2025-01-01",
+          periodEnd: "2025-12-31",
+          dueDate: "2025-01-01",
+          allocations: [
+            { payment: paymentA, allocatedAmount: 20000 },
+            { payment: paymentB, allocatedAmount: 30000 },
+          ],
+        }),
+      ],
+      payments: [paymentA, paymentB],
+    });
+
+    const detail = await service.detail({ tenantName: "大理石" });
+
+    expect(detail.periods[0].payments.map((payment) => payment.id)).toEqual([
+      "payment-b",
+      "payment-a",
+    ]);
+  });
+
   it("throws a clear error when no saved schedule matches the tenant and year", async () => {
     const { service } = createService({
       schedules: [

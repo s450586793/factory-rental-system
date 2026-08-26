@@ -96,20 +96,24 @@ export class DepositsService {
     tenantName: string,
     sourceContractId?: string,
   ): Promise<DepositAccountSummary | null> {
-    let normalizedTenantName = normalizeDepositTenantName(tenantName);
+    const normalizedTenantName = normalizeDepositTenantName(tenantName);
+    if (!normalizedTenantName) {
+      return null;
+    }
 
     if (sourceContractId) {
       const sourceContract = await this.contractsRepository.findOne({
         where: { id: sourceContractId },
       });
-      if (!sourceContract || sourceContract.deletedAt || sourceContract.unitId !== unitId) {
+      if (
+        !sourceContract ||
+        sourceContract.deletedAt ||
+        sourceContract.unitId !== unitId ||
+        normalizeDepositTenantName(sourceContract.tenantName) !==
+          normalizedTenantName
+      ) {
         return null;
       }
-      normalizedTenantName = normalizeDepositTenantName(sourceContract.tenantName);
-    }
-
-    if (!normalizedTenantName) {
-      return null;
     }
 
     const accounts = await this.listAccounts({ unitId, tenantName: normalizedTenantName });

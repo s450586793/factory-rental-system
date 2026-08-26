@@ -226,6 +226,24 @@ export class RentReceivablesService {
         const schedulesRepository = manager.getRepository(
           RentReceivableSchedule,
         );
+        const scheduleIdentity = await schedulesRepository.findOne({
+          where: { id },
+          select: { id: true, contractId: true },
+          loadEagerRelations: false,
+        });
+        if (!scheduleIdentity) {
+          throw new NotFoundException("应收计划不存在");
+        }
+
+        const lockedContract = await manager.getRepository(Contract).findOne({
+          where: { id: scheduleIdentity.contractId, deletedAt: IsNull() },
+          lock: { mode: "pessimistic_write" },
+          loadEagerRelations: false,
+        });
+        if (!lockedContract) {
+          throw new NotFoundException("应收计划不存在");
+        }
+
         const schedule = await schedulesRepository.findOne({
           where: {
             id,
@@ -233,7 +251,10 @@ export class RentReceivablesService {
           },
           relations: { contract: true, allocations: true },
         });
-        if (!schedule) {
+        if (
+          !schedule ||
+          schedule.contractId !== scheduleIdentity.contractId
+        ) {
           throw new NotFoundException("应收计划不存在");
         }
         if (schedule.dueDate <= formatShanghaiDate()) {

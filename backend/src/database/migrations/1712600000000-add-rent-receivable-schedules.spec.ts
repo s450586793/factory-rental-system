@@ -2,6 +2,25 @@ import { QueryRunner } from "typeorm";
 import { AddRentReceivableSchedules1712600000000 } from "./1712600000000-add-rent-receivable-schedules";
 
 describe("AddRentReceivableSchedules1712600000000", () => {
+  it("guards active contracts with non-positive annual rent before any schema change", async () => {
+    const queryRunner = {
+      query: jest.fn().mockResolvedValue(undefined),
+    } as unknown as QueryRunner;
+
+    await new AddRentReceivableSchedules1712600000000().up(queryRunner);
+
+    const sqlCalls = (queryRunner.query as jest.Mock).mock.calls.map(
+      ([sql]) => sql as string,
+    );
+    expect(sqlCalls[0]).toContain('FROM "contracts"');
+    expect(sqlCalls[0]).toContain('"deletedAt" IS NULL');
+    expect(sqlCalls[0]).toContain('"annualRent" <= 0');
+    expect(sqlCalls[0]).toContain("RAISE EXCEPTION");
+    expect(sqlCalls[0]).toContain("请先人工修正");
+    expect(sqlCalls[0]).toContain("年租金");
+    expect(sqlCalls.slice(1).join("\n")).toContain("CREATE TYPE");
+  });
+
   it("backfills annual schedules and interval-overlap payment allocations", async () => {
     const queryRunner = {
       query: jest.fn().mockResolvedValue(undefined),

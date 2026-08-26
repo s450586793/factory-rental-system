@@ -249,6 +249,27 @@ describe("ContractsService", () => {
     );
   });
 
+  it("rejects an explicit carryover source from another tenant account", async () => {
+    const { service, depositsService, dataSource } = buildService();
+
+    await expect(
+      service.create(
+        buildDto({
+          depositSettlementMode: DepositSettlementMode.CARRYOVER,
+          depositCarryoverAmount: 6000,
+          depositCarryoverSourceContractId: "other-tenant-contract",
+        }) as never,
+      ),
+    ).rejects.toThrow("未找到可结转的押金账户");
+
+    expect(depositsService.getAccount).toHaveBeenCalledWith(
+      "unit-1",
+      "测试租户有限公司",
+      "other-tenant-contract",
+    );
+    expect(dataSource.transaction).not.toHaveBeenCalled();
+  });
+
   it("uses the account latest contract when explicit carryover omits a source", async () => {
     const { service, contractsRepository, depositsService } = buildService({
       depositAccount: {
@@ -329,7 +350,6 @@ describe("ContractsService", () => {
       contractsRepository,
       depositsService,
       receivablesService,
-      manager,
     } = buildService({ existingContract: contract });
 
     await service.update(
@@ -347,10 +367,7 @@ describe("ContractsService", () => {
         depositCarryoverSourceContractId: "source-contract",
       }),
     );
-    expect(receivablesService.syncContractSchedules).toHaveBeenCalledWith(
-      manager,
-      expect.objectContaining({ id: "contract-1" }),
-    );
+    expect(receivablesService.syncContractSchedules).not.toHaveBeenCalled();
   });
 
   it("does not revalidate an unchanged historical carryover snapshot", async () => {
@@ -402,6 +419,126 @@ describe("ContractsService", () => {
         contactName: "按分比较",
         depositCarryoverAmount: 0.3,
       }),
+    );
+  });
+
+  it.each([
+    ["tenant", { tenantName: "另一个租户" }, "unit-1", "另一个租户"],
+    ["unit", { unitId: "unit-2" }, "unit-2", "测试租户有限公司"],
+  ])(
+    "revalidates an unchanged carryover snapshot when the deposit account %s changes",
+    async (_case, dtoOverrides, expectedUnitId, expectedTenantName) => {
+      const contract = existingContract();
+      const { service, depositsService, dataSource } = buildService({
+        existingContract: contract,
+      });
+
+      await expect(
+        service.update(
+          "contract-1",
+          buildDto({
+            billingFrequency: BillingFrequency.SEMIANNUAL,
+            ...dtoOverrides,
+          }) as never,
+        ),
+      ).rejects.toThrow("未找到可结转的押金账户");
+
+      expect(depositsService.getAccount).toHaveBeenCalledWith(
+        expectedUnitId,
+        expectedTenantName,
+        "source-contract",
+      );
+      expect(dataSource.transaction).not.toHaveBeenCalled();
+    },
+  );
+
+  it("resets an initial settlement when the deposit account key changes", async () => {
+    const contract = existingContract({
+      depositSettlementMode: DepositSettlementMode.INITIAL,
+      depositCarryoverAmount: 8000,
+      depositCarryoverSourceContractId: "stale-source",
+    });
+    const { service, depositsService, contractsRepository } = buildService({
+      existingContract: contract,
+    });
+
+    await service.update(
+      "contract-1",
+      buildDto({
+        tenantName: " 新租户 ",
+        billingFrequency: BillingFrequency.SEMIANNUAL,
+      }) as never,
+    );
+
+    expect(depositsService.getAccount).not.toHaveBeenCalled();
+    expect(contractsRepository.save).toHaveBeenCalledWith(
+      expect.objectContaining({
+        tenantName: "新租户",
+        depositSettlementMode: DepositSettlementMode.INITIAL,
+        depositCarryoverAmount: 0,
+        depositCarryoverSourceContractId: null,
+      }),
+    );
+  });
+
+  it("preserves manually patched future schedules for non-shape updates", async () => {
+    const contract = existingContract();
+    const { service, receivablesService } = buildService({
+      existingContract: contract,
+      depositAccount: { heldAmount: 10000, latestContractId: "source-contract" },
+    });
+
+    await service.update(
+      "contract-1",
+      buildDto({
+        contactName: "新联系人",
+        billingFrequency: BillingFrequency.SEMIANNUAL,
+        depositCarryoverAmount: 9000,
+      }) as never,
+    );
+
+    expect(receivablesService.syncContractSchedules).not.toHaveBeenCalled();
+  });
+
+  it("compares annual rent schedule shape by cents", async () => {
+    const contract = existingContract();
+    const { service, receivablesService } = buildService({
+      existingContract: contract,
+    });
+
+    await service.update(
+      "contract-1",
+      buildDto({
+        annualRent: 50000.000001,
+        billingFrequency: BillingFrequency.SEMIANNUAL,
+      }) as never,
+    );
+
+    expect(receivablesService.syncContractSchedules).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["start date", { startDate: "2026-10-01" }],
+    ["end date", { endDate: "2027-09-30" }],
+    ["annual rent", { annualRent: 50000.01 }],
+    ["billing frequency", { billingFrequency: BillingFrequency.ANNUAL }],
+  ])("synchronizes schedules when %s changes", async (_case, dtoOverrides) => {
+    const contract = existingContract();
+    const { service, receivablesService, manager } = buildService({
+      existingContract: contract,
+    });
+
+    await service.update(
+      "contract-1",
+      buildDto({
+        billingFrequency: BillingFrequency.SEMIANNUAL,
+        ...dtoOverrides,
+      }) as never,
+    );
+
+    expect(receivablesService.syncContractSchedules).toHaveBeenCalledWith(
+      manager,
+      expect.objectContaining({ id: "contract-1" }),
     );
   });
 
@@ -458,6 +595,7 @@ describe("ContractsService", () => {
         contactName: "  ",
         tenantPhone: "  ",
         licenseCode: "  ",
+        depositSettlementMode: DepositSettlementMode.INITIAL,
       }) as never,
     );
 
@@ -471,6 +609,9 @@ describe("ContractsService", () => {
         contactName: "",
         tenantPhone: "",
         licenseCode: "",
+        depositSettlementMode: DepositSettlementMode.INITIAL,
+        depositCarryoverAmount: 0,
+        depositCarryoverSourceContractId: null,
       }),
     );
   });

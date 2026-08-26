@@ -109,7 +109,7 @@ describe("DepositsService", () => {
     }));
   });
 
-  it("uses the source contract tenant only when the source belongs to the requested unit", async () => {
+  it("accepts a source contract only when it belongs to the same deposit account", async () => {
     const sourceContract = contract({ id: "source-contract", tenantName: " 源租户 " });
     const { service, contractsRepository } = buildAccountService({
       deposits: [deposit({ tenantNameSnapshot: "源租户", amount: 8000 })],
@@ -117,13 +117,42 @@ describe("DepositsService", () => {
       sourceContract,
     });
 
-    await expect(service.getAccount("unit-1", "新租户", "source-contract")).resolves.toEqual(
+    await expect(service.getAccount("unit-1", " 源租户 ", "source-contract")).resolves.toEqual(
       expect.objectContaining({ tenantName: "源租户", heldAmount: 8000 }),
     );
 
-    contractsRepository.findOne.mockResolvedValue(contract({ unitId: "unit-2" }));
-    await expect(service.getAccount("unit-1", "新租户", "source-contract")).resolves.toBeNull();
-    await expect(service.getAccount("unit-1", " ")).resolves.toBeNull();
+    expect(contractsRepository.findOne).toHaveBeenCalledWith({
+      where: { id: "source-contract" },
+    });
+  });
+
+  it("rejects a source contract from another tenant in the same unit", async () => {
+    const sourceContract = contract({ id: "source-contract", tenantName: "源租户" });
+    const { service } = buildAccountService({
+      deposits: [deposit({ tenantNameSnapshot: "源租户", amount: 8000 })],
+      contracts: [sourceContract],
+      sourceContract,
+    });
+
+    await expect(
+      service.getAccount("unit-1", "新租户", "source-contract"),
+    ).resolves.toBeNull();
+  });
+
+  it.each([
+    ["another unit", "请求租户", contract({ unitId: "unit-2" })],
+    ["empty requested tenant", " ", contract({ tenantName: "请求租户" })],
+    [
+      "soft-deleted source",
+      "请求租户",
+      contract({ tenantName: "请求租户", deletedAt: new Date() }),
+    ],
+  ])("rejects %s", async (_case, tenantName, sourceContract) => {
+    const { service } = buildAccountService({ sourceContract });
+
+    await expect(
+      service.getAccount("unit-1", tenantName, "source-contract"),
+    ).resolves.toBeNull();
   });
 
   it("associates uploaded payment voucher images when creating a deposit record", async () => {

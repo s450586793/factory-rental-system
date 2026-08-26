@@ -60,8 +60,14 @@ function buildService(options: {
     delete: jest.fn().mockResolvedValue(undefined),
     save: jest.fn().mockImplementation((value) => Promise.resolve(value)),
   };
+  const contractsRepository = {
+    findOne: jest.fn().mockResolvedValue(contract()),
+  };
   const manager = {
     getRepository: jest.fn((entity) => {
+      if (entity === Contract) {
+        return contractsRepository;
+      }
       if (entity.name === "RentReceivableSchedule") {
         return schedulesRepository;
       }
@@ -92,6 +98,7 @@ function buildService(options: {
     schedulesRepository,
     paymentsRepository,
     allocationsRepository,
+    contractsRepository,
     manager,
     dataSource,
   };
@@ -344,7 +351,14 @@ describe("RentReceivablesService", () => {
 
   it("updates an unpaid future schedule and rebuilds allocations in one transaction", async () => {
     const editable = schedule({ dueDate: "2027-09-01" });
-    const { service, schedulesRepository, dataSource, manager } = buildService();
+    const {
+      service,
+      schedulesRepository,
+      contractsRepository,
+      allocationsRepository,
+      dataSource,
+      manager,
+    } = buildService();
     schedulesRepository.findOne.mockResolvedValue(editable);
 
     const result = await service.update("schedule-1", {
@@ -354,10 +368,54 @@ describe("RentReceivablesService", () => {
 
     expect(dataSource.transaction).toHaveBeenCalledTimes(1);
     expect(manager.getRepository).toHaveBeenCalled();
+    expect(schedulesRepository.findOne).toHaveBeenNthCalledWith(1, {
+      where: { id: "schedule-1" },
+      select: { id: true, contractId: true },
+      loadEagerRelations: false,
+    });
+    expect(contractsRepository.findOne).toHaveBeenCalledWith({
+      where: { id: "contract-1", deletedAt: expect.any(Object) },
+      lock: { mode: "pessimistic_write" },
+      loadEagerRelations: false,
+    });
+    expect(schedulesRepository.findOne).toHaveBeenNthCalledWith(2, {
+      where: {
+        id: "schedule-1",
+        contract: { deletedAt: expect.any(Object) },
+      },
+      relations: { contract: true, allocations: true },
+    });
     expect(schedulesRepository.save).toHaveBeenCalledWith(
       expect.objectContaining({ dueDate: "2027-10-01", receivableAmount: 95000 }),
     );
+    expect(contractsRepository.findOne.mock.invocationCallOrder[0]).toBeLessThan(
+      schedulesRepository.findOne.mock.invocationCallOrder[1],
+    );
+    expect(schedulesRepository.findOne.mock.invocationCallOrder[1]).toBeLessThan(
+      schedulesRepository.save.mock.invocationCallOrder[0],
+    );
+    expect(schedulesRepository.save.mock.invocationCallOrder[0]).toBeLessThan(
+      allocationsRepository.delete.mock.invocationCallOrder[0],
+    );
     expect(result).toMatchObject({ dueDate: "2027-10-01", receivableAmount: 95000 });
+  });
+
+  it("returns not found when a schedule disappears while waiting for the contract lock", async () => {
+    const { service, schedulesRepository, contractsRepository } = buildService();
+    schedulesRepository.findOne
+      .mockResolvedValueOnce(schedule())
+      .mockResolvedValueOnce(null);
+
+    await expect(
+      service.update("schedule-1", { dueDate: "2027-10-01" }),
+    ).rejects.toEqual(new NotFoundException("应收计划不存在"));
+
+    expect(contractsRepository.findOne).toHaveBeenCalledWith({
+      where: { id: "contract-1", deletedAt: expect.any(Object) },
+      lock: { mode: "pessimistic_write" },
+      loadEagerRelations: false,
+    });
+    expect(schedulesRepository.save).not.toHaveBeenCalled();
   });
 
   it("reloads allocations with the same manager after rebuilding them", async () => {
@@ -369,13 +427,14 @@ describe("RentReceivablesService", () => {
     const { service, schedulesRepository } = buildService();
     schedulesRepository.findOne
       .mockResolvedValueOnce(editable)
+      .mockResolvedValueOnce(editable)
       .mockResolvedValueOnce(reloaded);
 
     const result = await service.update("schedule-1", {
       dueDate: "2027-08-01",
     });
 
-    expect(schedulesRepository.findOne).toHaveBeenCalledTimes(2);
+    expect(schedulesRepository.findOne).toHaveBeenCalledTimes(3);
     expect(schedulesRepository.findOne).toHaveBeenLastCalledWith({
       where: {
         id: "schedule-1",

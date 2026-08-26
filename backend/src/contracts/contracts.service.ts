@@ -114,6 +114,13 @@ export class ContractsService {
   async update(id: string, dto: UpdateContractDto) {
     this.assertOptionalContractFieldsNotNull(dto);
     const contract = await this.findOneOrFail(id);
+    const nextBillingFrequency =
+      dto.billingFrequency ?? contract.billingFrequency;
+    const scheduleShapeChanged =
+      contract.startDate !== dto.startDate ||
+      contract.endDate !== dto.endDate ||
+      toCents(contract.annualRent) !== toCents(dto.annualRent) ||
+      contract.billingFrequency !== nextBillingFrequency;
     await this.ensureUnitExists(dto.unitId);
     await this.validateRange(dto.startDate, dto.endDate, dto.unitId, id);
     const { businessLicenseFile, attachmentFiles } = await this.resolveFiles(
@@ -138,7 +145,7 @@ export class ContractsService {
     contract.endDate = dto.endDate;
     contract.annualRent = dto.annualRent;
     contract.depositAmount = dto.depositAmount;
-    contract.billingFrequency = dto.billingFrequency ?? contract.billingFrequency;
+    contract.billingFrequency = nextBillingFrequency;
     Object.assign(contract, depositSettlement);
     contract.status = resolveContractStatus(dto.startDate, dto.endDate);
     contract.businessLicenseFileId = businessLicenseFile?.id ?? null;
@@ -148,7 +155,9 @@ export class ContractsService {
     return this.dataSource.transaction(async (manager) => {
       const repository = manager.getRepository(Contract);
       const saved = await repository.save(repository.create(contract));
-      await this.rentReceivablesService.syncContractSchedules(manager, saved);
+      if (scheduleShapeChanged) {
+        await this.rentReceivablesService.syncContractSchedules(manager, saved);
+      }
       return repository.findOneOrFail({ where: { id: saved.id } });
     });
   }
@@ -265,6 +274,10 @@ export class ContractsService {
     contract: Contract,
     dto: UpdateContractDto,
   ): Promise<DepositSettlementSnapshot> {
+    const normalizedTenantName = dto.tenantName?.trim() ?? "";
+    const accountKeyChanged =
+      dto.unitId !== contract.unitId ||
+      normalizedTenantName !== contract.tenantName.trim();
     const settlementFieldsChanged =
       (dto.depositSettlementMode !== undefined &&
         dto.depositSettlementMode !== contract.depositSettlementMode) ||
@@ -275,7 +288,7 @@ export class ContractsService {
         dto.depositCarryoverSourceContractId !==
           contract.depositCarryoverSourceContractId);
 
-    if (!settlementFieldsChanged) {
+    if (!settlementFieldsChanged && !accountKeyChanged) {
       return {
         depositSettlementMode: contract.depositSettlementMode,
         depositCarryoverAmount: contract.depositCarryoverAmount,
@@ -291,7 +304,7 @@ export class ContractsService {
 
     return this.resolveCarryoverDepositSettlement(
       dto.unitId,
-      dto.tenantName?.trim() ?? "",
+      normalizedTenantName,
       dto.depositCarryoverAmount ?? contract.depositCarryoverAmount,
       dto.depositCarryoverSourceContractId ??
         contract.depositCarryoverSourceContractId ??
