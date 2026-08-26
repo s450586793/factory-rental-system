@@ -249,6 +249,49 @@ describe("ContractsService", () => {
     );
   });
 
+  it("uses the account latest contract when explicit carryover omits a source", async () => {
+    const { service, contractsRepository, depositsService } = buildService({
+      depositAccount: {
+        heldAmount: 10000,
+        latestContractId: "source-contract",
+      },
+    });
+
+    await service.create(
+      buildDto({
+        depositSettlementMode: DepositSettlementMode.CARRYOVER,
+        depositCarryoverAmount: 6000,
+      }) as never,
+    );
+
+    expect(depositsService.getAccount).toHaveBeenCalledWith(
+      "unit-1",
+      "测试租户有限公司",
+    );
+    expect(contractsRepository.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        depositCarryoverAmount: 6000,
+        depositCarryoverSourceContractId: "source-contract",
+      }),
+    );
+  });
+
+  it.each([
+    "billingFrequency",
+    "depositSettlementMode",
+    "depositCarryoverAmount",
+    "depositCarryoverSourceContractId",
+  ])("rejects an explicit null %s when creating", async (property) => {
+    const { service, dataSource, depositsService } = buildService();
+
+    await expect(
+      service.create(buildDto({ [property]: null }) as never),
+    ).rejects.toThrow("不能为 null");
+
+    expect(dataSource.transaction).not.toHaveBeenCalled();
+    expect(depositsService.getAccount).not.toHaveBeenCalled();
+  });
+
   it("rejects carryover above the selected deposit account balance", async () => {
     const { service } = buildService({
       depositAccount: { heldAmount: 10000, latestContractId: "source-contract" },
@@ -336,6 +379,51 @@ describe("ContractsService", () => {
         depositCarryoverSourceContractId: "source-contract",
       }),
     );
+  });
+
+  it("compares unchanged historical carryover amounts by cents", async () => {
+    const contract = existingContract({ depositCarryoverAmount: 0.3 });
+    const { service, depositsService, contractsRepository } = buildService({
+      existingContract: contract,
+      depositAccount: { heldAmount: 0, latestContractId: "source-contract" },
+    });
+
+    await service.update(
+      "contract-1",
+      buildDto({
+        contactName: "按分比较",
+        depositCarryoverAmount: 0.30000000000000004,
+      }) as never,
+    );
+
+    expect(depositsService.getAccount).not.toHaveBeenCalled();
+    expect(contractsRepository.save).toHaveBeenCalledWith(
+      expect.objectContaining({
+        contactName: "按分比较",
+        depositCarryoverAmount: 0.3,
+      }),
+    );
+  });
+
+  it.each([
+    "billingFrequency",
+    "depositSettlementMode",
+    "depositCarryoverAmount",
+    "depositCarryoverSourceContractId",
+  ])("rejects an explicit null %s when updating", async (property) => {
+    const { service, dataSource, depositsService } = buildService({
+      existingContract: existingContract(),
+    });
+
+    await expect(
+      service.update(
+        "contract-1",
+        buildDto({ [property]: null }) as never,
+      ),
+    ).rejects.toThrow("不能为 null");
+
+    expect(dataSource.transaction).not.toHaveBeenCalled();
+    expect(depositsService.getAccount).not.toHaveBeenCalled();
   });
 
   it("revalidates a carryover snapshot only when settlement fields change", async () => {

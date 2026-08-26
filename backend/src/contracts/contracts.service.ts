@@ -69,6 +69,7 @@ export class ContractsService {
   }
 
   async create(dto: CreateContractDto) {
+    this.assertOptionalContractFieldsNotNull(dto);
     await this.ensureUnitExists(dto.unitId);
     await this.validateRange(dto.startDate, dto.endDate, dto.unitId);
     const { businessLicenseFile, attachmentFiles } = await this.resolveFiles(
@@ -111,6 +112,7 @@ export class ContractsService {
   }
 
   async update(id: string, dto: UpdateContractDto) {
+    this.assertOptionalContractFieldsNotNull(dto);
     const contract = await this.findOneOrFail(id);
     await this.ensureUnitExists(dto.unitId);
     await this.validateRange(dto.startDate, dto.endDate, dto.unitId, id);
@@ -267,7 +269,8 @@ export class ContractsService {
       (dto.depositSettlementMode !== undefined &&
         dto.depositSettlementMode !== contract.depositSettlementMode) ||
       (dto.depositCarryoverAmount !== undefined &&
-        dto.depositCarryoverAmount !== contract.depositCarryoverAmount) ||
+        toCents(dto.depositCarryoverAmount) !==
+          toCents(contract.depositCarryoverAmount)) ||
       (dto.depositCarryoverSourceContractId !== undefined &&
         dto.depositCarryoverSourceContractId !==
           contract.depositCarryoverSourceContractId);
@@ -326,8 +329,25 @@ export class ContractsService {
     return {
       depositSettlementMode: DepositSettlementMode.CARRYOVER,
       depositCarryoverAmount: fromCents(requestedCents),
-      depositCarryoverSourceContractId: sourceContractId ?? null,
+      depositCarryoverSourceContractId:
+        sourceContractId ?? account.latestContractId,
     };
+  }
+
+  private assertOptionalContractFieldsNotNull(dto: CreateContractDto): void {
+    const fields = [
+      ["billingFrequency", "收租周期"],
+      ["depositSettlementMode", "押金处理方式"],
+      ["depositCarryoverAmount", "结转押金金额"],
+      ["depositCarryoverSourceContractId", "结转押金来源合同"],
+    ] as const;
+    const values = dto as unknown as Record<string, unknown>;
+
+    for (const [field, label] of fields) {
+      if (values[field] === null) {
+        throw new BadRequestException(`${label}不能为 null`);
+      }
+    }
   }
 
   private initialDepositSettlement(): DepositSettlementSnapshot {

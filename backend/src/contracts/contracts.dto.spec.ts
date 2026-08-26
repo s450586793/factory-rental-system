@@ -65,4 +65,19 @@ describe("CreateContractDto", () => {
       ]),
     );
   });
+
+  it.each([
+    "billingFrequency",
+    "depositSettlementMode",
+    "depositCarryoverAmount",
+    "depositCarryoverSourceContractId",
+  ])("rejects an explicit null %s", async (property) => {
+    const errors = await validate(buildDto({ [property]: null }));
+
+    expect(errors).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ property }),
+      ]),
+    );
+  });
 });

@@ -10,6 +10,7 @@ import {
   IsUUID,
   MaxLength,
   Min,
+  ValidateIf,
 } from "class-validator";
 import { BillingFrequency, DepositSettlementMode } from "./contract.enums";
 
@@ -73,20 +74,20 @@ export class CreateContractDto {
   depositAmount!: number;
 
   @IsEnum(BillingFrequency)
-  @IsOptional()
+  @ValidateIf((_object, value) => value !== undefined)
   billingFrequency?: BillingFrequency;
 
   @IsEnum(DepositSettlementMode)
-  @IsOptional()
+  @ValidateIf((_object, value) => value !== undefined)
   depositSettlementMode?: DepositSettlementMode;
 
   @IsNumber()
   @Min(0)
-  @IsOptional()
+  @ValidateIf((_object, value) => value !== undefined)
   depositCarryoverAmount?: number;
 
   @IsUUID()
-  @IsOptional()
+  @ValidateIf((_object, value) => value !== undefined)
   depositCarryoverSourceContractId?: string;
 
   @IsString()
