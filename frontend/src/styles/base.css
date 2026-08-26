@@ -43,7 +43,7 @@
 }
 
 .reconciliation-stats {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   margin-bottom: 24px;
 }
 
@@ -65,6 +65,10 @@
   gap: 16px;
 }
 
+.reconciliation-period-header > div {
+  min-width: 0;
+}
+
 .reconciliation-period-header h3,
 .reconciliation-period-header p {
   margin: 0;
@@ -79,6 +83,7 @@
   margin-top: 5px;
   color: #667085;
   font-size: 13px;
+  overflow-wrap: anywhere;
 }
 
 .reconciliation-period-totals {
@@ -109,14 +114,56 @@
   margin-top: 0;
 }
 
+.table-shell .reconciliation-ledger-table {
+  min-width: 820px;
+}
+
+.reconciliation-payment-table .el-table {
+  min-width: 680px;
+}
+
+.deposit-section-heading {
+  display: flex;
+  align-items: center;
+  min-height: 32px;
+  margin: 0 0 8px;
+}
+
+.deposit-section-heading h3 {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.4;
+}
+
+.deposit-record-heading {
+  margin-top: 22px;
+}
+
+.table-shell .deposit-account-table {
+  min-width: 890px;
+}
+
+.table-shell .deposit-record-table {
+  min-width: 1120px;
+}
+
+.deposit-account-table .el-table__cell,
+.deposit-record-table .el-table__cell {
+  padding-top: 6px;
+  padding-bottom: 6px;
+}
+
 @media (max-width: 760px) {
   .reconciliation-filters {
     grid-template-columns: 1fr;
   }
 
-  .reconciliation-stats,
   .reconciliation-period-totals {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .reconciliation-stats {
+    grid-template-columns: 1fr;
   }
 }
 

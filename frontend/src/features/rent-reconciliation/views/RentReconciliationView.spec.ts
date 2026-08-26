@@ -48,11 +48,12 @@ const listResponse = {
   items: [
     {
       tenantName: "大理石",
-      contractCount: 1,
-      receivableAmount: 100000,
-      paidAmount: 60000,
+      contractCount: 2,
+      dueReceivableAmount: 100000,
+      duePaidAmount: 60000,
       outstandingAmount: 40000,
-      creditAmount: 0,
+      prepaidAmount: 25000,
+      unallocatedAmount: 3000,
       lastPaymentDate: "2026-01-15",
       status: "outstanding" as const,
     },
@@ -63,7 +64,9 @@ const detailResponse = {
   ...listResponse.items[0],
   periods: [
     {
+      scheduleId: "schedule-1",
       contractId: "contract-1",
+      sequence: 1,
       unit: {
         id: "unit-1",
         code: "5",
@@ -71,11 +74,12 @@ const detailResponse = {
       },
       startDate: "2025-09-01",
       endDate: "2026-08-31",
+      dueDate: "2025-09-01",
       receivableAmount: 100000,
       paidAmount: 60000,
       outstandingAmount: 40000,
-      creditAmount: 0,
-      status: "outstanding" as const,
+      prepaidAmount: 0,
+      status: "overdue" as const,
       payments: [
         {
           id: "payment-1",
@@ -83,7 +87,7 @@ const detailResponse = {
           paymentDate: "2026-01-15",
           amount: 60000,
           method: "转账",
-          note: "首笔",
+          note: "跨期付款",
           attachmentFiles: [
             {
               id: "voucher-1",
@@ -104,6 +108,36 @@ const detailResponse = {
               category: "receipt",
             },
           },
+        },
+      ],
+    },
+    {
+      scheduleId: "schedule-2",
+      contractId: "contract-1",
+      sequence: 2,
+      unit: {
+        id: "unit-1",
+        code: "5",
+        location: "北门仓库",
+      },
+      startDate: "2026-09-01",
+      endDate: "2027-08-31",
+      dueDate: "2026-09-01",
+      receivableAmount: 50000,
+      paidAmount: 25000,
+      outstandingAmount: 0,
+      prepaidAmount: 25000,
+      status: "partially-prepaid" as const,
+      payments: [
+        {
+          id: "payment-1",
+          contractId: "contract-1",
+          paymentDate: "2026-01-15",
+          amount: 25000,
+          method: "转账",
+          note: "跨期付款",
+          attachmentFiles: [],
+          activeReceipt: null,
         },
       ],
     },
@@ -246,9 +280,13 @@ describe("RentReconciliationView", () => {
     await flushPromises();
 
     expect(wrapper.text()).toContain("大理石");
-    expect(wrapper.text()).toContain("100,000.00");
+    expect(wrapper.text()).toContain("40,000.00");
     expect(wrapper.text()).toContain("租赁期");
     expect(wrapper.text()).not.toContain("合同期");
+    expect(wrapper.text()).not.toContain("累计应收");
+    expect(wrapper.text()).not.toContain("累计实收");
+    expect(wrapper.text()).toContain("预收");
+    expect(wrapper.text()).toContain("未分配");
     expect(wrapper.find('select[aria-label="租赁年度"]').exists()).toBe(true);
 
     await findButton(wrapper, "查看对账").trigger("click");
@@ -259,14 +297,186 @@ describe("RentReconciliationView", () => {
       year: undefined,
     });
     const detailStats = wrapper.get(".reconciliation-stats");
-    expect(detailStats.findAll(".stat-item")).toHaveLength(2);
+    expect(detailStats.findAll(".stat-item")).toHaveLength(3);
     expect(detailStats.text()).not.toContain("累计应收");
     expect(detailStats.text()).not.toContain("累计实收");
     expect(detailStats.text()).toContain("当前结欠");
-    expect(detailStats.text()).toContain("当前结余");
+    expect(detailStats.text()).toContain("预收");
+    expect(detailStats.text()).toContain("未分配");
     expect(wrapper.text()).toContain("2025-09-01 至 2026-08-31");
+    expect(wrapper.text()).toContain("到期日 2026-09-01");
+    expect(wrapper.text()).toContain("部分预收");
+    expect(wrapper.text()).toContain("¥25,000.00");
     expect(wrapper.text()).toContain("转账");
     expect(wrapper.text()).toContain("RC20260115-001");
+    expect(wrapper.text().match(/跨期付款/g)).toHaveLength(2);
+  });
+
+  it("keeps future partial and full prepayments out of current outstanding and leaves excess unallocated", async () => {
+    const futureDetail = {
+      ...detailResponse,
+      outstandingAmount: 0,
+      prepaidAmount: 75000,
+      unallocatedAmount: 9000,
+      status: "credit" as const,
+      periods: [
+        detailResponse.periods[1],
+        {
+          ...detailResponse.periods[1],
+          scheduleId: "schedule-3",
+          sequence: 3,
+          startDate: "2027-09-01",
+          endDate: "2028-08-31",
+          dueDate: "2027-09-01",
+          paidAmount: 50000,
+          prepaidAmount: 50000,
+          status: "prepaid" as const,
+          payments: [],
+        },
+      ],
+    } satisfies TenantReconciliationDetail;
+    vi.mocked(rentReconciliationApi.detail).mockResolvedValue(futureDetail);
+    const wrapper = mountView();
+    await flushPromises();
+
+    await findButton(wrapper, "查看对账").trigger("click");
+    await flushPromises();
+
+    const currentOutstanding = wrapper.get('[data-test="current-outstanding"]');
+    expect(currentOutstanding.text()).toContain("¥0.00");
+    expect(currentOutstanding.classes()).not.toContain("amount-overdue");
+    expect(wrapper.text()).toContain("部分预收");
+    expect(wrapper.text()).toContain("已预收");
+    expect(wrapper.text()).toContain("¥9,000.00");
+    expect(wrapper.text()).not.toContain("¥59,000.00");
+  });
+
+  it("sends the prepaid ledger filter", async () => {
+    const wrapper = mountView();
+    await flushPromises();
+
+    await wrapper.find('select[aria-label="对账状态"]').setValue("prepaid");
+    await findButton(wrapper, "查询").trigger("click");
+    await flushPromises();
+
+    expect(rentReconciliationApi.list).toHaveBeenLastCalledWith({
+      keyword: undefined,
+      year: undefined,
+      status: "prepaid",
+    });
+  });
+
+  it("marks both the outstanding label and amount red for any non-zero value", async () => {
+    vi.mocked(rentReconciliationApi.detail).mockResolvedValue({
+      ...detailResponse,
+      outstandingAmount: -1,
+      periods: [{ ...detailResponse.periods[0], outstandingAmount: -1 }],
+    });
+    const wrapper = mountView();
+    await flushPromises();
+    await findButton(wrapper, "查看对账").trigger("click");
+    await flushPromises();
+
+    const currentOutstanding = wrapper.get('[data-test="current-outstanding"]');
+    expect(currentOutstanding.classes()).toContain("amount-overdue");
+    expect(currentOutstanding.find("small").classes()).toContain("amount-overdue");
+    const periodOutstanding = wrapper.get('[data-test="period-outstanding"]');
+    expect(periodOutstanding.find("dt").classes()).toContain("amount-overdue");
+    expect(periodOutstanding.find("dd").classes()).toContain("amount-overdue");
+  });
+
+  it("ignores a stale detail success when switching tenants", async () => {
+    let resolveA!: (value: TenantReconciliationDetail) => void;
+    const requestA = new Promise<TenantReconciliationDetail>((resolve) => {
+      resolveA = resolve;
+    });
+    const tenantB = {
+      ...detailResponse,
+      tenantName: "五金仓储",
+      periods: detailResponse.periods.map((period) => ({
+        ...period,
+        unit: { ...period.unit, code: "B9", location: "西区仓库" },
+      })),
+    };
+    vi.mocked(rentReconciliationApi.detail)
+      .mockReturnValueOnce(requestA)
+      .mockResolvedValueOnce(tenantB);
+    vi.mocked(rentReconciliationApi.list).mockResolvedValue({
+      ...listResponse,
+      items: [...listResponse.items, { ...listResponse.items[0], tenantName: "五金仓储" }],
+    });
+    const wrapper = mountView();
+    await flushPromises();
+
+    const detailButtons = wrapper.findAll("button").filter((button) => button.text().includes("查看对账"));
+    await detailButtons[0].trigger("click");
+    await (wrapper.vm as unknown as { openDetail: (tenantName: string) => Promise<void> }).openDetail("五金仓储");
+    await flushPromises();
+    resolveA(detailResponse);
+    await flushPromises();
+
+    expect(wrapper.text()).toContain("五金仓储");
+    expect(wrapper.text()).toContain("B9 / 西区仓库");
+    expect(wrapper.text()).not.toContain("5 / 北门仓库");
+    expect(wrapper.text()).not.toContain("正在加载对账明细");
+  });
+
+  it("ignores stale detail errors and their finally state when switching tenants", async () => {
+    let rejectA!: (reason?: unknown) => void;
+    const requestA = new Promise<TenantReconciliationDetail>((_, reject) => {
+      rejectA = reject;
+    });
+    const pendingB = new Promise<TenantReconciliationDetail>(() => undefined);
+    vi.mocked(rentReconciliationApi.detail)
+      .mockReturnValueOnce(requestA)
+      .mockReturnValueOnce(pendingB);
+    const wrapper = mountView();
+    await flushPromises();
+
+    await findButton(wrapper, "查看对账").trigger("click");
+    void (wrapper.vm as unknown as { openDetail: (tenantName: string) => Promise<void> }).openDetail("五金仓储");
+    rejectA(new Error("迟到错误"));
+    await flushPromises();
+
+    expect(wrapper.text()).toContain("正在加载对账明细");
+    expect(ElMessage.error).not.toHaveBeenCalledWith("迟到错误");
+  });
+
+  it("ignores stale list success without ending the latest loading state", async () => {
+    let resolveOld!: (value: RentReconciliationListResponse) => void;
+    const oldRequest = new Promise<RentReconciliationListResponse>((resolve) => {
+      resolveOld = resolve;
+    });
+    const latestRequest = new Promise<RentReconciliationListResponse>(() => undefined);
+    vi.mocked(rentReconciliationApi.list)
+      .mockReturnValueOnce(oldRequest)
+      .mockReturnValueOnce(latestRequest);
+    const wrapper = mountView();
+    void (wrapper.vm as unknown as { loadList: () => Promise<void> }).loadList();
+    resolveOld(listResponse);
+    await flushPromises();
+
+    expect(findButton(wrapper, "刷新").attributes("disabled")).toBeDefined();
+    expect(wrapper.text()).not.toContain("大理石");
+    expect(ElMessage.error).not.toHaveBeenCalled();
+  });
+
+  it("ignores stale list errors and their finally state", async () => {
+    let rejectOld!: (reason?: unknown) => void;
+    const oldRequest = new Promise<RentReconciliationListResponse>((_, reject) => {
+      rejectOld = reject;
+    });
+    const latestRequest = new Promise<RentReconciliationListResponse>(() => undefined);
+    vi.mocked(rentReconciliationApi.list)
+      .mockReturnValueOnce(oldRequest)
+      .mockReturnValueOnce(latestRequest);
+    const wrapper = mountView();
+    void (wrapper.vm as unknown as { loadList: () => Promise<void> }).loadList();
+    rejectOld(new Error("迟到错误"));
+    await flushPromises();
+
+    expect(findButton(wrapper, "刷新").attributes("disabled")).toBeDefined();
+    expect(ElMessage.error).not.toHaveBeenCalledWith("迟到错误");
   });
 
   it("selects a tenant from a stable dropdown", async () => {

@@ -1,6 +1,13 @@
 import type { StoredFile } from "../../types/models";
 
-export type RentReconciliationStatus = "outstanding" | "settled" | "credit";
+export type RentReconciliationStatus = "outstanding" | "settled" | "prepaid" | "credit";
+
+export type RentReconciliationPeriodStatus =
+  | "not-due"
+  | "partially-prepaid"
+  | "prepaid"
+  | "overdue"
+  | "settled";
 
 export type ReconciliationFile = Pick<StoredFile, "id" | "originalName" | "mimeType" | "size" | "category">;
 
@@ -22,7 +29,9 @@ export type RentReconciliationPayment = {
 };
 
 export type ContractPeriodReconciliation = {
+  scheduleId: string;
   contractId: string;
+  sequence: number;
   unit: {
     id: string;
     code: string;
@@ -30,21 +39,23 @@ export type ContractPeriodReconciliation = {
   };
   startDate: string;
   endDate: string;
+  dueDate: string;
   receivableAmount: number;
   paidAmount: number;
   outstandingAmount: number;
-  creditAmount: number;
-  status: RentReconciliationStatus;
+  prepaidAmount: number;
+  status: RentReconciliationPeriodStatus;
   payments: RentReconciliationPayment[];
 };
 
 export type TenantReconciliationSummary = {
   tenantName: string;
   contractCount: number;
-  receivableAmount: number;
-  paidAmount: number;
+  dueReceivableAmount: number;
+  duePaidAmount: number;
   outstandingAmount: number;
-  creditAmount: number;
+  prepaidAmount: number;
+  unallocatedAmount: number;
   lastPaymentDate: string | null;
   status: RentReconciliationStatus;
 };

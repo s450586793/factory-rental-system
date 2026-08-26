@@ -6,7 +6,7 @@ import { depositsApi, filesApi, unitsApi } from "../api";
 import type { Contract, DepositRecord, UnitSummary } from "../types/models";
 
 vi.mock("../api", () => ({
-  depositsApi: { create: vi.fn(), update: vi.fn(), remove: vi.fn(), list: vi.fn() },
+  depositsApi: { create: vi.fn(), update: vi.fn(), remove: vi.fn(), list: vi.fn(), listAccounts: vi.fn() },
   filesApi: { upload: vi.fn() },
   unitsApi: { list: vi.fn() },
 }));
@@ -116,6 +116,16 @@ const paymentVoucherUploadStub = defineComponent({
   },
 });
 
+const paymentVoucherPreviewDialogStub = defineComponent({
+  props: ["modelValue", "files"],
+  setup(props) {
+    return () =>
+      props.modelValue
+        ? h("div", { class: "voucher-preview-stub" }, `${props.files?.length ?? 0} 张凭证`)
+        : null;
+  },
+});
+
 function mountView() {
   const tableRowsKey = Symbol("tableRows");
   type TableRowsContext = { getRows: () => unknown[] };
@@ -157,7 +167,7 @@ function mountView() {
             return () => h("div", table.getRows().map((row) => slots.default?.({ row }) ?? h("span", String((row as Record<string, unknown>)[props.prop as string] ?? ""))));
           },
         }),
-        PaymentVoucherPreviewDialog: true,
+        PaymentVoucherPreviewDialog: paymentVoucherPreviewDialogStub,
         PaymentVoucherUpload: paymentVoucherUploadStub,
       },
     },
@@ -178,8 +188,10 @@ describe("DepositsView 收款凭证", () => {
   beforeEach(() => {
     vi.mocked(unitsApi.list).mockResolvedValue([unit]);
     vi.mocked(depositsApi.list).mockResolvedValue([]);
+    vi.mocked(depositsApi.listAccounts).mockResolvedValue([]);
     vi.mocked(depositsApi.create).mockResolvedValue(existingDeposit);
     vi.mocked(depositsApi.update).mockResolvedValue(existingDeposit);
+    vi.mocked(depositsApi.remove).mockResolvedValue({ success: true });
     vi.mocked(filesApi.upload).mockResolvedValue([
       { id: "uploaded-1", originalName: "one.png", mimeType: "image/png", size: 1, category: "payment-voucher", storagePath: "payment-voucher/one.png" },
       { id: "uploaded-2", originalName: "two.webp", mimeType: "image/webp", size: 1, category: "payment-voucher", storagePath: "payment-voucher/two.webp" },
@@ -208,6 +220,8 @@ describe("DepositsView 收款凭证", () => {
     expect(vi.mocked(filesApi.upload).mock.invocationCallOrder[0]).toBeLessThan(
       vi.mocked(depositsApi.create).mock.invocationCallOrder[0],
     );
+    expect(depositsApi.listAccounts).toHaveBeenCalledTimes(2);
+    expect(depositsApi.list).toHaveBeenCalledTimes(2);
   });
 
   it("编辑时移除已有凭证，只提交新上传凭证的 ID", async () => {
@@ -230,5 +244,30 @@ describe("DepositsView 收款凭证", () => {
       "deposit-1",
       expect.objectContaining({ attachmentFileIds: ["uploaded-new"] }),
     );
+    expect(depositsApi.listAccounts).toHaveBeenCalledTimes(2);
+    expect(depositsApi.list).toHaveBeenCalledTimes(2);
+  });
+
+  it("从收退流水打开已有押金凭证预览", async () => {
+    vi.mocked(depositsApi.list).mockResolvedValue([existingDeposit]);
+    const wrapper = mountView();
+    await flushPromises();
+
+    await findButton(wrapper, "1 张").trigger("click");
+
+    expect(wrapper.get(".voucher-preview-stub").text()).toContain("1 张凭证");
+  });
+
+  it("删除流水后同时刷新押金账户和收退流水", async () => {
+    vi.mocked(depositsApi.list).mockResolvedValue([existingDeposit]);
+    const wrapper = mountView();
+    await flushPromises();
+
+    await findButton(wrapper, "删除").trigger("click");
+    await flushPromises();
+
+    expect(depositsApi.remove).toHaveBeenCalledWith("deposit-1");
+    expect(depositsApi.listAccounts).toHaveBeenCalledTimes(2);
+    expect(depositsApi.list).toHaveBeenCalledTimes(2);
   });
 });

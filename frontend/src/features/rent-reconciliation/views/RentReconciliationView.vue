@@ -21,7 +21,7 @@
         <div class="page-header">
           <div>
             <h2>房租对账</h2>
-            <p>按租户汇总各租赁期应收、实收、结欠和结余。</p>
+            <p>按租户汇总各租赁期的当前结欠、预收和未分配结余。</p>
           </div>
         </div>
 
@@ -43,6 +43,7 @@
             <el-option label="全部状态" value="" />
             <el-option label="欠款" value="outstanding" />
             <el-option label="已结清" value="settled" />
+            <el-option label="有预收" value="prepaid" />
             <el-option label="有结余" value="credit" />
           </el-select>
           <el-button type="primary" @click="loadList">查询</el-button>
@@ -50,25 +51,30 @@
         </div>
 
         <div class="table-shell">
-          <el-table :data="listResponse.items" v-loading="loading" size="small" row-key="tenantName">
+          <el-table
+            :data="listResponse.items"
+            v-loading="loading"
+            class="reconciliation-ledger-table"
+            size="small"
+            row-key="tenantName"
+          >
             <el-table-column prop="tenantName" label="租户" min-width="132" show-overflow-tooltip />
             <el-table-column prop="contractCount" label="租赁期" width="72" />
-            <el-table-column label="累计应收" min-width="112" align="right">
-              <template #default="{ row }">{{ formatCurrency(row.receivableAmount) }}</template>
-            </el-table-column>
-            <el-table-column label="累计实收" min-width="112" align="right">
-              <template #default="{ row }">{{ formatCurrency(row.paidAmount) }}</template>
-            </el-table-column>
             <el-table-column label="当前结欠" min-width="112" align="right">
               <template #default="{ row }">
-                <strong :class="{ 'amount-overdue': row.outstandingAmount > 0 }">
+                <strong :class="{ 'amount-overdue': row.outstandingAmount !== 0 }">
                   {{ formatCurrency(row.outstandingAmount) }}
                 </strong>
               </template>
             </el-table-column>
-            <el-table-column label="当前结余" min-width="104" align="right">
+            <el-table-column label="预收" min-width="104" align="right">
               <template #default="{ row }">
-                {{ row.creditAmount > 0 ? formatCurrency(row.creditAmount) : "--" }}
+                {{ row.prepaidAmount > 0 ? formatCurrency(row.prepaidAmount) : "--" }}
+              </template>
+            </el-table-column>
+            <el-table-column label="未分配" min-width="104" align="right">
+              <template #default="{ row }">
+                {{ row.unallocatedAmount > 0 ? formatCurrency(row.unallocatedAmount) : "--" }}
               </template>
             </el-table-column>
             <el-table-column label="最后付款" width="104">
@@ -103,15 +109,23 @@
         </div>
 
         <div v-if="detail" class="stats-row reconciliation-stats">
-          <div class="stat-item">
-            <small>当前结欠</small>
-            <strong :class="{ 'amount-overdue': detail.outstandingAmount > 0 }">
+          <div
+            class="stat-item"
+            data-test="current-outstanding"
+            :class="{ 'amount-overdue': detail.outstandingAmount !== 0 }"
+          >
+            <small :class="{ 'amount-overdue': detail.outstandingAmount !== 0 }">当前结欠</small>
+            <strong :class="{ 'amount-overdue': detail.outstandingAmount !== 0 }">
               {{ formatCurrency(detail.outstandingAmount) }}
             </strong>
           </div>
           <div class="stat-item">
-            <small>当前结余</small>
-            <strong>{{ formatCurrency(detail.creditAmount) }}</strong>
+            <small>预收</small>
+            <strong>{{ formatCurrency(detail.prepaidAmount) }}</strong>
+          </div>
+          <div class="stat-item">
+            <small>未分配</small>
+            <strong>{{ formatCurrency(detail.unallocatedAmount) }}</strong>
           </div>
         </div>
 
@@ -119,22 +133,29 @@
         <div v-else-if="detail" class="reconciliation-period-list">
           <section
             v-for="period in detail.periods"
-            :key="`${period.contractId}-${period.startDate}`"
+            :key="period.scheduleId"
             class="reconciliation-period"
           >
             <div class="reconciliation-period-header">
               <div>
                 <h3>{{ period.unit.code }} / {{ period.unit.location }}</h3>
-                <p>{{ period.startDate }} 至 {{ period.endDate }}</p>
+                <p>第 {{ period.sequence }} 期 · {{ period.startDate }} 至 {{ period.endDate }} · 到期日 {{ period.dueDate }}</p>
               </div>
-              <el-tag :type="statusTagType(period.status)" size="small">{{ statusLabel(period.status) }}</el-tag>
+              <el-tag :type="periodStatusTagType(period.status)" size="small">
+                {{ periodStatusLabel(period.status) }}
+              </el-tag>
             </div>
 
             <dl class="reconciliation-period-totals">
               <div><dt>应收</dt><dd>{{ formatCurrency(period.receivableAmount) }}</dd></div>
               <div><dt>实收</dt><dd>{{ formatCurrency(period.paidAmount) }}</dd></div>
-              <div><dt>结欠</dt><dd>{{ formatCurrency(period.outstandingAmount) }}</dd></div>
-              <div><dt>结余</dt><dd>{{ formatCurrency(period.creditAmount) }}</dd></div>
+              <div data-test="period-outstanding">
+                <dt :class="{ 'amount-overdue': period.outstandingAmount !== 0 }">结欠</dt>
+                <dd :class="{ 'amount-overdue': period.outstandingAmount !== 0 }">
+                  {{ formatCurrency(period.outstandingAmount) }}
+                </dd>
+              </div>
+              <div><dt>预收</dt><dd>{{ formatCurrency(period.prepaidAmount) }}</dd></div>
             </dl>
 
             <div v-if="period.payments.length" class="table-shell reconciliation-payment-table">
@@ -208,6 +229,7 @@ import { rentReconciliationApi } from "../api";
 import type {
   ReconciliationFile,
   RentReconciliationListResponse,
+  RentReconciliationPeriodStatus,
   RentReconciliationStatus,
   TenantReconciliationDetail,
 } from "../types";
@@ -223,6 +245,8 @@ const receiptPreviewVisible = ref(false);
 const receiptPreviewFileId = ref("");
 const voucherPreviewVisible = ref(false);
 const voucherPreviewFiles = ref<ReconciliationFile[]>([]);
+let listRequestSequence = 0;
+let detailRequestSequence = 0;
 
 const filters = reactive<{
   keyword: string;
@@ -239,22 +263,29 @@ const selectedYear = computed(() => (filters.year === "" ? undefined : filters.y
 onMounted(loadList);
 
 async function loadList() {
+  const requestSequence = ++listRequestSequence;
+  const query = {
+    keyword: filters.keyword.trim() || undefined,
+    year: selectedYear.value,
+    status: filters.status || undefined,
+  };
   try {
     loading.value = true;
-    const response = await rentReconciliationApi.list({
-      keyword: filters.keyword.trim() || undefined,
-      year: selectedYear.value,
-      status: filters.status || undefined,
-    });
+    const response = await rentReconciliationApi.list(query);
+    if (requestSequence !== listRequestSequence) return;
     listResponse.value = response;
-    if (!filters.keyword.trim() && selectedYear.value === undefined && !filters.status) {
+    if (!query.keyword && query.year === undefined && !query.status) {
       tenantOptions.value = [...new Set(response.items.map((item) => item.tenantName).filter(Boolean))];
     }
   } catch (error) {
-    listResponse.value = { items: [], availableYears: listResponse.value.availableYears };
-    ElMessage.error(error instanceof Error ? error.message : "加载房租对账失败");
+    if (requestSequence === listRequestSequence) {
+      listResponse.value = { items: [], availableYears: listResponse.value.availableYears };
+      ElMessage.error(error instanceof Error ? error.message : "加载房租对账失败");
+    }
   } finally {
-    loading.value = false;
+    if (requestSequence === listRequestSequence) {
+      loading.value = false;
+    }
   }
 }
 
@@ -263,17 +294,25 @@ async function loadDetail() {
     return;
   }
 
+  const requestSequence = ++detailRequestSequence;
+  const query = {
+    tenantName: selectedTenantName.value,
+    year: selectedYear.value,
+  };
   try {
     detailLoading.value = true;
-    detail.value = await rentReconciliationApi.detail({
-      tenantName: selectedTenantName.value,
-      year: selectedYear.value,
-    });
+    const response = await rentReconciliationApi.detail(query);
+    if (requestSequence !== detailRequestSequence) return;
+    detail.value = response;
   } catch (error) {
-    detail.value = null;
-    ElMessage.error(error instanceof Error ? error.message : "加载对账明细失败");
+    if (requestSequence === detailRequestSequence) {
+      detail.value = null;
+      ElMessage.error(error instanceof Error ? error.message : "加载对账明细失败");
+    }
   } finally {
-    detailLoading.value = false;
+    if (requestSequence === detailRequestSequence) {
+      detailLoading.value = false;
+    }
   }
 }
 
@@ -284,8 +323,10 @@ async function openDetail(tenantName: string) {
 }
 
 function backToSummary() {
+  detailRequestSequence += 1;
   selectedTenantName.value = "";
   detail.value = null;
+  detailLoading.value = false;
 }
 
 async function resetFilters() {
@@ -298,12 +339,28 @@ async function resetFilters() {
 function statusLabel(status: RentReconciliationStatus) {
   if (status === "outstanding") return "欠款";
   if (status === "credit") return "有结余";
+  if (status === "prepaid") return "有预收";
   return "已结清";
 }
 
 function statusTagType(status: RentReconciliationStatus) {
   if (status === "outstanding") return "danger";
-  if (status === "credit") return "warning";
+  if (status === "credit" || status === "prepaid") return "warning";
+  return "success";
+}
+
+function periodStatusLabel(status: RentReconciliationPeriodStatus) {
+  if (status === "overdue") return "欠款";
+  if (status === "not-due") return "未到期";
+  if (status === "partially-prepaid") return "部分预收";
+  if (status === "prepaid") return "已预收";
+  return "已结清";
+}
+
+function periodStatusTagType(status: RentReconciliationPeriodStatus) {
+  if (status === "overdue") return "danger";
+  if (status === "partially-prepaid" || status === "prepaid") return "warning";
+  if (status === "not-due") return "info";
   return "success";
 }
 
@@ -313,6 +370,7 @@ function openVoucherPreview(files: ReconciliationFile[]) {
 }
 
 function openReceiptPreview(fileId: string) {
+  if (receiptPreviewVisible.value && receiptPreviewFileId.value === fileId) return;
   receiptPreviewFileId.value = fileId;
   receiptPreviewVisible.value = true;
 }

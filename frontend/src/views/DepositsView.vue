@@ -3,19 +3,70 @@
     <template #top-actions>
       <div class="toolbar-row">
         <el-button type="primary" @click="openCreate">新增押金记录</el-button>
-        <el-button @click="loadPageData">刷新</el-button>
+        <el-button :loading="loading" @click="loadPageData">刷新</el-button>
       </div>
     </template>
 
-    <section class="panel-card page-panel">
+    <section class="panel-card page-panel deposits-page">
       <div class="page-header">
         <div>
-          <h2>押金记录</h2>
+          <h2>押金管理</h2>
           <p>分别记录押金收取与退还，和合同留档关联。</p>
         </div>
       </div>
 
-      <el-table :data="records" v-loading="loading">
+      <div class="deposit-section-heading">
+        <h3>押金账户</h3>
+      </div>
+      <div class="table-shell">
+        <el-table
+          :data="accounts"
+          v-loading="loading"
+          class="deposit-account-table"
+          size="small"
+          row-key="accountKey"
+        >
+          <el-table-column label="厂房" width="112">
+            <template #default="{ row }">{{ row.unit.code }}</template>
+          </el-table-column>
+          <el-table-column prop="tenantName" label="租户" min-width="170" show-overflow-tooltip />
+          <el-table-column label="约定押金" width="126" align="right">
+            <template #default="{ row }">{{ formatCurrency(row.agreedDepositAmount) }}</template>
+          </el-table-column>
+          <el-table-column label="当前持有" width="126" align="right">
+            <template #default="{ row }">{{ formatCurrency(row.heldAmount) }}</template>
+          </el-table-column>
+          <el-table-column label="需补" width="116" align="right">
+            <template #default="{ row }">
+              <span
+                data-test="deposit-account-supplement"
+                :class="{ 'amount-overdue': row.supplementAmount > 0 }"
+              >
+                {{ row.supplementAmount > 0 ? formatCurrency(row.supplementAmount) : "--" }}
+              </span>
+            </template>
+          </el-table-column>
+          <el-table-column label="应退" width="116" align="right">
+            <template #default="{ row }">
+              <span
+                data-test="deposit-account-refund"
+                :class="{ 'amount-overdue': row.refundAmount > 0 }"
+              >
+                {{ row.refundAmount > 0 ? formatCurrency(row.refundAmount) : "--" }}
+              </span>
+            </template>
+          </el-table-column>
+          <el-table-column label="最近流水" width="112">
+            <template #default="{ row }">{{ row.lastTransactionDate || "--" }}</template>
+          </el-table-column>
+        </el-table>
+      </div>
+
+      <div class="deposit-section-heading deposit-record-heading">
+        <h3>收退流水</h3>
+      </div>
+      <div class="table-shell">
+        <el-table :data="records" v-loading="loading" class="deposit-record-table" size="small">
         <el-table-column label="厂房" min-width="120">
           <template #default="{ row }">
             {{ row.unit.code }}
@@ -62,7 +113,8 @@
             </el-space>
           </template>
         </el-table-column>
-      </el-table>
+        </el-table>
+      </div>
     </section>
 
     <el-dialog v-model="dialogVisible" :title="form.id ? '编辑押金记录' : '新增押金记录'" width="640px">
@@ -154,18 +206,20 @@ import AppShell from "../components/AppShell.vue";
 import PaymentVoucherUpload from "../components/PaymentVoucherUpload.vue";
 import PaymentVoucherPreviewDialog from "../components/PaymentVoucherPreviewDialog.vue";
 import { depositsApi, filesApi, unitsApi } from "../api";
-import type { Contract, DepositRecord, StoredFile, UnitSummary } from "../types/models";
+import type { Contract, DepositAccountSummary, DepositRecord, StoredFile, UnitSummary } from "../types/models";
 import { formatCurrency, todayIso } from "../utils/format";
 
 const loading = ref(false);
 const dialogVisible = ref(false);
 const submitting = ref(false);
 const units = ref<UnitSummary[]>([]);
+const accounts = ref<(DepositAccountSummary & { accountKey: string })[]>([]);
 const records = ref<DepositRecord[]>([]);
 const existingVoucherFiles = ref<StoredFile[]>([]);
 const voucherUploads = ref<File[]>([]);
 const voucherPreviewVisible = ref(false);
 const voucherPreviewFiles = ref<StoredFile[]>([]);
+let loadRequestSequence = 0;
 
 const form = reactive({
   id: "",
@@ -184,15 +238,29 @@ const selectedContracts = computed<Contract[]>(() => selectedUnit.value?.contrac
 onMounted(loadPageData);
 
 async function loadPageData() {
+  const requestSequence = ++loadRequestSequence;
   try {
     loading.value = true;
-    const [unitList, depositList] = await Promise.all([unitsApi.list(), depositsApi.list()]);
+    const [unitList, accountList, depositList] = await Promise.all([
+      unitsApi.list(),
+      depositsApi.listAccounts(),
+      depositsApi.list(),
+    ]);
+    if (requestSequence !== loadRequestSequence) return;
     units.value = unitList;
+    accounts.value = accountList.map((account) => ({
+      ...account,
+      accountKey: JSON.stringify([account.unitId, account.tenantName]),
+    }));
     records.value = depositList;
   } catch (error) {
-    ElMessage.error(error instanceof Error ? error.message : "加载押金记录失败");
+    if (requestSequence === loadRequestSequence) {
+      ElMessage.error(error instanceof Error ? error.message : "加载押金记录失败");
+    }
   } finally {
-    loading.value = false;
+    if (requestSequence === loadRequestSequence) {
+      loading.value = false;
+    }
   }
 }
 
