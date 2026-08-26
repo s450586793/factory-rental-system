@@ -1,7 +1,20 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, UseGuards } from "@nestjs/common";
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  Patch,
+  Post,
+  UseGuards,
+} from "@nestjs/common";
 import { ApiTags } from "@nestjs/swagger";
 import { JwtAuthGuard } from "../common/guards/jwt-auth.guard";
-import { CreateRentPaymentDto, UpdateRentPaymentDto } from "./rent-payments.dto";
+import {
+  CreateRentPaymentDto,
+  PreviewRentPaymentAllocationDto,
+  UpdateRentPaymentDto,
+} from "./rent-payments.dto";
 import { RentPaymentsService } from "./rent-payments.service";
 
 @ApiTags("rent-payments")
@@ -13,6 +26,11 @@ export class RentPaymentsController {
   @Get()
   list() {
     return this.rentPaymentsService.list();
+  }
+
+  @Post("allocation-preview")
+  previewAllocation(@Body() dto: PreviewRentPaymentAllocationDto) {
+    return this.rentPaymentsService.previewAllocation(dto);
   }
 
   @Get(":id")

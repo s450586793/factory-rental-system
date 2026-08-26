@@ -11,6 +11,7 @@ import {
   MaxLength,
   Min,
 } from "class-validator";
+import type { RentPayment } from "./rent-payment.entity";
 
 export class CreateRentPaymentDto {
   @IsString()
@@ -20,7 +21,7 @@ export class CreateRentPaymentDto {
   paymentDate!: string;
 
   @IsNumber()
-  @Min(0)
+  @Min(0.01)
   amount!: number;
 
   @IsString()
@@ -41,3 +42,34 @@ export class CreateRentPaymentDto {
 }
 
 export class UpdateRentPaymentDto extends CreateRentPaymentDto {}
+
+export class PreviewRentPaymentAllocationDto {
+  @IsString()
+  contractId!: string;
+
+  @IsDateString()
+  paymentDate!: string;
+
+  @IsNumber()
+  @Min(0.01)
+  amount!: number;
+
+  @IsString()
+  @IsOptional()
+  excludePaymentId?: string;
+}
+
+export type RentPaymentAllocationPreview = {
+  allocations: Array<{
+    scheduleId: string;
+    sequence: number;
+    periodStart: string;
+    periodEnd: string;
+    allocatedAmount: number;
+  }>;
+  unallocatedAmount: number;
+};
+
+export type RentPaymentMutationResult = RentPaymentAllocationPreview & {
+  payment: RentPayment;
+};
