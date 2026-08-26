@@ -283,6 +283,7 @@ describe("RentPaymentsService", () => {
   it("updates a payment and rebuilds allocations in one transaction", async () => {
     const {
       service,
+      contractsRepository,
       manager,
       receiptsRepository,
       rentReceivablesService,
@@ -291,6 +292,20 @@ describe("RentPaymentsService", () => {
 
     await service.update("payment-1", createDto({ amount: 90000 }) as never);
 
+    expect(transactionalPaymentsRepository.findOne).toHaveBeenNthCalledWith(1, {
+      where: { id: "payment-1" },
+      loadEagerRelations: false,
+    });
+    expect(transactionalPaymentsRepository.findOne).toHaveBeenNthCalledWith(2, {
+      where: { id: "payment-1" },
+      lock: { mode: "pessimistic_write" },
+      loadEagerRelations: false,
+    });
+    expect(
+      contractsRepository.findOne.mock.invocationCallOrder[0],
+    ).toBeLessThan(
+      transactionalPaymentsRepository.findOne.mock.invocationCallOrder[1],
+    );
     expect(receiptsRepository.findOne).toHaveBeenCalledWith({
       where: {
         sourceType: ReceiptSourceType.RENT_PAYMENT,
@@ -343,7 +358,11 @@ describe("RentPaymentsService", () => {
     );
 
     expect(dataSource.transaction).toHaveBeenCalledTimes(1);
-    expect(transactionalPaymentsRepository.findOne).toHaveBeenCalledWith({
+    expect(transactionalPaymentsRepository.findOne).toHaveBeenNthCalledWith(1, {
+      where: { id: "payment-1" },
+      loadEagerRelations: false,
+    });
+    expect(transactionalPaymentsRepository.findOne).toHaveBeenNthCalledWith(2, {
       where: { id: "payment-1" },
       lock: { mode: "pessimistic_write" },
       loadEagerRelations: false,
@@ -369,6 +388,11 @@ describe("RentPaymentsService", () => {
       lock: { mode: "pessimistic_write" },
       loadEagerRelations: false,
     });
+    expect(
+      contractsRepository.findOne.mock.invocationCallOrder[1],
+    ).toBeLessThan(
+      transactionalPaymentsRepository.findOne.mock.invocationCallOrder[1],
+    );
     expect(
       contractsRepository.findOne.mock.invocationCallOrder[1],
     ).toBeLessThan(receiptsRepository.findOne.mock.invocationCallOrder[0]);
@@ -411,7 +435,11 @@ describe("RentPaymentsService", () => {
 
     const result = await service.remove("payment-1");
 
-    expect(transactionalPaymentsRepository.findOne).toHaveBeenCalledWith({
+    expect(transactionalPaymentsRepository.findOne).toHaveBeenNthCalledWith(1, {
+      where: { id: "payment-1" },
+      loadEagerRelations: false,
+    });
+    expect(transactionalPaymentsRepository.findOne).toHaveBeenNthCalledWith(2, {
       where: { id: "payment-1" },
       lock: { mode: "pessimistic_write" },
       loadEagerRelations: false,
@@ -426,6 +454,11 @@ describe("RentPaymentsService", () => {
     });
     expect(
       contractsRepository.findOne.mock.invocationCallOrder[0],
+    ).toBeLessThan(
+      transactionalPaymentsRepository.findOne.mock.invocationCallOrder[1],
+    );
+    expect(
+      transactionalPaymentsRepository.findOne.mock.invocationCallOrder[1],
     ).toBeLessThan(receiptsRepository.findOne.mock.invocationCallOrder[0]);
     expect(receiptsRepository.findOne.mock.invocationCallOrder[0]).toBeLessThan(
       transactionalPaymentsRepository.softDelete.mock.invocationCallOrder[0],
@@ -456,6 +489,46 @@ describe("RentPaymentsService", () => {
     await expect(service.remove("payment-1")).rejects.toThrow(
       "该房租记录已经开具收据，不能再修改或删除",
     );
+    expect(transactionalPaymentsRepository.softDelete).not.toHaveBeenCalled();
+    expect(
+      rentReceivablesService.rebuildPaymentAllocations,
+    ).not.toHaveBeenCalled();
+  });
+
+  it("rejects an update when the payment moves after its contract identity is read", async () => {
+    const {
+      service,
+      rentReceivablesService,
+      transactionalPaymentsRepository,
+    } = buildService({ existingPayment: fullPayment });
+    transactionalPaymentsRepository.findOne
+      .mockResolvedValueOnce(fullPayment)
+      .mockResolvedValueOnce({ ...fullPayment, contractId: "contract-other" });
+
+    await expect(
+      service.update("payment-1", createDto() as never),
+    ).rejects.toMatchObject({ status: 409 });
+
+    expect(transactionalPaymentsRepository.save).not.toHaveBeenCalled();
+    expect(
+      rentReceivablesService.rebuildPaymentAllocations,
+    ).not.toHaveBeenCalled();
+  });
+
+  it("rejects removal when the payment moves after its contract identity is read", async () => {
+    const {
+      service,
+      rentReceivablesService,
+      transactionalPaymentsRepository,
+    } = buildService({ existingPayment: fullPayment });
+    transactionalPaymentsRepository.findOne
+      .mockResolvedValueOnce(fullPayment)
+      .mockResolvedValueOnce({ ...fullPayment, contractId: "contract-other" });
+
+    await expect(service.remove("payment-1")).rejects.toMatchObject({
+      status: 409,
+    });
+
     expect(transactionalPaymentsRepository.softDelete).not.toHaveBeenCalled();
     expect(
       rentReceivablesService.rebuildPaymentAllocations,

@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
@@ -74,12 +75,17 @@ export class RentPaymentsService {
   async remove(id: string): Promise<RentPaymentMutationResult> {
     return this.dataSource.transaction(async (manager) => {
       const paymentsRepository = manager.getRepository(RentPayment);
+      const paymentIdentity = await this.findPaymentOrFail(
+        paymentsRepository,
+        id,
+      );
+      await this.lockContracts(manager, [paymentIdentity.contractId]);
       const lockedPayment = await this.findPaymentOrFail(
         paymentsRepository,
         id,
         true,
       );
-      await this.lockContracts(manager, [lockedPayment.contractId]);
+      this.assertPaymentContractUnchanged(paymentIdentity, lockedPayment);
       const payment = await paymentsRepository.findOneOrFail({
         where: { id },
       });
@@ -156,11 +162,10 @@ export class RentPaymentsService {
       const paymentsRepository = manager.getRepository(RentPayment);
       let payment: RentPayment;
       let previousContractId: string | undefined;
+      let paymentIdentity: RentPayment | undefined;
       if (id) {
-        payment = await this.findPaymentOrFail(paymentsRepository, id, true);
-        previousContractId = payment.contractId;
-      } else {
-        payment = paymentsRepository.create();
+        paymentIdentity = await this.findPaymentOrFail(paymentsRepository, id);
+        previousContractId = paymentIdentity.contractId;
       }
       const affectedContractIds = this.sortedContractIds([
         previousContractId,
@@ -172,7 +177,11 @@ export class RentPaymentsService {
       );
       const contract = lockedContracts.get(dto.contractId)!;
       if (id) {
+        payment = await this.findPaymentOrFail(paymentsRepository, id, true);
+        this.assertPaymentContractUnchanged(paymentIdentity!, payment);
         await this.ensureNoActiveReceipt(manager, id);
+      } else {
+        payment = paymentsRepository.create();
       }
 
       payment.contractId = contract.id;
@@ -225,10 +234,10 @@ export class RentPaymentsService {
   ): Promise<RentPayment> {
     const payment = await repository.findOne({
       where: { id },
+      loadEagerRelations: false,
       ...(lock
         ? {
             lock: { mode: "pessimistic_write" as const },
-            loadEagerRelations: false,
           }
         : {}),
     });
@@ -236,6 +245,15 @@ export class RentPaymentsService {
       throw new NotFoundException("房租收费记录不存在");
     }
     return payment;
+  }
+
+  private assertPaymentContractUnchanged(
+    identity: RentPayment,
+    lockedPayment: RentPayment,
+  ): void {
+    if (identity.contractId !== lockedPayment.contractId) {
+      throw new ConflictException("房租收费记录已发生变化，请刷新后重试");
+    }
   }
 
   private sortedContractIds(contractIds: Array<string | undefined>): string[] {
