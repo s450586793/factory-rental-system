@@ -665,6 +665,79 @@ describe("UnitsView contract download", () => {
     );
   });
 
+  it("cannot reuse tenant A carryover while tenant B lookup is pending and uses B after success", async () => {
+    const tenantBLookup = deferred<DepositAccountSummary[]>();
+    vi.mocked(depositsApi.listAccounts)
+      .mockResolvedValueOnce([depositAccount])
+      .mockReturnValueOnce(tenantBLookup.promise);
+    const tenantBAccount = {
+      ...depositAccount,
+      tenantName: "新租户",
+      heldAmount: 7000,
+      latestContractId: "contract-b",
+    };
+    const wrapper = mountUnitsView();
+    await flushPromises();
+    await openCreateContractDialog(wrapper);
+    expect(wrapper.get('[aria-label="押金结转来源合同"]').text()).toContain("contract-old");
+
+    await findInputByLabel(wrapper, "乙方名称").setValue(" 新租户 ");
+    await flushPromises();
+    const carryoverButton = wrapper.get('[aria-label="押金处理-沿用已有押金"]');
+    expect(carryoverButton.attributes("disabled")).toBeDefined();
+    await carryoverButton.trigger("click");
+    expect(wrapper.find('[aria-label="押金结转来源合同"]').exists()).toBe(false);
+    await findButton(wrapper, "保存").trigger("click");
+    await flushPromises();
+    expect(contractsApi.create).not.toHaveBeenCalled();
+
+    tenantBLookup.resolve([tenantBAccount]);
+    await flushPromises();
+    expect(wrapper.get('[aria-label="押金结转来源合同"]').text()).toContain("contract-b");
+    expect(wrapper.text()).toContain("已结转¥7,000.00");
+    expect(wrapper.text()).not.toContain("contract-old");
+    await findButton(wrapper, "保存").trigger("click");
+    await flushPromises();
+    expect(contractsApi.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        tenantName: "新租户",
+        depositSettlementMode: "carryover",
+        depositCarryoverAmount: 7000,
+        depositCarryoverSourceContractId: "contract-b",
+      }),
+    );
+  });
+
+  it("cannot reuse tenant A carryover when tenant B lookup fails", async () => {
+    const tenantBLookup = deferred<DepositAccountSummary[]>();
+    vi.mocked(depositsApi.listAccounts)
+      .mockResolvedValueOnce([depositAccount])
+      .mockReturnValueOnce(tenantBLookup.promise);
+    const wrapper = mountUnitsView();
+    await flushPromises();
+    await openCreateContractDialog(wrapper);
+    expect(wrapper.get('[aria-label="押金结转来源合同"]').text()).toContain("contract-old");
+
+    await findInputByLabel(wrapper, "乙方名称").setValue("新租户");
+    await flushPromises();
+    const carryoverButton = wrapper.get('[aria-label="押金处理-沿用已有押金"]');
+    expect(carryoverButton.attributes("disabled")).toBeDefined();
+    await carryoverButton.trigger("click");
+    tenantBLookup.reject(new Error("tenant B lookup failed"));
+    await flushPromises();
+
+    expect(wrapper.text()).toContain("押金账户查询失败，请重试");
+    expect(wrapper.find('[aria-label="押金结转来源合同"]').exists()).toBe(false);
+    await findButton(wrapper, "保存").trigger("click");
+    await flushPromises();
+    expect(contractsApi.create).not.toHaveBeenCalled();
+    expect(
+      vi.mocked(contractsApi.create).mock.calls.some(
+        ([payload]) => payload.depositCarryoverSourceContractId === "contract-old",
+      ),
+    ).toBe(false);
+  });
+
   it("preserves an edited contract's saved deposit snapshot despite a newer account balance", async () => {
     const historicalContract: Contract = {
       ...oldContract,

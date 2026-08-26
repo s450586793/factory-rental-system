@@ -686,7 +686,7 @@
               <el-radio-button
                 label="carryover"
                 aria-label="押金处理-沿用已有押金"
-                @click="markDepositSelectionTouched"
+                :disabled="!canSelectDepositCarryover"
               >沿用已有押金</el-radio-button>
             </el-radio-group>
           </div>
@@ -1026,9 +1026,14 @@ const unitContractPreview = computed(() =>
 const contractPreview = computed(() =>
   buildRentSchedulePreview(contractForm.startDate, contractForm.endDate, contractForm.billingFrequency),
 );
-const selectedDepositAccount = computed(() => {
-  return availableDepositAccounts.value[0] ?? null;
-});
+const selectedDepositAccount = computed(() => findCurrentDepositAccount());
+const canSelectDepositCarryover = computed(
+  () =>
+    depositLookupSucceeded.value &&
+    !depositLookupLoading.value &&
+    !depositLookupError.value &&
+    Boolean(selectedDepositAccount.value),
+);
 const depositSummary = computed(() => {
   const agreed = Number(contractForm.depositAmount) || 0;
   const held = Number(selectedDepositAccount.value?.heldAmount ?? 0);
@@ -1435,6 +1440,7 @@ function invalidateDepositLookup() {
 function beginDepositAutoDecision(preserveSnapshot: boolean) {
   depositDecisionVersion += 1;
   depositSelectionTouchedVersion.value = -1;
+  availableDepositAccounts.value = [];
   if (!preserveSnapshot) {
     resetDepositSettlement();
   }
@@ -1446,14 +1452,33 @@ function markDepositSelectionTouched() {
   depositSelectionTouchedVersion.value = depositDecisionVersion;
 }
 
+function findCurrentDepositAccount(sourceContractId?: string) {
+  const unitId = selectedUnit.value?.id;
+  const tenantName = contractForm.tenantName.trim();
+  if (!unitId || !tenantName) {
+    return null;
+  }
+
+  return (
+    availableDepositAccounts.value.find(
+      (account) =>
+        account.unitId === unitId &&
+        account.tenantName.trim() === tenantName &&
+        Number(account.heldAmount) > 0 &&
+        Boolean(account.latestContractId) &&
+        (sourceContractId === undefined || account.latestContractId === sourceContractId),
+    ) ?? null
+  );
+}
+
 async function loadDepositAccounts(preserveSnapshot: boolean, decisionVersion: number) {
   const tenantName = contractForm.tenantName.trim();
   const unitId = selectedUnit.value?.id;
   const requestSequence = ++depositAccountRequestSequence;
+  availableDepositAccounts.value = [];
   depositLookupError.value = "";
   depositLookupSucceeded.value = false;
   if (!tenantName || !unitId) {
-    availableDepositAccounts.value = [];
     depositLookupLoading.value = false;
     depositLookupSucceeded.value = true;
     if (!preserveSnapshot) {
@@ -1477,15 +1502,22 @@ async function loadDepositAccounts(preserveSnapshot: boolean, decisionVersion: n
         Boolean(account.latestContractId),
     );
     depositLookupSucceeded.value = true;
+    const currentSourceAccount = contractForm.depositCarryoverSourceContractId
+      ? findCurrentDepositAccount(contractForm.depositCarryoverSourceContractId)
+      : null;
+    if (contractForm.depositSettlementMode === "carryover" && !currentSourceAccount) {
+      resetDepositSettlement();
+    }
     if (
       !preserveSnapshot &&
       depositSelectionTouchedVersion.value !== decisionVersion
     ) {
-      const account = availableDepositAccounts.value[0];
-      if (account?.latestContractId) {
+      const account = selectedDepositAccount.value;
+      const sourceContractId = account?.latestContractId;
+      if (account && sourceContractId) {
         contractForm.depositSettlementMode = "carryover";
         contractForm.depositCarryoverAmount = Number(account.heldAmount);
-        contractForm.depositCarryoverSourceContractId = account.latestContractId;
+        contractForm.depositCarryoverSourceContractId = sourceContractId;
       }
     }
   } catch {
@@ -1511,19 +1543,21 @@ function retryDepositAccountLookup() {
 }
 
 function handleDepositSettlementModeChange(mode: Contract["depositSettlementMode"]) {
-  markDepositSelectionTouched();
   if (mode === "initial") {
+    markDepositSelectionTouched();
     resetDepositSettlement();
     return;
   }
-  const account = availableDepositAccounts.value[0];
-  if (!account?.latestContractId) {
+  const account = canSelectDepositCarryover.value ? selectedDepositAccount.value : null;
+  const sourceContractId = account?.latestContractId;
+  if (!account || !sourceContractId) {
     resetDepositSettlement();
     return;
   }
+  markDepositSelectionTouched();
   contractForm.depositSettlementMode = "carryover";
   contractForm.depositCarryoverAmount = Number(account.heldAmount);
-  contractForm.depositCarryoverSourceContractId = account.latestContractId;
+  contractForm.depositCarryoverSourceContractId = sourceContractId;
 }
 
 function closeContractDialog() {
@@ -1581,10 +1615,17 @@ function validateContractForm() {
     );
   }
   if (
-    contractForm.depositSettlementMode === "carryover" &&
-    !contractForm.depositCarryoverSourceContractId
+    contractForm.depositSettlementMode === "carryover"
   ) {
-    throw new Error("当前没有可结转的押金账户");
+    const sourceContractId = contractForm.depositCarryoverSourceContractId;
+    const shouldValidateCurrentAccount =
+      depositLookupSucceeded.value || depositLookupRequiredForSubmit.value;
+    if (
+      !sourceContractId ||
+      (shouldValidateCurrentAccount && !findCurrentDepositAccount(sourceContractId))
+    ) {
+      throw new Error("当前没有可结转的押金账户");
+    }
   }
 }
 
