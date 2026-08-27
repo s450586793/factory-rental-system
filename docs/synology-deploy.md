@@ -43,8 +43,10 @@ Web 端更新功能默认关闭。启用后，登录用户可以点击页面版�
 
 ```bash
 docker compose -f docker-compose.ghcr.yml pull backend frontend
-docker compose -f docker-compose.ghcr.yml up -d --remove-orphans
+docker compose -f docker-compose.ghcr.yml up -d --no-deps --remove-orphans backend frontend
 ```
+
+`--no-deps` 和明确的服务名用于只重建应用容器，避免更新前后端时重建 PostgreSQL。
 
 命令行部署时使用覆盖文件启用：
 

@@ -76,11 +76,12 @@ export class DeploymentUpdateService {
 
   private buildContainerSpec() {
     const composeArgs = this.config.composeFiles.map((file) => `-f ${quoteShell(file)}`).join(" ");
+    const serviceArgs = this.config.services.map(quoteShell).join(" ");
     const updateEnv = `WEB_UPDATE_PROJECT_DIR=${quoteShell(this.config.projectDir)}`;
     const updateCommand = [
       `cd ${quoteShell(this.config.projectDir)}`,
-      `${updateEnv} docker compose ${composeArgs} pull ${this.config.services.map(quoteShell).join(" ")}`,
-      `${updateEnv} docker compose ${composeArgs} up -d --remove-orphans`,
+      `${updateEnv} docker compose ${composeArgs} pull ${serviceArgs}`,
+      `${updateEnv} docker compose ${composeArgs} up -d --no-deps --remove-orphans ${serviceArgs}`,
     ].join(" && ");
 
     return {

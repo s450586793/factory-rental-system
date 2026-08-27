@@ -2,9 +2,9 @@
 
 > 此项目由 Codex 生成，并按实际业务需求持续迭代。
 
-当前版本：V0.6.1
+当前版本：V0.6.2
 
-更新时间：2026-08-27 09:11 CST
+更新时间：2026-08-27 09:41 CST
 
 版本规则：小修复递增补丁号（例如 `V0.1.2`），大功能或结构调整递增小版本号（例如 `V0.2.0`）。
 
@@ -18,6 +18,7 @@
 
 ## 更新历史
 
+- `2026-08-27 09:41 CST` `V0.6.2` 修复 Web 更新器重建整个 Compose 项目的问题：拉取镜像后仅使用 `--no-deps` 重建配置中的 `backend`、`frontend` 服务，避免更新应用时中断或重建 PostgreSQL；同步收紧 DSM 手工更新命令和部署说明。
 - `2026-08-27 09:11 CST` `V0.6.1` 续租押金恢复为手工处理：新增续租合同时仍默认带出上一份合同的押金金额，不再查询押金账户或自动结转；不重复收取押金时可直接将合同押金改为 `0`。合同 PDF 始终按当前合同押金金额生成，押金管理页保留收退记录及凭证上传、预览；多年合同按年或半年拆分应收的逻辑保持不变。
 - `2026-08-26 19:08 CST` `V0.6.0` 多年合同可按年或半年生成应收计划，未来期次不计入欠费；房租付款按最早未结清期次 FIFO 分配；同房源同租户续租时押金仅结转一次。收费、押金和对账页面同步展示应收计划、分配与结转结果。
 - `2026-08-26 09:24 CST` `V0.5.0` 跨年度合同按租赁周年拆分应收期间：每个已开始的租赁年度计一次年租金，未来期间不提前计费，付款按最早未结清期间依次抵扣；合同历史、房租欠费、对账页面和 PDF 使用同一口径。例如年租金 9 万的两年合同，在两期均已开始时累计应收为 18 万。
@@ -172,7 +173,7 @@ WEB_UPDATE_PROJECT_DIR=/volume1/docker/factory-rental-system \
 docker compose -f docker-compose.ghcr.yml -f docker-compose.web-update.yml up -d
 ```
 
-启用后，按钮会让后端通过 Docker socket 启动一次性 updater 容器，使用 `docker-compose.ghcr.yml` 和 `docker-compose.web-update.yml` 执行 `docker compose pull backend frontend` 与 `docker compose up -d --remove-orphans`。
+启用后，按钮会让后端通过 Docker socket 启动一次性 updater 容器，使用 `docker-compose.ghcr.yml` 和 `docker-compose.web-update.yml` 执行 `docker compose pull backend frontend` 与 `docker compose up -d --no-deps --remove-orphans backend frontend`，仅重建应用容器，不重建 PostgreSQL。
 
 如果 DSM 访问 GitHub 或 GHCR 需要代理，可在启动时一起传入：
 

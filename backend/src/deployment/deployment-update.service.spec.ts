@@ -177,7 +177,7 @@ describe("DeploymentUpdateService", () => {
         Cmd: [
           "sh",
           "-lc",
-          "cd /volume1/docker/factory-rental-system && WEB_UPDATE_PROJECT_DIR=/volume1/docker/factory-rental-system docker compose -f docker-compose.ghcr.yml -f docker-compose.web-update.yml pull backend frontend && WEB_UPDATE_PROJECT_DIR=/volume1/docker/factory-rental-system docker compose -f docker-compose.ghcr.yml -f docker-compose.web-update.yml up -d --remove-orphans",
+          "cd /volume1/docker/factory-rental-system && WEB_UPDATE_PROJECT_DIR=/volume1/docker/factory-rental-system docker compose -f docker-compose.ghcr.yml -f docker-compose.web-update.yml pull backend frontend && WEB_UPDATE_PROJECT_DIR=/volume1/docker/factory-rental-system docker compose -f docker-compose.ghcr.yml -f docker-compose.web-update.yml up -d --no-deps --remove-orphans backend frontend",
         ],
         HostConfig: expect.objectContaining({
           AutoRemove: true,
