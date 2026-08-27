@@ -135,19 +135,10 @@
   line-height: 1.4;
 }
 
-.deposit-record-heading {
-  margin-top: 22px;
-}
-
-.table-shell .deposit-account-table {
-  min-width: 890px;
-}
-
 .table-shell .deposit-record-table {
   min-width: 1120px;
 }
 
-.deposit-account-table .el-table__cell,
 .deposit-record-table .el-table__cell {
   padding-top: 6px;
   padding-bottom: 6px;
@@ -1084,31 +1075,6 @@ a {
   line-height: 1.5;
 }
 
-.deposit-settlement-panel {
-  display: grid;
-  gap: 12px;
-  margin: 2px 0 18px;
-  padding: 14px 0;
-  border-top: 1px solid var(--line);
-  border-bottom: 1px solid var(--line);
-}
-
-.deposit-settlement-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-}
-
-.deposit-settlement-head > strong {
-  font-size: 14px;
-}
-
-.deposit-settlement-panel .el-form-item {
-  margin-bottom: 0;
-}
-
-.deposit-lookup-status,
 .rent-schedule-status {
   min-height: 34px;
   display: flex;
@@ -1122,64 +1088,9 @@ a {
   font-size: 13px;
 }
 
-.deposit-lookup-status.is-error,
 .rent-schedule-status.is-error {
   border-left-color: var(--danger);
   color: var(--danger);
-}
-
-.deposit-source-audit {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  gap: 10px;
-  align-items: center;
-  padding: 8px 10px;
-  border: 1px solid var(--line);
-  border-radius: 6px;
-  background: var(--panel-soft);
-}
-
-.deposit-source-audit small {
-  color: var(--muted);
-}
-
-.deposit-source-audit strong {
-  min-width: 0;
-  overflow-wrap: anywhere;
-  text-align: right;
-}
-
-.deposit-summary-grid {
-  display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: 1px;
-  overflow: hidden;
-  border: 1px solid var(--line);
-  border-radius: 6px;
-  background: var(--line);
-}
-
-.deposit-summary-grid > div {
-  min-width: 0;
-  padding: 9px 10px;
-  background: var(--panel-strong);
-}
-
-.deposit-summary-grid small,
-.deposit-summary-grid strong {
-  display: block;
-  overflow-wrap: anywhere;
-}
-
-.deposit-summary-grid small {
-  color: var(--muted);
-  font-size: 11px;
-}
-
-.deposit-summary-grid strong {
-  margin-top: 3px;
-  font-size: 13px;
-  line-height: 1.35;
 }
 
 .rent-schedule-table {
@@ -1590,10 +1501,6 @@ button.file-chip {
     padding: 16px;
   }
 
-  .deposit-summary-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
   .el-dialog {
     width: calc(100vw - 24px) !important;
     max-width: calc(100vw - 24px) !important;
@@ -1683,24 +1590,9 @@ button.file-chip {
     padding: 14px;
   }
 
-  .deposit-settlement-head,
   .schedule-preview-line {
     align-items: stretch;
     flex-direction: column;
-  }
-
-  .deposit-settlement-head .el-radio-group {
-    display: flex;
-    width: 100%;
-  }
-
-  .deposit-settlement-head .el-radio-button {
-    flex: 1 1 0;
-  }
-
-  .deposit-settlement-head .el-radio-button__inner {
-    width: 100%;
-    white-space: normal;
   }
 
   .payment-voucher-dropzone,

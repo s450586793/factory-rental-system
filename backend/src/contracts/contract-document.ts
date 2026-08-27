@@ -4,9 +4,8 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { PDFDocument, PDFPage, rgb } from "pdf-lib";
 import { toChineseCurrencyUppercase } from "../common/format/chinese-currency";
-import { fromCents, toCents } from "../common/money/cents";
 import { Contract } from "./contract.entity";
-import { BillingFrequency, DepositSettlementMode } from "./contract.enums";
+import { BillingFrequency } from "./contract.enums";
 import { FactoryUnit } from "../units/factory-unit.entity";
 import { UtilityMeterConfig } from "../utilities/utility-meter-config.entity";
 
@@ -107,21 +106,6 @@ function buildRentPaymentClause(contract: Contract) {
 }
 
 function buildDepositClause(contract: Contract) {
-  if (contract.depositSettlementMode === DepositSettlementMode.CARRYOVER) {
-    const agreedCents = toCents(contract.depositAmount);
-    const carriedCents = toCents(contract.depositCarryoverAmount);
-
-    if (carriedCents < agreedCents) {
-      return `原已支付押金人民币${formatMoney(contract.depositCarryoverAmount)}元继续作为本合同履约保证金，乙方尚需补足人民币${formatMoney(fromCents(agreedCents - carriedCents))}元。`;
-    }
-
-    if (carriedCents > agreedCents) {
-      return `原已支付押金人民币${formatMoney(contract.depositCarryoverAmount)}元，其中人民币${formatMoney(contract.depositAmount)}元继续作为本合同履约保证金，甲方应退还人民币${formatMoney(fromCents(carriedCents - agreedCents))}元。`;
-    }
-
-    return `原已支付押金人民币${formatMoney(contract.depositCarryoverAmount)}元继续作为本合同履约保证金。`;
-  }
-
   return `乙方应向甲方支付履约保证金人民币${formatMoney(contract.depositAmount)}元。`;
 }
 
@@ -222,7 +206,7 @@ export function buildStandardLeaseContractPages({
         "根据《中华人民共和国民法典》及有关法律法规，甲、乙双方在平等、自愿、诚实信用的基础上，就甲方将合法拥有或有权出租的厂房出租给乙方使用事宜，订立本合同。本合同正文与附件《入驻厂区企业安全生产管理协议书》共同构成双方完整约定。",
         "一、租赁标的及交付",
         `1. 甲方出租给乙方的厂房位于${unitAddress}。租赁范围以现场交付、双方确认的边界及附属设施为准。`,
-        "2. 甲方应在乙方支付首期租金，并按本合同第三条完成履约保证金支付、结转、补足或退还安排后，将厂房按现状交付乙方使用。乙方接收厂房即视为认可交付状态；发现影响安全或正常使用的问题，应在接收后三日内书面提出。",
+        "2. 甲方应在乙方按约支付首期租金、押金并完成入驻资料提交后，将厂房按现状交付乙方使用。乙方接收厂房即视为认可交付状态；发现影响安全或正常使用的问题，应在接收后三日内书面提出。",
         "3. 乙方知悉厂房及园区为工业生产经营场所，应自行核实其拟经营项目、工艺、消防、环保、用电负荷、设备安装及行政许可要求是否适合入驻。",
         "二、租赁期限",
         `1. 租赁期限自${formatDateForText(startParts)}起至${formatDateForText(endParts)}止。`,

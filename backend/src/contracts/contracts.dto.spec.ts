@@ -1,5 +1,5 @@
 import { validate } from "class-validator";
-import { BillingFrequency, DepositSettlementMode } from "./contract.enums";
+import { BillingFrequency } from "./contract.enums";
 import { CreateContractDto } from "./contracts.dto";
 
 function buildDto(overrides: Record<string, unknown> = {}) {
@@ -36,14 +36,10 @@ describe("CreateContractDto", () => {
     );
   });
 
-  it("accepts supported billing and deposit settlement fields", async () => {
+  it("accepts the supported billing frequency", async () => {
     const errors = await validate(
       buildDto({
         billingFrequency: BillingFrequency.SEMIANNUAL,
-        depositSettlementMode: DepositSettlementMode.CARRYOVER,
-        depositCarryoverAmount: 10000,
-        depositCarryoverSourceContractId:
-          "00000000-0000-4000-8000-000000000001",
       }),
     );
 
@@ -52,10 +48,7 @@ describe("CreateContractDto", () => {
 
   it.each([
     ["annualRent", 0],
-    ["depositCarryoverAmount", -0.01],
     ["billingFrequency", "monthly"],
-    ["depositSettlementMode", "refunded"],
-    ["depositCarryoverSourceContractId", "not-a-uuid"],
   ])("rejects an invalid %s", async (property, value) => {
     const errors = await validate(buildDto({ [property]: value }));
 
@@ -66,13 +59,26 @@ describe("CreateContractDto", () => {
     );
   });
 
-  it.each([
-    "billingFrequency",
-    "depositSettlementMode",
-    "depositCarryoverAmount",
-    "depositCarryoverSourceContractId",
-  ])("rejects an explicit null %s", async (property) => {
+  it("rejects an explicit null billing frequency", async () => {
+    const property = "billingFrequency";
     const errors = await validate(buildDto({ [property]: null }));
+
+    expect(errors).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ property }),
+      ]),
+    );
+  });
+
+  it.each([
+    ["depositSettlementMode", "carryover"],
+    ["depositCarryoverAmount", 10000],
+    ["depositCarryoverSourceContractId", "00000000-0000-4000-8000-000000000001"],
+  ])("rejects the legacy non-whitelisted %s field", async (property, value) => {
+    const errors = await validate(buildDto({ [property]: value }), {
+      whitelist: true,
+      forbidNonWhitelisted: true,
+    });
 
     expect(errors).toEqual(
       expect.arrayContaining([

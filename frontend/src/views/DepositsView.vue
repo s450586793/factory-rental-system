@@ -16,54 +16,7 @@
       </div>
 
       <div class="deposit-section-heading">
-        <h3>押金账户</h3>
-      </div>
-      <div class="table-shell">
-        <el-table
-          :data="accounts"
-          v-loading="loading"
-          class="deposit-account-table"
-          size="small"
-          row-key="accountKey"
-        >
-          <el-table-column label="厂房" width="112">
-            <template #default="{ row }">{{ row.unit.code }}</template>
-          </el-table-column>
-          <el-table-column prop="tenantName" label="租户" min-width="170" show-overflow-tooltip />
-          <el-table-column label="约定押金" width="126" align="right">
-            <template #default="{ row }">{{ formatCurrency(row.agreedDepositAmount) }}</template>
-          </el-table-column>
-          <el-table-column label="当前持有" width="126" align="right">
-            <template #default="{ row }">{{ formatCurrency(row.heldAmount) }}</template>
-          </el-table-column>
-          <el-table-column label="需补" width="116" align="right">
-            <template #default="{ row }">
-              <span
-                data-test="deposit-account-supplement"
-                :class="{ 'amount-overdue': row.supplementAmount > 0 }"
-              >
-                {{ row.supplementAmount > 0 ? formatCurrency(row.supplementAmount) : "--" }}
-              </span>
-            </template>
-          </el-table-column>
-          <el-table-column label="应退" width="116" align="right">
-            <template #default="{ row }">
-              <span
-                data-test="deposit-account-refund"
-                :class="{ 'amount-overdue': row.refundAmount > 0 }"
-              >
-                {{ row.refundAmount > 0 ? formatCurrency(row.refundAmount) : "--" }}
-              </span>
-            </template>
-          </el-table-column>
-          <el-table-column label="最近流水" width="112">
-            <template #default="{ row }">{{ row.lastTransactionDate || "--" }}</template>
-          </el-table-column>
-        </el-table>
-      </div>
-
-      <div class="deposit-section-heading deposit-record-heading">
-        <h3>收退流水</h3>
+        <h3>押金记录</h3>
       </div>
       <div class="table-shell">
         <el-table :data="records" v-loading="loading" class="deposit-record-table" size="small">
@@ -206,14 +159,13 @@ import AppShell from "../components/AppShell.vue";
 import PaymentVoucherUpload from "../components/PaymentVoucherUpload.vue";
 import PaymentVoucherPreviewDialog from "../components/PaymentVoucherPreviewDialog.vue";
 import { depositsApi, filesApi, unitsApi } from "../api";
-import type { Contract, DepositAccountSummary, DepositRecord, StoredFile, UnitSummary } from "../types/models";
+import type { Contract, DepositRecord, StoredFile, UnitSummary } from "../types/models";
 import { formatCurrency, todayIso } from "../utils/format";
 
 const loading = ref(false);
 const dialogVisible = ref(false);
 const submitting = ref(false);
 const units = ref<UnitSummary[]>([]);
-const accounts = ref<(DepositAccountSummary & { accountKey: string })[]>([]);
 const records = ref<DepositRecord[]>([]);
 const existingVoucherFiles = ref<StoredFile[]>([]);
 const voucherUploads = ref<File[]>([]);
@@ -247,17 +199,12 @@ async function loadPageData() {
   const requestSequence = ++loadRequestSequence;
   try {
     loading.value = true;
-    const [unitList, accountList, depositList] = await Promise.all([
+    const [unitList, depositList] = await Promise.all([
       unitsApi.list(),
-      depositsApi.listAccounts(),
       depositsApi.list(),
     ]);
     if (!isLatestLoadRequest(requestSequence)) return;
     units.value = unitList;
-    accounts.value = accountList.map((account) => ({
-      ...account,
-      accountKey: JSON.stringify([account.unitId, account.tenantName]),
-    }));
     records.value = depositList;
   } catch (error) {
     if (isLatestLoadRequest(requestSequence)) {

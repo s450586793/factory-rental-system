@@ -21,7 +21,7 @@ const PngJs = nodeRequire("png-js") as {
   };
 };
 
-function buildContractFixture() {
+function buildContractFixture(): Contract {
   return Object.assign(new Contract(), {
     id: "contract-1",
     unitId: "unit-1",
@@ -247,57 +247,18 @@ describe("buildContractDocumentOverlays", () => {
     expect(bodyText).not.toContain("8333.33元");
   });
 
-  it("uses a settlement-neutral delivery condition while retaining each deposit clause", () => {
-    const settlementCases = [
-      {
-        name: "initial",
-        expectedDepositClause: "乙方应向甲方支付履约保证金人民币10000.00元。",
-      },
-      {
-        name: "equal carryover",
-        expectedDepositClause: "原已支付押金人民币10000.00元继续作为本合同履约保证金。",
-        apply(contract: Contract) {
-          contract.depositSettlementMode = DepositSettlementMode.CARRYOVER;
-          contract.depositCarryoverAmount = 10000;
-        },
-      },
-      {
-        name: "supplement",
-        expectedDepositClause:
-          "原已支付押金人民币10000.00元继续作为本合同履约保证金，乙方尚需补足人民币5000.00元。",
-        apply(contract: Contract) {
-          contract.depositSettlementMode = DepositSettlementMode.CARRYOVER;
-          contract.depositAmount = 15000;
-          contract.depositCarryoverAmount = 10000;
-        },
-      },
-      {
-        name: "refund",
-        expectedDepositClause:
-          "原已支付押金人民币15000.00元，其中人民币10000.00元继续作为本合同履约保证金，甲方应退还人民币5000.00元。",
-        apply(contract: Contract) {
-          contract.depositSettlementMode = DepositSettlementMode.CARRYOVER;
-          contract.depositCarryoverAmount = 15000;
-        },
-      },
-    ];
+  it("uses the standard delivery condition without deposit carryover wording", () => {
+    const pages = buildStandardLeaseContractPages({
+      contract: buildContractFixture(),
+      unit: buildUnitFixture(),
+      generatedDate: "2026-07-01",
+    });
+    const bodyText = pages.flatMap((page) => page.sections).join("\n");
 
-    for (const settlementCase of settlementCases) {
-      const contract = buildContractFixture();
-      settlementCase.apply?.(contract);
-      const pages = buildStandardLeaseContractPages({
-        contract,
-        unit: buildUnitFixture(),
-        generatedDate: "2026-07-01",
-      });
-      const bodyText = pages.flatMap((page) => page.sections).join("\n");
-
-      expect(bodyText).toContain(
-        "甲方应在乙方支付首期租金，并按本合同第三条完成履约保证金支付、结转、补足或退还安排后，将厂房按现状交付乙方使用。",
-      );
-      expect(bodyText).not.toContain("甲方应在乙方按约支付首期租金、押金并完成入驻资料提交后");
-      expect(bodyText).toContain(settlementCase.expectedDepositClause);
-    }
+    expect(bodyText).toContain(
+      "甲方应在乙方按约支付首期租金、押金并完成入驻资料提交后，将厂房按现状交付乙方使用。",
+    );
+    expect(bodyText).not.toContain("支付、结转、补足或退还安排");
   });
 
   it("states annual rent payments using the contract billing frequency snapshot", () => {
@@ -338,11 +299,12 @@ describe("buildContractDocumentOverlays", () => {
     expect(bodyText).not.toContain("原已支付押金");
   });
 
-  it("describes an unchanged carried deposit without requesting a second payment", () => {
+  it("ignores legacy carryover snapshots and uses the current contract deposit amount", () => {
     const contract = buildContractFixture();
     contract.depositSettlementMode = DepositSettlementMode.CARRYOVER;
-    contract.depositAmount = 10000;
-    contract.depositCarryoverAmount = 10000;
+    contract.depositAmount = 0;
+    contract.depositCarryoverAmount = 15000;
+    contract.depositCarryoverSourceContractId = "legacy-contract";
     const pages = buildStandardLeaseContractPages({
       contract,
       unit: buildUnitFixture(),
@@ -350,61 +312,10 @@ describe("buildContractDocumentOverlays", () => {
     });
     const bodyText = pages.flatMap((page) => page.sections).join("\n");
 
-    expect(bodyText).toContain("原已支付押金人民币10000.00元继续作为本合同履约保证金。押金不计利息。");
-    expect(bodyText).not.toContain("再次支付履约保证金");
+    expect(bodyText).toContain("乙方应向甲方支付履约保证金人民币0.00元。押金不计利息。");
+    expect(bodyText).not.toContain("原已支付押金");
     expect(bodyText).not.toContain("乙方尚需补足");
     expect(bodyText).not.toContain("甲方应退还");
-  });
-
-  it("states the required carried-deposit supplement from the contract snapshot", () => {
-    const contract = buildContractFixture();
-    contract.depositSettlementMode = DepositSettlementMode.CARRYOVER;
-    contract.depositAmount = 15000;
-    contract.depositCarryoverAmount = 10000;
-    const pages = buildStandardLeaseContractPages({
-      contract,
-      unit: buildUnitFixture(),
-      generatedDate: "2026-07-01",
-    });
-    const bodyText = pages.flatMap((page) => page.sections).join("\n");
-
-    expect(bodyText).toContain(
-      "原已支付押金人民币10000.00元继续作为本合同履约保证金，乙方尚需补足人民币5000.00元。押金不计利息。",
-    );
-  });
-
-  it("states the carried-deposit refund from the contract snapshot", () => {
-    const contract = buildContractFixture();
-    contract.depositSettlementMode = DepositSettlementMode.CARRYOVER;
-    contract.depositAmount = 10000;
-    contract.depositCarryoverAmount = 15000;
-    const pages = buildStandardLeaseContractPages({
-      contract,
-      unit: buildUnitFixture(),
-      generatedDate: "2026-07-01",
-    });
-    const bodyText = pages.flatMap((page) => page.sections).join("\n");
-
-    expect(bodyText).toContain(
-      "原已支付押金人民币15000.00元，其中人民币10000.00元继续作为本合同履约保证金，甲方应退还人民币5000.00元。押金不计利息。",
-    );
-  });
-
-  it("compares carried deposits in cents at decimal boundaries", () => {
-    const contract = buildContractFixture();
-    contract.depositSettlementMode = DepositSettlementMode.CARRYOVER;
-    contract.depositAmount = 10000.006;
-    contract.depositCarryoverAmount = 10000.004;
-    const pages = buildStandardLeaseContractPages({
-      contract,
-      unit: buildUnitFixture(),
-      generatedDate: "2026-07-01",
-    });
-    const bodyText = pages.flatMap((page) => page.sections).join("\n");
-
-    expect(bodyText).toContain(
-      "原已支付押金人民币10000.00元继续作为本合同履约保证金，乙方尚需补足人民币0.01元。",
-    );
   });
 
   it("states that the lessor provides invoicing and the tenant bears resulting taxes", () => {

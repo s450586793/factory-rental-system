@@ -220,7 +220,7 @@ describe("DepositsView 收款凭证", () => {
     expect(vi.mocked(filesApi.upload).mock.invocationCallOrder[0]).toBeLessThan(
       vi.mocked(depositsApi.create).mock.invocationCallOrder[0],
     );
-    expect(depositsApi.listAccounts).toHaveBeenCalledTimes(2);
+    expect(depositsApi.listAccounts).not.toHaveBeenCalled();
     expect(depositsApi.list).toHaveBeenCalledTimes(2);
   });
 
@@ -244,7 +244,7 @@ describe("DepositsView 收款凭证", () => {
       "deposit-1",
       expect.objectContaining({ attachmentFileIds: ["uploaded-new"] }),
     );
-    expect(depositsApi.listAccounts).toHaveBeenCalledTimes(2);
+    expect(depositsApi.listAccounts).not.toHaveBeenCalled();
     expect(depositsApi.list).toHaveBeenCalledTimes(2);
   });
 
@@ -258,7 +258,7 @@ describe("DepositsView 收款凭证", () => {
     expect(wrapper.get(".voucher-preview-stub").text()).toContain("1 张凭证");
   });
 
-  it("删除流水后同时刷新押金账户和收退流水", async () => {
+  it("删除流水后刷新押金记录", async () => {
     vi.mocked(depositsApi.list).mockResolvedValue([existingDeposit]);
     const wrapper = mountView();
     await flushPromises();
@@ -267,7 +267,16 @@ describe("DepositsView 收款凭证", () => {
     await flushPromises();
 
     expect(depositsApi.remove).toHaveBeenCalledWith("deposit-1");
-    expect(depositsApi.listAccounts).toHaveBeenCalledTimes(2);
+    expect(depositsApi.listAccounts).not.toHaveBeenCalled();
     expect(depositsApi.list).toHaveBeenCalledTimes(2);
+  });
+
+  it("只展示押金记录，不再查询押金账户", async () => {
+    const wrapper = mountView();
+    await flushPromises();
+
+    expect(wrapper.text()).toContain("押金记录");
+    expect(wrapper.text()).not.toContain("押金账户");
+    expect(depositsApi.listAccounts).not.toHaveBeenCalled();
   });
 });

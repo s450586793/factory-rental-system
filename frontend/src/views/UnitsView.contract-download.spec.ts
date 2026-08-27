@@ -5,7 +5,6 @@ import UnitsView from "./UnitsView.vue";
 import { contractsApi, depositsApi, rentPaymentsApi, rentReceivablesApi, unitsApi } from "../api";
 import type {
   Contract,
-  DepositAccountSummary,
   RentPayment,
   RentPaymentAllocationPreview,
   RentPaymentMutationResult,
@@ -183,18 +182,6 @@ const vacantUnit = {
   contracts: [],
   meterConfigs: [],
 } satisfies UnitSummary;
-
-const depositAccount = {
-  unitId: "unit-1",
-  unit: { id: "unit-1", code: "5", location: "测试厂房" },
-  tenantName: "曹忠",
-  agreedDepositAmount: 10000,
-  heldAmount: 10000,
-  supplementAmount: 0,
-  refundAmount: 0,
-  latestContractId: "contract-old",
-  lastTransactionDate: "2026-07-01",
-} satisfies DepositAccountSummary;
 
 const receivable = {
   id: "schedule-1",
@@ -452,13 +439,6 @@ function findInputByLabel(wrapper: ReturnType<typeof mountUnitsView>, label: str
   return input;
 }
 
-function setDepositCarryoverAmount(wrapper: ReturnType<typeof mountUnitsView>, amount: number) {
-  const vm = wrapper.vm as unknown as {
-    contractForm: { depositCarryoverAmount: number };
-  };
-  vm.contractForm.depositCarryoverAmount = amount;
-}
-
 describe("UnitsView contract download", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -466,7 +446,7 @@ describe("UnitsView contract download", () => {
     vi.mocked(unitsApi.detail).mockResolvedValue(unit);
     vi.mocked(contractsApi.create).mockResolvedValue(savedContract);
     vi.mocked(contractsApi.update).mockResolvedValue(savedContract);
-    vi.mocked(depositsApi.listAccounts).mockResolvedValue([depositAccount]);
+    vi.mocked(depositsApi.listAccounts).mockResolvedValue([]);
     vi.mocked(rentReceivablesApi.list).mockResolvedValue({ items: [receivable] });
     vi.mocked(contractsApi.generateDocument).mockResolvedValue({
       file: {
@@ -520,495 +500,6 @@ describe("UnitsView contract download", () => {
     expect(wrapper.text()).toContain("预收¥0.00");
   });
 
-  it("keeps the initial unit contract fixed to annual billing and initial deposit collection", async () => {
-    vi.mocked(unitsApi.create).mockResolvedValue(vacantUnit);
-    const wrapper = mountUnitsView();
-    await flushPromises();
-    await openCreateUnitDialog(wrapper);
-
-    expect(wrapper.text()).toContain("按年");
-    expect(wrapper.text()).toContain("首次收取");
-    await wrapper.find('input[placeholder="例如 A-01"]').setValue("6");
-    await wrapper.find('input[placeholder="例如 东区 1 号车间"]').setValue("空置厂房");
-    await findInputByLabel(wrapper, "初始合同开始").setValue("2026-09-01");
-    await findInputByLabel(wrapper, "初始合同年租金").setValue("50000");
-    await findButton(wrapper, "保存").trigger("click");
-    await flushPromises();
-
-    expect(contractsApi.create).toHaveBeenCalledWith(
-      expect.objectContaining({
-        billingFrequency: "annual",
-        depositSettlementMode: "initial",
-        depositCarryoverAmount: 0,
-      }),
-    );
-    expect(vi.mocked(contractsApi.create).mock.calls[0][0]).not.toHaveProperty(
-      "depositCarryoverSourceContractId",
-    );
-  });
-
-  it("defaults a same-tenant renewal to carried deposit and previews semiannual periods", async () => {
-    const wrapper = mountUnitsView();
-    await flushPromises();
-    await openCreateContractDialog(wrapper);
-
-    expect(depositsApi.listAccounts).toHaveBeenCalledWith({ unitId: "unit-1", tenantName: "曹忠" });
-    expect(wrapper.get('[aria-label="押金处理方式"]').text()).toContain("沿用已有押金");
-    await wrapper.get('[aria-label="收租周期-按半年"]').trigger("click");
-    expect(wrapper.text()).toContain("预计 2 期");
-    expect(wrapper.text()).toContain("首期到期日 2027-07-01");
-    await findButton(wrapper, "保存").trigger("click");
-    await flushPromises();
-
-    expect(contractsApi.create).toHaveBeenCalledWith(
-      expect.objectContaining({
-        billingFrequency: "semiannual",
-        depositSettlementMode: "carryover",
-        depositCarryoverAmount: 10000,
-        depositCarryoverSourceContractId: "contract-old",
-      }),
-    );
-  });
-
-  it("resets carryover when the tenant changes and omits the source contract", async () => {
-    const wrapper = mountUnitsView();
-    await flushPromises();
-    await openCreateContractDialog(wrapper);
-
-    await findInputByLabel(wrapper, "乙方名称").setValue(" 新租户 ");
-    await flushPromises();
-    expect(depositsApi.listAccounts).toHaveBeenLastCalledWith({ unitId: "unit-1", tenantName: "新租户" });
-    expect(wrapper.get('[aria-label="押金处理方式"]').text()).toContain("首次收取");
-    await findButton(wrapper, "保存").trigger("click");
-    await flushPromises();
-
-    const payload = vi.mocked(contractsApi.create).mock.calls.at(-1)?.[0];
-    expect(payload).toMatchObject({ depositSettlementMode: "initial", depositCarryoverAmount: 0 });
-    expect(payload).not.toHaveProperty("depositCarryoverSourceContractId");
-  });
-
-  it("resets carryover immediately when the tenant is cleared", async () => {
-    const wrapper = mountUnitsView();
-    await flushPromises();
-    await openCreateContractDialog(wrapper);
-
-    await findInputByLabel(wrapper, "乙方名称").setValue("");
-    await flushPromises();
-    expect(wrapper.get('[aria-label="押金处理方式"]').text()).toContain("首次收取");
-    await findButton(wrapper, "保存").trigger("click");
-    await flushPromises();
-
-    const payload = vi.mocked(contractsApi.create).mock.calls.at(-1)?.[0];
-    expect(payload).toMatchObject({ depositSettlementMode: "initial", depositCarryoverAmount: 0 });
-    expect(payload).not.toHaveProperty("depositCarryoverSourceContractId");
-  });
-
-  it("allows manually switching a renewal back to initial deposit collection", async () => {
-    const wrapper = mountUnitsView();
-    await flushPromises();
-    await openCreateContractDialog(wrapper);
-
-    await wrapper.get('[aria-label="押金处理-首次收取"]').trigger("click");
-    await findButton(wrapper, "保存").trigger("click");
-    await flushPromises();
-
-    const payload = vi.mocked(contractsApi.create).mock.calls.at(-1)?.[0];
-    expect(payload).toMatchObject({ depositSettlementMode: "initial", depositCarryoverAmount: 0 });
-    expect(payload).not.toHaveProperty("depositCarryoverSourceContractId");
-  });
-
-  it("does not overwrite a manual initial choice when the pending account lookup resolves", async () => {
-    const lookup = deferred<DepositAccountSummary[]>();
-    vi.mocked(depositsApi.listAccounts).mockReturnValueOnce(lookup.promise);
-    const wrapper = mountUnitsView();
-    await flushPromises();
-    await openCreateContractDialog(wrapper);
-
-    expect(wrapper.text()).toContain("正在核对押金账户");
-    await findButton(wrapper, "保存").trigger("click");
-    await flushPromises();
-    expect(contractsApi.create).not.toHaveBeenCalled();
-    expect(ElMessage.error).toHaveBeenCalledWith("押金账户正在查询，请稍后再保存");
-    await wrapper.get('[aria-label="押金处理-首次收取"]').trigger("click");
-    lookup.resolve([depositAccount]);
-    await flushPromises();
-
-    expect(wrapper.get('[aria-label="押金处理方式"]').text()).toContain("首次收取");
-    expect(wrapper.text()).toContain("当前持有¥10,000.00");
-    await findButton(wrapper, "保存").trigger("click");
-    await flushPromises();
-    const payload = vi.mocked(contractsApi.create).mock.calls.at(-1)?.[0];
-    expect(payload).toMatchObject({ depositSettlementMode: "initial", depositCarryoverAmount: 0 });
-    expect(payload).not.toHaveProperty("depositCarryoverSourceContractId");
-  });
-
-  it("blocks renewal submit after account lookup failure and retries successfully", async () => {
-    vi.mocked(depositsApi.listAccounts).mockRejectedValueOnce(new Error("network unavailable"));
-    const retry = deferred<DepositAccountSummary[]>();
-    vi.mocked(depositsApi.listAccounts).mockReturnValueOnce(retry.promise);
-    const wrapper = mountUnitsView();
-    await flushPromises();
-    await openCreateContractDialog(wrapper);
-
-    expect(wrapper.text()).toContain("押金账户查询失败，请重试");
-    await findButton(wrapper, "保存").trigger("click");
-    await flushPromises();
-    expect(contractsApi.create).not.toHaveBeenCalled();
-    expect(ElMessage.error).toHaveBeenCalledWith("押金账户查询失败，请重试");
-
-    await wrapper.get('[aria-label="重试押金账户查询"]').trigger("click");
-    expect(wrapper.text()).toContain("正在核对押金账户");
-    retry.resolve([depositAccount]);
-    await flushPromises();
-    expect(wrapper.get('[aria-label="押金处理方式"]').text()).toContain("沿用已有押金");
-
-    await findButton(wrapper, "保存").trigger("click");
-    await flushPromises();
-    expect(contractsApi.create).toHaveBeenCalledWith(
-      expect.objectContaining({
-        depositSettlementMode: "carryover",
-        depositCarryoverSourceContractId: "contract-old",
-      }),
-    );
-  });
-
-  it("cannot reuse tenant A carryover while tenant B lookup is pending and uses B after success", async () => {
-    const tenantBLookup = deferred<DepositAccountSummary[]>();
-    vi.mocked(depositsApi.listAccounts)
-      .mockResolvedValueOnce([depositAccount])
-      .mockReturnValueOnce(tenantBLookup.promise);
-    const tenantBAccount = {
-      ...depositAccount,
-      tenantName: "新租户",
-      heldAmount: 7000,
-      latestContractId: "contract-b",
-    };
-    const wrapper = mountUnitsView();
-    await flushPromises();
-    await openCreateContractDialog(wrapper);
-    expect(wrapper.get('[aria-label="押金结转来源合同"]').text()).toContain("contract-old");
-
-    await findInputByLabel(wrapper, "乙方名称").setValue(" 新租户 ");
-    await flushPromises();
-    const carryoverButton = wrapper.get('[aria-label="押金处理-沿用已有押金"]');
-    expect(carryoverButton.attributes("disabled")).toBeDefined();
-    await carryoverButton.trigger("click");
-    expect(wrapper.find('[aria-label="押金结转来源合同"]').exists()).toBe(false);
-    await findButton(wrapper, "保存").trigger("click");
-    await flushPromises();
-    expect(contractsApi.create).not.toHaveBeenCalled();
-
-    tenantBLookup.resolve([tenantBAccount]);
-    await flushPromises();
-    expect(wrapper.get('[aria-label="押金结转来源合同"]').text()).toContain("contract-b");
-    expect(wrapper.text()).toContain("已结转¥7,000.00");
-    expect(wrapper.text()).not.toContain("contract-old");
-    await findButton(wrapper, "保存").trigger("click");
-    await flushPromises();
-    expect(contractsApi.create).toHaveBeenCalledWith(
-      expect.objectContaining({
-        tenantName: "新租户",
-        depositSettlementMode: "carryover",
-        depositCarryoverAmount: 7000,
-        depositCarryoverSourceContractId: "contract-b",
-      }),
-    );
-  });
-
-  it("cannot reuse tenant A carryover when tenant B lookup fails", async () => {
-    const tenantBLookup = deferred<DepositAccountSummary[]>();
-    vi.mocked(depositsApi.listAccounts)
-      .mockResolvedValueOnce([depositAccount])
-      .mockReturnValueOnce(tenantBLookup.promise);
-    const wrapper = mountUnitsView();
-    await flushPromises();
-    await openCreateContractDialog(wrapper);
-    expect(wrapper.get('[aria-label="押金结转来源合同"]').text()).toContain("contract-old");
-
-    await findInputByLabel(wrapper, "乙方名称").setValue("新租户");
-    await flushPromises();
-    const carryoverButton = wrapper.get('[aria-label="押金处理-沿用已有押金"]');
-    expect(carryoverButton.attributes("disabled")).toBeDefined();
-    await carryoverButton.trigger("click");
-    tenantBLookup.reject(new Error("tenant B lookup failed"));
-    await flushPromises();
-
-    expect(wrapper.text()).toContain("押金账户查询失败，请重试");
-    expect(wrapper.find('[aria-label="押金结转来源合同"]').exists()).toBe(false);
-    await findButton(wrapper, "保存").trigger("click");
-    await flushPromises();
-    expect(contractsApi.create).not.toHaveBeenCalled();
-    expect(
-      vi.mocked(contractsApi.create).mock.calls.some(
-        ([payload]) => payload.depositCarryoverSourceContractId === "contract-old",
-      ),
-    ).toBe(false);
-  });
-
-  it("preserves an edited contract's saved deposit snapshot despite a newer account balance", async () => {
-    const historicalContract: Contract = {
-      ...oldContract,
-      depositSettlementMode: "carryover",
-      depositCarryoverAmount: 6000,
-      depositCarryoverSourceContractId: "contract-source",
-    };
-    const historicalUnit = { ...unit, contracts: [historicalContract] };
-    vi.mocked(unitsApi.list).mockResolvedValue([historicalUnit]);
-    vi.mocked(unitsApi.detail).mockResolvedValue(historicalUnit);
-    vi.mocked(depositsApi.listAccounts).mockResolvedValue([
-      { ...depositAccount, heldAmount: 8000, latestContractId: "contract-source" },
-    ]);
-    const wrapper = mountUnitsView();
-    await flushPromises();
-    await findButton(wrapper, "管理").trigger("click");
-    await flushPromises();
-    await findButton(wrapper, "编辑").trigger("click");
-    await flushPromises();
-
-    expect(wrapper.text()).toContain("已结转¥6,000.00");
-    expect(wrapper.text()).toContain("当前持有¥8,000.00");
-    await findButton(wrapper, "保存").trigger("click");
-    await flushPromises();
-    expect(contractsApi.update).toHaveBeenCalledWith(
-      "contract-old",
-      expect.objectContaining({
-        depositSettlementMode: "carryover",
-        depositCarryoverAmount: 6000,
-        depositCarryoverSourceContractId: "contract-source",
-      }),
-    );
-  });
-
-  it("allows editing other fields after account lookup fails without changing the saved snapshot", async () => {
-    const historicalContract: Contract = {
-      ...oldContract,
-      depositSettlementMode: "carryover",
-      depositCarryoverAmount: 6000,
-      depositCarryoverSourceContractId: "contract-source",
-    };
-    const historicalUnit = { ...unit, contracts: [historicalContract] };
-    vi.mocked(unitsApi.list).mockResolvedValue([historicalUnit]);
-    vi.mocked(unitsApi.detail).mockResolvedValue(historicalUnit);
-    vi.mocked(depositsApi.listAccounts).mockRejectedValueOnce(new Error("network unavailable"));
-    const wrapper = mountUnitsView();
-    await flushPromises();
-    await findButton(wrapper, "管理").trigger("click");
-    await flushPromises();
-    await findButton(wrapper, "编辑").trigger("click");
-    await flushPromises();
-
-    expect(wrapper.text()).toContain("押金账户查询失败，请重试");
-    expect(wrapper.text()).toContain("已结转¥6,000.00");
-    await findInputByLabel(wrapper, "甲方联系人").setValue("新联系人");
-    await findButton(wrapper, "保存").trigger("click");
-    await flushPromises();
-    expect(contractsApi.update).toHaveBeenCalledWith(
-      "contract-old",
-      expect.objectContaining({
-        lessorContactName: "新联系人",
-        depositSettlementMode: "carryover",
-        depositCarryoverAmount: 6000,
-        depositCarryoverSourceContractId: "contract-source",
-      }),
-    );
-  });
-
-  it("blocks an unchanged edited carryover while lookup is pending but allows it after failure", async () => {
-    const lookup = deferred<DepositAccountSummary[]>();
-    const historicalContract: Contract = {
-      ...oldContract,
-      depositSettlementMode: "carryover",
-      depositCarryoverAmount: 6000,
-      depositCarryoverSourceContractId: "contract-source",
-    };
-    const historicalUnit = { ...unit, contracts: [historicalContract] };
-    vi.mocked(unitsApi.list).mockResolvedValue([historicalUnit]);
-    vi.mocked(unitsApi.detail).mockResolvedValue(historicalUnit);
-    vi.mocked(depositsApi.listAccounts).mockReturnValueOnce(lookup.promise);
-    const wrapper = mountUnitsView();
-    await flushPromises();
-    await findButton(wrapper, "管理").trigger("click");
-    await flushPromises();
-    await findButton(wrapper, "编辑").trigger("click");
-    await flushPromises();
-
-    expect(wrapper.text()).toContain("正在核对押金账户");
-    await findButton(wrapper, "保存").trigger("click");
-    await flushPromises();
-    expect(contractsApi.update).not.toHaveBeenCalled();
-    expect(ElMessage.error).toHaveBeenCalledWith("押金账户正在查询，请稍后再保存");
-
-    lookup.reject(new Error("network unavailable"));
-    await flushPromises();
-    expect(wrapper.text()).toContain("押金账户查询失败，请重试");
-    await findButton(wrapper, "保存").trigger("click");
-    await flushPromises();
-    expect(contractsApi.update).toHaveBeenCalledWith(
-      "contract-old",
-      expect.objectContaining({
-        depositSettlementMode: "carryover",
-        depositCarryoverAmount: 6000,
-        depositCarryoverSourceContractId: "contract-source",
-      }),
-    );
-  });
-
-  it("allows lookup failure fallback when an edited deposit amount remains equal in cents", async () => {
-    const lookup = deferred<DepositAccountSummary[]>();
-    const historicalContract: Contract = {
-      ...oldContract,
-      depositSettlementMode: "carryover",
-      depositCarryoverAmount: 0.3,
-      depositCarryoverSourceContractId: "contract-source",
-    };
-    const historicalUnit = { ...unit, contracts: [historicalContract] };
-    vi.mocked(unitsApi.list).mockResolvedValue([historicalUnit]);
-    vi.mocked(unitsApi.detail).mockResolvedValue(historicalUnit);
-    vi.mocked(depositsApi.listAccounts).mockReturnValueOnce(lookup.promise);
-    const wrapper = mountUnitsView();
-    await flushPromises();
-    await findButton(wrapper, "管理").trigger("click");
-    await flushPromises();
-    await findButton(wrapper, "编辑").trigger("click");
-    await flushPromises();
-
-    setDepositCarryoverAmount(wrapper, 0.30000000000000004);
-    await findInputByLabel(wrapper, "甲方联系人").setValue("新联系人");
-    lookup.reject(new Error("network unavailable"));
-    await flushPromises();
-    await findButton(wrapper, "保存").trigger("click");
-    await flushPromises();
-
-    expect(contractsApi.update).toHaveBeenCalledWith(
-      "contract-old",
-      expect.objectContaining({
-        lessorContactName: "新联系人",
-        depositSettlementMode: "carryover",
-        depositCarryoverAmount: 0.30000000000000004,
-        depositCarryoverSourceContractId: "contract-source",
-      }),
-    );
-  });
-
-  it("blocks lookup failure fallback when an edited deposit amount differs by one cent", async () => {
-    const lookup = deferred<DepositAccountSummary[]>();
-    const historicalContract: Contract = {
-      ...oldContract,
-      depositSettlementMode: "carryover",
-      depositCarryoverAmount: 0.3,
-      depositCarryoverSourceContractId: "contract-source",
-    };
-    const historicalUnit = { ...unit, contracts: [historicalContract] };
-    vi.mocked(unitsApi.list).mockResolvedValue([historicalUnit]);
-    vi.mocked(unitsApi.detail).mockResolvedValue(historicalUnit);
-    vi.mocked(depositsApi.listAccounts).mockReturnValueOnce(lookup.promise);
-    const wrapper = mountUnitsView();
-    await flushPromises();
-    await findButton(wrapper, "管理").trigger("click");
-    await flushPromises();
-    await findButton(wrapper, "编辑").trigger("click");
-    await flushPromises();
-
-    setDepositCarryoverAmount(wrapper, 0.31);
-    lookup.reject(new Error("network unavailable"));
-    await flushPromises();
-    await findButton(wrapper, "保存").trigger("click");
-    await flushPromises();
-
-    expect(contractsApi.update).not.toHaveBeenCalled();
-    expect(ElMessage.error).toHaveBeenCalledWith("押金账户查询失败，请重试");
-  });
-
-  it("does not allow lookup failure fallback after changing an edited deposit mode", async () => {
-    const lookup = deferred<DepositAccountSummary[]>();
-    const historicalContract: Contract = {
-      ...oldContract,
-      depositSettlementMode: "carryover",
-      depositCarryoverAmount: 6000,
-      depositCarryoverSourceContractId: "contract-source",
-    };
-    const historicalUnit = { ...unit, contracts: [historicalContract] };
-    vi.mocked(unitsApi.list).mockResolvedValue([historicalUnit]);
-    vi.mocked(unitsApi.detail).mockResolvedValue(historicalUnit);
-    vi.mocked(depositsApi.listAccounts).mockReturnValueOnce(lookup.promise);
-    const wrapper = mountUnitsView();
-    await flushPromises();
-    await findButton(wrapper, "管理").trigger("click");
-    await flushPromises();
-    await findButton(wrapper, "编辑").trigger("click");
-    await flushPromises();
-
-    await wrapper.get('[aria-label="押金处理-首次收取"]').trigger("click");
-    lookup.reject(new Error("network unavailable"));
-    await flushPromises();
-    await findButton(wrapper, "保存").trigger("click");
-    await flushPromises();
-
-    expect(contractsApi.update).not.toHaveBeenCalled();
-    expect(ElMessage.error).toHaveBeenCalledWith("押金账户查询失败，请重试");
-  });
-
-  it("does not allow lookup failure fallback after changing an edited tenant", async () => {
-    const tenantLookup = deferred<DepositAccountSummary[]>();
-    const historicalContract: Contract = {
-      ...oldContract,
-      depositSettlementMode: "carryover",
-      depositCarryoverAmount: 6000,
-      depositCarryoverSourceContractId: "contract-source",
-    };
-    const historicalUnit = { ...unit, contracts: [historicalContract] };
-    vi.mocked(unitsApi.list).mockResolvedValue([historicalUnit]);
-    vi.mocked(unitsApi.detail).mockResolvedValue(historicalUnit);
-    vi.mocked(depositsApi.listAccounts)
-      .mockResolvedValueOnce([
-        { ...depositAccount, heldAmount: 6000, latestContractId: "contract-source" },
-      ])
-      .mockReturnValueOnce(tenantLookup.promise);
-    const wrapper = mountUnitsView();
-    await flushPromises();
-    await findButton(wrapper, "管理").trigger("click");
-    await flushPromises();
-    await findButton(wrapper, "编辑").trigger("click");
-    await flushPromises();
-
-    await findInputByLabel(wrapper, "乙方名称").setValue("新租户");
-    tenantLookup.reject(new Error("network unavailable"));
-    await flushPromises();
-    await findButton(wrapper, "保存").trigger("click");
-    await flushPromises();
-
-    expect(contractsApi.update).not.toHaveBeenCalled();
-    expect(ElMessage.error).toHaveBeenCalledWith("押金账户查询失败，请重试");
-  });
-
-  it("shows the latest source contract as read-only audit information", async () => {
-    const wrapper = mountUnitsView();
-    await flushPromises();
-    await openCreateContractDialog(wrapper);
-
-    expect(wrapper.find('select[aria-label="押金结转来源合同"]').exists()).toBe(false);
-    expect(wrapper.get('[aria-label="押金结转来源合同"]').text()).toContain("contract-old");
-  });
-
-  it("isolates account lookup state after closing and reopening the contract dialog", async () => {
-    const staleLookup = deferred<DepositAccountSummary[]>();
-    vi.mocked(depositsApi.listAccounts)
-      .mockReturnValueOnce(staleLookup.promise)
-      .mockResolvedValueOnce([depositAccount]);
-    const wrapper = mountUnitsView();
-    await flushPromises();
-    await openCreateContractDialog(wrapper);
-    await wrapper.get('[aria-label="押金处理-首次收取"]').trigger("click");
-    await findButton(wrapper, "取消").trigger("click");
-    await openCreateContractDialog(wrapper);
-    await flushPromises();
-
-    expect(wrapper.get('[aria-label="押金处理方式"]').text()).toContain("沿用已有押金");
-    staleLookup.resolve([{ ...depositAccount, heldAmount: 7000 }]);
-    await flushPromises();
-    expect(wrapper.text()).toContain("已结转¥10,000.00");
-    expect(wrapper.text()).not.toContain("押金账户查询失败，请重试");
-  });
 
   it("loads contract receivable periods in the schedule dialog", async () => {
     const wrapper = mountUnitsView();
@@ -1104,11 +595,10 @@ describe("UnitsView contract download", () => {
     expectTypeOf<Awaited<ReturnType<typeof rentPaymentsApi.update>>>().toEqualTypeOf<RentPaymentMutationResult>();
     expectTypeOf<Awaited<ReturnType<typeof rentPaymentsApi.remove>>>().toEqualTypeOf<RentPaymentMutationResult>();
     expectTypeOf<Awaited<ReturnType<typeof rentPaymentsApi.previewAllocation>>>().toEqualTypeOf<RentPaymentAllocationPreview>();
-    expectTypeOf<Awaited<ReturnType<typeof depositsApi.listAccounts>>>().toEqualTypeOf<DepositAccountSummary[]>();
     expectTypeOf<Awaited<ReturnType<typeof rentReceivablesApi.list>>>().toEqualTypeOf<{ items: RentReceivable[] }>();
   });
 
-  it("defaults a new contract deposit from the previous contract and submits it", async () => {
+  it("defaults a renewal deposit from the previous contract and allows manually setting it to zero", async () => {
     const wrapper = mountUnitsView();
     await flushPromises();
 
@@ -1117,6 +607,8 @@ describe("UnitsView contract download", () => {
     const depositInput = wrapper.find('input[aria-label="押金"]');
     expect(depositInput.exists()).toBe(true);
     expect((depositInput.element as HTMLInputElement).value).toBe("10000");
+    expect(wrapper.text()).not.toContain("押金处理");
+    expect(depositsApi.listAccounts).not.toHaveBeenCalled();
     expect((findInputByLabel(wrapper, "甲方名称").element as HTMLInputElement).value).toBe(
       "江阴市示例产业园有限公司",
     );
@@ -1126,19 +618,24 @@ describe("UnitsView contract download", () => {
     expect((findInputByLabel(wrapper, "甲方联系人").element as HTMLInputElement).value).toBe("吴孝斌");
     expect((findInputByLabel(wrapper, "甲方电话").element as HTMLInputElement).value).toBe("18651510352");
 
+    await depositInput.setValue("0");
     await findButton(wrapper, "保存").trigger("click");
     await flushPromises();
 
-    expect(contractsApi.create).toHaveBeenCalledWith(
+    const payload = vi.mocked(contractsApi.create).mock.calls.at(-1)?.[0];
+    expect(payload).toEqual(
       expect.objectContaining({
         lessorName: "江阴市示例产业园有限公司",
         lessorLicenseCode: "91320281TEST000001",
         lessorContactName: "吴孝斌",
         lessorPhone: "18651510352",
         annualRent: 50000,
-        depositAmount: 10000,
+        depositAmount: 0,
       }),
     );
+    expect(payload).not.toHaveProperty("depositSettlementMode");
+    expect(payload).not.toHaveProperty("depositCarryoverAmount");
+    expect(payload).not.toHaveProperty("depositCarryoverSourceContractId");
   });
 
   it("uses empty lessor identity with default contact details when no previous contract exists", async () => {
@@ -1188,6 +685,10 @@ describe("UnitsView contract download", () => {
         tenantPhone: "",
       }),
     );
+    const payload = vi.mocked(contractsApi.create).mock.calls.at(-1)?.[0];
+    expect(payload).not.toHaveProperty("depositSettlementMode");
+    expect(payload).not.toHaveProperty("depositCarryoverAmount");
+    expect(payload).not.toHaveProperty("depositCarryoverSourceContractId");
   });
 
   it("does not create an initial contract from untouched lessor defaults", async () => {

@@ -155,45 +155,7 @@ describe("ContractsService", () => {
     });
   });
 
-  it("defaults a new contract without a held deposit to annual and initial", async () => {
-    const { service, contractsRepository, depositsService } = buildService();
-
-    await service.create(buildDto() as never);
-
-    expect(depositsService.getAccount).toHaveBeenCalledWith(
-      "unit-1",
-      "测试租户有限公司",
-    );
-    expect(contractsRepository.create).toHaveBeenCalledWith(
-      expect.objectContaining({
-        billingFrequency: BillingFrequency.ANNUAL,
-        depositSettlementMode: DepositSettlementMode.INITIAL,
-        depositCarryoverAmount: 0,
-        depositCarryoverSourceContractId: null,
-      }),
-    );
-  });
-
-  it("defaults a new contract with a held deposit to a full carryover snapshot", async () => {
-    const { service, contractsRepository } = buildService({
-      depositAccount: {
-        heldAmount: 8000,
-        latestContractId: "source-contract",
-      },
-    });
-
-    await service.create(buildDto() as never);
-
-    expect(contractsRepository.create).toHaveBeenCalledWith(
-      expect.objectContaining({
-        depositSettlementMode: DepositSettlementMode.CARRYOVER,
-        depositCarryoverAmount: 8000,
-        depositCarryoverSourceContractId: "source-contract",
-      }),
-    );
-  });
-
-  it("forces an explicit initial settlement to zero without looking up an account", async () => {
+  it("uses only the entered deposit amount even when a deposit account already exists", async () => {
     const { service, contractsRepository, depositsService } = buildService({
       depositAccount: {
         heldAmount: 8000,
@@ -201,146 +163,14 @@ describe("ContractsService", () => {
       },
     });
 
-    await service.create(
-      buildDto({
-        depositSettlementMode: DepositSettlementMode.INITIAL,
-        depositCarryoverAmount: 7000,
-        depositCarryoverSourceContractId: "source-contract",
-      }) as never,
-    );
+    await service.create(buildDto({ depositAmount: 0 }) as never);
 
     expect(depositsService.getAccount).not.toHaveBeenCalled();
-    expect(contractsRepository.create).toHaveBeenCalledWith(
-      expect.objectContaining({
-        depositSettlementMode: DepositSettlementMode.INITIAL,
-        depositCarryoverAmount: 0,
-        depositCarryoverSourceContractId: null,
-      }),
-    );
-  });
-
-  it("saves an explicit carryover snapshot from the selected account", async () => {
-    const { service, contractsRepository, depositsService } = buildService({
-      depositAccount: {
-        heldAmount: 10000,
-        latestContractId: "source-contract",
-      },
-    });
-
-    await service.create(
-      buildDto({
-        depositSettlementMode: DepositSettlementMode.CARRYOVER,
-        depositCarryoverAmount: 6000,
-        depositCarryoverSourceContractId: "source-contract",
-      }) as never,
-    );
-
-    expect(depositsService.getAccount).toHaveBeenCalledWith(
-      "unit-1",
-      "测试租户有限公司",
-      "source-contract",
-    );
-    expect(contractsRepository.create).toHaveBeenCalledWith(
-      expect.objectContaining({
-        depositSettlementMode: DepositSettlementMode.CARRYOVER,
-        depositCarryoverAmount: 6000,
-        depositCarryoverSourceContractId: "source-contract",
-      }),
-    );
-  });
-
-  it("rejects an explicit carryover source from another tenant account", async () => {
-    const { service, depositsService, dataSource } = buildService();
-
-    await expect(
-      service.create(
-        buildDto({
-          depositSettlementMode: DepositSettlementMode.CARRYOVER,
-          depositCarryoverAmount: 6000,
-          depositCarryoverSourceContractId: "other-tenant-contract",
-        }) as never,
-      ),
-    ).rejects.toThrow("未找到可结转的押金账户");
-
-    expect(depositsService.getAccount).toHaveBeenCalledWith(
-      "unit-1",
-      "测试租户有限公司",
-      "other-tenant-contract",
-    );
-    expect(dataSource.transaction).not.toHaveBeenCalled();
-  });
-
-  it("uses the account latest contract when explicit carryover omits a source", async () => {
-    const { service, contractsRepository, depositsService } = buildService({
-      depositAccount: {
-        heldAmount: 10000,
-        latestContractId: "source-contract",
-      },
-    });
-
-    await service.create(
-      buildDto({
-        depositSettlementMode: DepositSettlementMode.CARRYOVER,
-        depositCarryoverAmount: 6000,
-      }) as never,
-    );
-
-    expect(depositsService.getAccount).toHaveBeenCalledWith(
-      "unit-1",
-      "测试租户有限公司",
-    );
-    expect(contractsRepository.create).toHaveBeenCalledWith(
-      expect.objectContaining({
-        depositCarryoverAmount: 6000,
-        depositCarryoverSourceContractId: "source-contract",
-      }),
-    );
-  });
-
-  it.each([
-    "billingFrequency",
-    "depositSettlementMode",
-    "depositCarryoverAmount",
-    "depositCarryoverSourceContractId",
-  ])("rejects an explicit null %s when creating", async (property) => {
-    const { service, dataSource, depositsService } = buildService();
-
-    await expect(
-      service.create(buildDto({ [property]: null }) as never),
-    ).rejects.toThrow("不能为 null");
-
-    expect(dataSource.transaction).not.toHaveBeenCalled();
-    expect(depositsService.getAccount).not.toHaveBeenCalled();
-  });
-
-  it("rejects carryover above the selected deposit account balance", async () => {
-    const { service } = buildService({
-      depositAccount: { heldAmount: 10000, latestContractId: "source-contract" },
-    });
-
-    await expect(
-      service.create(
-        buildDto({
-          depositSettlementMode: DepositSettlementMode.CARRYOVER,
-          depositCarryoverAmount: 12000,
-        }) as never,
-      ),
-    ).rejects.toThrow("结转押金不能超过当前持有押金");
-  });
-
-  it("does not allow a positive carryover from a negative account balance", async () => {
-    const { service } = buildService({
-      depositAccount: { heldAmount: -6000, latestContractId: "source-contract" },
-    });
-
-    await expect(
-      service.create(
-        buildDto({
-          depositSettlementMode: DepositSettlementMode.CARRYOVER,
-          depositCarryoverAmount: 1,
-        }) as never,
-      ),
-    ).rejects.toThrow("结转押金不能超过当前持有押金");
+    const values = contractsRepository.create.mock.calls.at(-1)?.[0];
+    expect(values).toEqual(expect.objectContaining({ depositAmount: 0 }));
+    expect(values).not.toHaveProperty("depositSettlementMode");
+    expect(values).not.toHaveProperty("depositCarryoverAmount");
+    expect(values).not.toHaveProperty("depositCarryoverSourceContractId");
   });
 
   it("preserves new contract fields when a V0.5.0 update omits them", async () => {
@@ -370,130 +200,16 @@ describe("ContractsService", () => {
     expect(receivablesService.syncContractSchedules).not.toHaveBeenCalled();
   });
 
-  it("does not revalidate an unchanged historical carryover snapshot", async () => {
-    const contract = existingContract();
-    const { service, depositsService, contractsRepository } = buildService({
-      existingContract: contract,
-      depositAccount: { heldAmount: 0, latestContractId: "source-contract" },
-    });
-
-    await service.update(
-      "contract-1",
-      buildDto({
-        contactName: "历史联系人",
-        billingFrequency: BillingFrequency.SEMIANNUAL,
-        depositSettlementMode: DepositSettlementMode.CARRYOVER,
-        depositCarryoverAmount: 8000,
-        depositCarryoverSourceContractId: "source-contract",
-      }) as never,
-    );
-
-    expect(depositsService.getAccount).not.toHaveBeenCalled();
-    expect(contractsRepository.save).toHaveBeenCalledWith(
-      expect.objectContaining({
-        depositSettlementMode: DepositSettlementMode.CARRYOVER,
-        depositCarryoverAmount: 8000,
-        depositCarryoverSourceContractId: "source-contract",
-      }),
-    );
-  });
-
-  it("compares unchanged historical carryover amounts by cents", async () => {
-    const contract = existingContract({ depositCarryoverAmount: 0.3 });
-    const { service, depositsService, contractsRepository } = buildService({
-      existingContract: contract,
-      depositAccount: { heldAmount: 0, latestContractId: "source-contract" },
-    });
-
-    await service.update(
-      "contract-1",
-      buildDto({
-        contactName: "按分比较",
-        depositCarryoverAmount: 0.30000000000000004,
-      }) as never,
-    );
-
-    expect(depositsService.getAccount).not.toHaveBeenCalled();
-    expect(contractsRepository.save).toHaveBeenCalledWith(
-      expect.objectContaining({
-        contactName: "按分比较",
-        depositCarryoverAmount: 0.3,
-      }),
-    );
-  });
-
-  it.each([
-    ["tenant", { tenantName: "另一个租户" }, "unit-1", "另一个租户"],
-    ["unit", { unitId: "unit-2" }, "unit-2", "测试租户有限公司"],
-  ])(
-    "revalidates an unchanged carryover snapshot when the deposit account %s changes",
-    async (_case, dtoOverrides, expectedUnitId, expectedTenantName) => {
-      const contract = existingContract();
-      const { service, depositsService, dataSource } = buildService({
-        existingContract: contract,
-      });
-
-      await expect(
-        service.update(
-          "contract-1",
-          buildDto({
-            billingFrequency: BillingFrequency.SEMIANNUAL,
-            ...dtoOverrides,
-          }) as never,
-        ),
-      ).rejects.toThrow("未找到可结转的押金账户");
-
-      expect(depositsService.getAccount).toHaveBeenCalledWith(
-        expectedUnitId,
-        expectedTenantName,
-        "source-contract",
-      );
-      expect(dataSource.transaction).not.toHaveBeenCalled();
-    },
-  );
-
-  it("resets an initial settlement when the deposit account key changes", async () => {
-    const contract = existingContract({
-      depositSettlementMode: DepositSettlementMode.INITIAL,
-      depositCarryoverAmount: 8000,
-      depositCarryoverSourceContractId: "stale-source",
-    });
-    const { service, depositsService, contractsRepository } = buildService({
-      existingContract: contract,
-    });
-
-    await service.update(
-      "contract-1",
-      buildDto({
-        tenantName: " 新租户 ",
-        billingFrequency: BillingFrequency.SEMIANNUAL,
-      }) as never,
-    );
-
-    expect(depositsService.getAccount).not.toHaveBeenCalled();
-    expect(contractsRepository.save).toHaveBeenCalledWith(
-      expect.objectContaining({
-        tenantName: "新租户",
-        depositSettlementMode: DepositSettlementMode.INITIAL,
-        depositCarryoverAmount: 0,
-        depositCarryoverSourceContractId: null,
-      }),
-    );
-  });
 
   it("preserves manually patched future schedules for non-shape updates", async () => {
     const contract = existingContract();
-    const { service, receivablesService } = buildService({
-      existingContract: contract,
-      depositAccount: { heldAmount: 10000, latestContractId: "source-contract" },
-    });
+    const { service, receivablesService } = buildService({ existingContract: contract });
 
     await service.update(
       "contract-1",
       buildDto({
         contactName: "新联系人",
         billingFrequency: BillingFrequency.SEMIANNUAL,
-        depositCarryoverAmount: 9000,
       }) as never,
     );
 
@@ -542,43 +258,6 @@ describe("ContractsService", () => {
     );
   });
 
-  it.each([
-    "billingFrequency",
-    "depositSettlementMode",
-    "depositCarryoverAmount",
-    "depositCarryoverSourceContractId",
-  ])("rejects an explicit null %s when updating", async (property) => {
-    const { service, dataSource, depositsService } = buildService({
-      existingContract: existingContract(),
-    });
-
-    await expect(
-      service.update(
-        "contract-1",
-        buildDto({ [property]: null }) as never,
-      ),
-    ).rejects.toThrow("不能为 null");
-
-    expect(dataSource.transaction).not.toHaveBeenCalled();
-    expect(depositsService.getAccount).not.toHaveBeenCalled();
-  });
-
-  it("revalidates a carryover snapshot only when settlement fields change", async () => {
-    const contract = existingContract();
-    const { service, depositsService } = buildService({
-      existingContract: contract,
-      depositAccount: { heldAmount: 4000, latestContractId: "source-contract" },
-    });
-
-    await expect(
-      service.update(
-        "contract-1",
-        buildDto({ depositCarryoverAmount: 5000 }) as never,
-      ),
-    ).rejects.toThrow("结转押金不能超过当前持有押金");
-
-    expect(depositsService.getAccount).toHaveBeenCalledTimes(1);
-  });
 
   it("allows empty party information when updating a contract", async () => {
     const contract = existingContract();
@@ -595,7 +274,6 @@ describe("ContractsService", () => {
         contactName: "  ",
         tenantPhone: "  ",
         licenseCode: "  ",
-        depositSettlementMode: DepositSettlementMode.INITIAL,
       }) as never,
     );
 
@@ -609,9 +287,6 @@ describe("ContractsService", () => {
         contactName: "",
         tenantPhone: "",
         licenseCode: "",
-        depositSettlementMode: DepositSettlementMode.INITIAL,
-        depositCarryoverAmount: 0,
-        depositCarryoverSourceContractId: null,
       }),
     );
   });

@@ -1,6 +1,5 @@
 import { Module } from "@nestjs/common";
 import { TypeOrmModule } from "@nestjs/typeorm";
-import { DepositsModule } from "../deposits/deposits.module";
 import { FilesModule } from "../files/files.module";
 import { RentReceivablesModule } from "../rent-receivables/rent-receivables.module";
 import { FactoryUnit } from "../units/factory-unit.entity";
@@ -13,7 +12,6 @@ import { ContractsService } from "./contracts.service";
     TypeOrmModule.forFeature([Contract, FactoryUnit]),
     FilesModule,
     RentReceivablesModule,
-    DepositsModule,
   ],
   controllers: [ContractsController],
   providers: [ContractsService],

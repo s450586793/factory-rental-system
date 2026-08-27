@@ -6,8 +6,7 @@ import {
 import { InjectRepository } from "@nestjs/typeorm";
 import { DataSource, Repository } from "typeorm";
 import { formatShanghaiDate } from "../common/date/shanghai-date";
-import { fromCents, toCents } from "../common/money/cents";
-import { DepositsService } from "../deposits/deposits.service";
+import { toCents } from "../common/money/cents";
 import { FilesService } from "../files/files.service";
 import { RentReceivablesService } from "../rent-receivables/rent-receivables.service";
 import { FactoryUnit } from "../units/factory-unit.entity";
@@ -15,16 +14,9 @@ import {
   buildContractDocumentPdf,
   buildGeneratedContractFilename,
 } from "./contract-document";
-import { BillingFrequency, DepositSettlementMode } from "./contract.enums";
+import { BillingFrequency } from "./contract.enums";
 import { Contract, ContractStatus } from "./contract.entity";
 import { CreateContractDto, UpdateContractDto } from "./contracts.dto";
-
-type DepositSettlementSnapshot = Pick<
-  Contract,
-  | "depositSettlementMode"
-  | "depositCarryoverAmount"
-  | "depositCarryoverSourceContractId"
->;
 
 function resolveContractStatus(startDate: string, endDate: string) {
   const today = formatShanghaiDate();
@@ -47,7 +39,6 @@ export class ContractsService {
     private readonly filesService: FilesService,
     private readonly dataSource: DataSource,
     private readonly rentReceivablesService: RentReceivablesService,
-    private readonly depositsService: DepositsService,
   ) {}
 
   async list(unitId?: string) {
@@ -76,18 +67,13 @@ export class ContractsService {
       dto.businessLicenseFileId,
       dto.attachmentFileIds ?? [],
     );
-    const tenantName = dto.tenantName?.trim() ?? "";
-    const depositSettlement = await this.resolveCreateDepositSettlement(
-      dto,
-      tenantName,
-    );
     const contractValues = {
       unitId: dto.unitId,
       lessorName: dto.lessorName?.trim() ?? "",
       lessorLicenseCode: dto.lessorLicenseCode?.trim() ?? "",
       lessorContactName: dto.lessorContactName?.trim() ?? "",
       lessorPhone: dto.lessorPhone?.trim() ?? "",
-      tenantName,
+      tenantName: dto.tenantName?.trim() ?? "",
       contactName: dto.contactName?.trim() ?? "",
       tenantPhone: dto.tenantPhone?.trim() ?? "",
       licenseCode: dto.licenseCode?.trim() ?? "",
@@ -96,7 +82,6 @@ export class ContractsService {
       annualRent: dto.annualRent,
       depositAmount: dto.depositAmount,
       billingFrequency: dto.billingFrequency ?? BillingFrequency.ANNUAL,
-      ...depositSettlement,
       status: resolveContractStatus(dto.startDate, dto.endDate),
       businessLicenseFileId: businessLicenseFile?.id ?? null,
       businessLicenseFile,
@@ -127,11 +112,6 @@ export class ContractsService {
       dto.businessLicenseFileId,
       dto.attachmentFileIds ?? [],
     );
-    const depositSettlement = await this.resolveUpdateDepositSettlement(
-      contract,
-      dto,
-    );
-
     contract.unitId = dto.unitId;
     contract.lessorName = dto.lessorName?.trim() ?? "";
     contract.lessorLicenseCode = dto.lessorLicenseCode?.trim() ?? "";
@@ -146,7 +126,6 @@ export class ContractsService {
     contract.annualRent = dto.annualRent;
     contract.depositAmount = dto.depositAmount;
     contract.billingFrequency = nextBillingFrequency;
-    Object.assign(contract, depositSettlement);
     contract.status = resolveContractStatus(dto.startDate, dto.endDate);
     contract.businessLicenseFileId = businessLicenseFile?.id ?? null;
     contract.businessLicenseFile = businessLicenseFile ?? null;
@@ -242,118 +221,8 @@ export class ContractsService {
     };
   }
 
-  private async resolveCreateDepositSettlement(
-    dto: CreateContractDto,
-    tenantName: string,
-  ): Promise<DepositSettlementSnapshot> {
-    if (dto.depositSettlementMode === DepositSettlementMode.INITIAL) {
-      return this.initialDepositSettlement();
-    }
-    if (dto.depositSettlementMode === DepositSettlementMode.CARRYOVER) {
-      return this.resolveCarryoverDepositSettlement(
-        dto.unitId,
-        tenantName,
-        dto.depositCarryoverAmount,
-        dto.depositCarryoverSourceContractId,
-      );
-    }
-
-    const account = await this.depositsService.getAccount(dto.unitId, tenantName);
-    if (!account || toCents(account.heldAmount) <= 0) {
-      return this.initialDepositSettlement();
-    }
-
-    return {
-      depositSettlementMode: DepositSettlementMode.CARRYOVER,
-      depositCarryoverAmount: fromCents(toCents(account.heldAmount)),
-      depositCarryoverSourceContractId: account.latestContractId,
-    };
-  }
-
-  private async resolveUpdateDepositSettlement(
-    contract: Contract,
-    dto: UpdateContractDto,
-  ): Promise<DepositSettlementSnapshot> {
-    const normalizedTenantName = dto.tenantName?.trim() ?? "";
-    const accountKeyChanged =
-      dto.unitId !== contract.unitId ||
-      normalizedTenantName !== contract.tenantName.trim();
-    const settlementFieldsChanged =
-      (dto.depositSettlementMode !== undefined &&
-        dto.depositSettlementMode !== contract.depositSettlementMode) ||
-      (dto.depositCarryoverAmount !== undefined &&
-        toCents(dto.depositCarryoverAmount) !==
-          toCents(contract.depositCarryoverAmount)) ||
-      (dto.depositCarryoverSourceContractId !== undefined &&
-        dto.depositCarryoverSourceContractId !==
-          contract.depositCarryoverSourceContractId);
-
-    if (!settlementFieldsChanged && !accountKeyChanged) {
-      return {
-        depositSettlementMode: contract.depositSettlementMode,
-        depositCarryoverAmount: contract.depositCarryoverAmount,
-        depositCarryoverSourceContractId:
-          contract.depositCarryoverSourceContractId,
-      };
-    }
-
-    const mode = dto.depositSettlementMode ?? contract.depositSettlementMode;
-    if (mode === DepositSettlementMode.INITIAL) {
-      return this.initialDepositSettlement();
-    }
-
-    return this.resolveCarryoverDepositSettlement(
-      dto.unitId,
-      normalizedTenantName,
-      dto.depositCarryoverAmount ?? contract.depositCarryoverAmount,
-      dto.depositCarryoverSourceContractId ??
-        contract.depositCarryoverSourceContractId ??
-        undefined,
-    );
-  }
-
-  private async resolveCarryoverDepositSettlement(
-    unitId: string,
-    tenantName: string,
-    requestedAmount?: number,
-    sourceContractId?: string,
-  ): Promise<DepositSettlementSnapshot> {
-    const account = sourceContractId
-      ? await this.depositsService.getAccount(
-          unitId,
-          tenantName,
-          sourceContractId,
-        )
-      : await this.depositsService.getAccount(unitId, tenantName);
-    if (!account) {
-      throw new BadRequestException("未找到可结转的押金账户");
-    }
-
-    const availableCents = Math.max(toCents(account.heldAmount), 0);
-    const requestedCents =
-      requestedAmount === undefined ? availableCents : toCents(requestedAmount);
-    if (requestedCents < 0) {
-      throw new BadRequestException("结转押金不能小于 0");
-    }
-    if (requestedCents > availableCents) {
-      throw new BadRequestException("结转押金不能超过当前持有押金");
-    }
-
-    return {
-      depositSettlementMode: DepositSettlementMode.CARRYOVER,
-      depositCarryoverAmount: fromCents(requestedCents),
-      depositCarryoverSourceContractId:
-        sourceContractId ?? account.latestContractId,
-    };
-  }
-
   private assertOptionalContractFieldsNotNull(dto: CreateContractDto): void {
-    const fields = [
-      ["billingFrequency", "收租周期"],
-      ["depositSettlementMode", "押金处理方式"],
-      ["depositCarryoverAmount", "结转押金金额"],
-      ["depositCarryoverSourceContractId", "结转押金来源合同"],
-    ] as const;
+    const fields = [["billingFrequency", "收租周期"]] as const;
     const values = dto as unknown as Record<string, unknown>;
 
     for (const [field, label] of fields) {
@@ -363,11 +232,4 @@ export class ContractsService {
     }
   }
 
-  private initialDepositSettlement(): DepositSettlementSnapshot {
-    return {
-      depositSettlementMode: DepositSettlementMode.INITIAL,
-      depositCarryoverAmount: 0,
-      depositCarryoverSourceContractId: null,
-    };
-  }
 }
