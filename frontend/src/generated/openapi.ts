@@ -14,7 +14,8 @@ export type StoredFile = {
   originalName: string;
   mimeType: string;
   size: number;
-  category: "business-license" | "contract-attachment" | "payment-voucher" | "receipt";
+  category:
+    "business-license" | "contract-attachment" | "payment-voucher" | "receipt";
   storagePath: string;
 };
 
@@ -25,14 +26,18 @@ export type Contract = {
   lessorLicenseCode: string;
   lessorContactName: string;
   lessorPhone: string;
+  lessorSafetyManager: string;
   tenantName: string;
   contactName: string;
   tenantPhone: string;
   licenseCode: string;
+  tenantSafetyManager: string;
+  signedDate: string;
   startDate: string;
   endDate: string;
   annualRent: number;
   depositAmount: number;
+  earlyTerminationPenaltyAmount: number;
   billingFrequency: "annual" | "semiannual";
   depositSettlementMode: "initial" | "carryover";
   depositCarryoverAmount: number;
@@ -72,14 +77,18 @@ export type UnitSummary = {
     lessorLicenseCode: string;
     lessorContactName: string;
     lessorPhone: string;
+    lessorSafetyManager: string;
     tenantName: string;
     contactName: string;
     tenantPhone: string;
     licenseCode: string;
+    tenantSafetyManager: string;
+    signedDate: string;
     startDate: string;
     endDate: string;
     annualRent: number;
     depositAmount: number;
+    earlyTerminationPenaltyAmount: number;
     billingFrequency: "annual" | "semiannual";
     depositSettlementMode: "initial" | "carryover";
     depositCarryoverAmount: number;

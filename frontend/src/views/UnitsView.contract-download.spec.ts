@@ -79,14 +79,18 @@ const activeContract = {
   lessorLicenseCode: "91320281TEST000001",
   lessorContactName: "吴孝斌",
   lessorPhone: "18651510352",
+  lessorSafetyManager: "吴孝斌",
   tenantName: "曹忠",
   contactName: "曹忠",
   tenantPhone: "15951506512",
   licenseCode: "",
+  tenantSafetyManager: "曹忠",
+  signedDate: "2026-06-28",
   startDate: "2026-07-01",
   endDate: "2027-06-30",
   annualRent: 50000,
-  depositAmount: 10000,
+  depositAmount: 5000,
+  earlyTerminationPenaltyAmount: 4166.67,
   billingFrequency: "annual",
   depositSettlementMode: "initial",
   depositCarryoverAmount: 0,
@@ -97,7 +101,7 @@ const activeContract = {
   prepaidAmount: 0,
   unallocatedAmount: 0,
   status: "active",
-} satisfies UnitSummary["activeContract"];
+} as NonNullable<UnitSummary["activeContract"]>;
 
 const oldContract = {
   id: "contract-old",
@@ -106,14 +110,18 @@ const oldContract = {
   lessorLicenseCode: "91320281TEST000001",
   lessorContactName: "吴孝斌",
   lessorPhone: "18651510352",
+  lessorSafetyManager: "吴孝斌",
   tenantName: "曹忠",
   contactName: "曹忠",
   tenantPhone: "15951506512",
   licenseCode: "",
+  tenantSafetyManager: "曹忠",
+  signedDate: "2026-06-28",
   startDate: "2026-07-01",
   endDate: "2027-06-30",
   annualRent: 50000,
-  depositAmount: 10000,
+  depositAmount: 5000,
+  earlyTerminationPenaltyAmount: 4166.67,
   billingFrequency: "annual",
   depositSettlementMode: "initial",
   depositCarryoverAmount: 0,
@@ -127,7 +135,7 @@ const oldContract = {
   businessLicenseFileId: null,
   businessLicenseFile: null,
   attachmentFiles: [],
-} satisfies Contract;
+} as Contract;
 
 const unit = {
   id: "unit-1",
@@ -148,14 +156,18 @@ const savedContract = {
   lessorLicenseCode: "91320281TEST000001",
   lessorContactName: "吴孝斌",
   lessorPhone: "18651510352",
+  lessorSafetyManager: "吴孝斌",
   tenantName: "曹忠",
   contactName: "曹忠",
   tenantPhone: "15951506512",
   licenseCode: "",
+  tenantSafetyManager: "曹忠",
+  signedDate: "2027-06-28",
   startDate: "2027-07-01",
   endDate: "2028-06-30",
   annualRent: 50000,
-  depositAmount: 10000,
+  depositAmount: 5000,
+  earlyTerminationPenaltyAmount: 4166.67,
   billingFrequency: "annual",
   depositSettlementMode: "initial",
   depositCarryoverAmount: 0,
@@ -169,7 +181,7 @@ const savedContract = {
   businessLicenseFileId: null,
   businessLicenseFile: null,
   attachmentFiles: [],
-} satisfies Contract;
+} as Contract;
 
 const vacantUnit = {
   id: "unit-vacant",
@@ -606,7 +618,7 @@ describe("UnitsView contract download", () => {
 
     const depositInput = wrapper.find('input[aria-label="押金"]');
     expect(depositInput.exists()).toBe(true);
-    expect((depositInput.element as HTMLInputElement).value).toBe("10000");
+    expect((depositInput.element as HTMLInputElement).value).toBe("5000");
     expect(wrapper.text()).not.toContain("押金处理");
     expect(depositsApi.listAccounts).not.toHaveBeenCalled();
     expect((findInputByLabel(wrapper, "甲方名称").element as HTMLInputElement).value).toBe(
@@ -617,6 +629,10 @@ describe("UnitsView contract download", () => {
     );
     expect((findInputByLabel(wrapper, "甲方联系人").element as HTMLInputElement).value).toBe("吴孝斌");
     expect((findInputByLabel(wrapper, "甲方电话").element as HTMLInputElement).value).toBe("18651510352");
+    expect((findInputByLabel(wrapper, "甲方安全管理负责人").element as HTMLInputElement).value).toBe("吴孝斌");
+    expect((findInputByLabel(wrapper, "乙方安全管理负责人").element as HTMLInputElement).value).toBe("曹忠");
+    expect((findInputByLabel(wrapper, "合同签订日期").element as HTMLInputElement).value).toBe("2027-07-01");
+    expect((findInputByLabel(wrapper, "提前退租违约金").element as HTMLInputElement).value).toBe("4166.67");
 
     await depositInput.setValue("0");
     await findButton(wrapper, "保存").trigger("click");
@@ -629,8 +645,12 @@ describe("UnitsView contract download", () => {
         lessorLicenseCode: "91320281TEST000001",
         lessorContactName: "吴孝斌",
         lessorPhone: "18651510352",
+        lessorSafetyManager: "吴孝斌",
+        tenantSafetyManager: "曹忠",
+        signedDate: "2027-07-01",
         annualRent: 50000,
         depositAmount: 0,
+        earlyTerminationPenaltyAmount: 4166.67,
       }),
     );
     expect(payload).not.toHaveProperty("depositSettlementMode");
@@ -638,7 +658,7 @@ describe("UnitsView contract download", () => {
     expect(payload).not.toHaveProperty("depositCarryoverSourceContractId");
   });
 
-  it("uses empty lessor identity with default contact details when no previous contract exists", async () => {
+  it("uses the individual lessor and safety manager defaults when no previous contract exists", async () => {
     vi.mocked(unitsApi.list).mockResolvedValue([vacantUnit]);
     vi.mocked(unitsApi.detail).mockResolvedValue(vacantUnit);
     const wrapper = mountUnitsView();
@@ -646,13 +666,14 @@ describe("UnitsView contract download", () => {
 
     await openCreateContractDialog(wrapper);
 
-    expect((findInputByLabel(wrapper, "甲方名称").element as HTMLInputElement).value).toBe("");
+    expect((findInputByLabel(wrapper, "甲方名称").element as HTMLInputElement).value).toBe("吴孝斌");
     expect((findInputByLabel(wrapper, "甲方营业执照代码").element as HTMLInputElement).value).toBe("");
     expect((findInputByLabel(wrapper, "甲方联系人").element as HTMLInputElement).value).toBe("吴孝斌");
     expect((findInputByLabel(wrapper, "甲方电话").element as HTMLInputElement).value).toBe("18651510352");
+    expect((findInputByLabel(wrapper, "甲方安全管理负责人").element as HTMLInputElement).value).toBe("吴孝斌");
   });
 
-  it("allows all party identity fields to be empty", async () => {
+  it("blocks saving when required party and safety agreement fields are empty", async () => {
     const wrapper = mountUnitsView();
     await flushPromises();
     await openCreateContractDialog(wrapper);
@@ -666,6 +687,8 @@ describe("UnitsView contract download", () => {
       "乙方营业执照代码",
       "乙方联系人",
       "乙方电话",
+      "甲方安全管理负责人",
+      "乙方安全管理负责人",
     ]) {
       await findInputByLabel(wrapper, label).setValue("");
     }
@@ -673,22 +696,8 @@ describe("UnitsView contract download", () => {
     await findButton(wrapper, "保存").trigger("click");
     await flushPromises();
 
-    expect(contractsApi.create).toHaveBeenCalledWith(
-      expect.objectContaining({
-        lessorName: "",
-        lessorLicenseCode: "",
-        lessorContactName: "",
-        lessorPhone: "",
-        tenantName: "",
-        licenseCode: "",
-        contactName: "",
-        tenantPhone: "",
-      }),
-    );
-    const payload = vi.mocked(contractsApi.create).mock.calls.at(-1)?.[0];
-    expect(payload).not.toHaveProperty("depositSettlementMode");
-    expect(payload).not.toHaveProperty("depositCarryoverAmount");
-    expect(payload).not.toHaveProperty("depositCarryoverSourceContractId");
+    expect(contractsApi.create).not.toHaveBeenCalled();
+    expect(ElMessage.error).toHaveBeenCalledWith("甲方名称不能为空");
   });
 
   it("does not create an initial contract from untouched lessor defaults", async () => {
@@ -716,6 +725,9 @@ describe("UnitsView contract download", () => {
     await wrapper.find('input[placeholder="例如 东区 1 号车间"]').setValue("空置厂房");
     await findInputByLabel(wrapper, "初始合同甲方名称").setValue("江阴市示例产业园有限公司");
     await findInputByLabel(wrapper, "初始合同甲方营业执照代码").setValue("91320281TEST000001");
+    await findInputByLabel(wrapper, "初始合同乙方名称").setValue("测试租户有限公司");
+    await findInputByLabel(wrapper, "初始合同乙方联系人").setValue("张三");
+    await findInputByLabel(wrapper, "初始合同乙方安全管理负责人").setValue("张三");
     await findInputByLabel(wrapper, "初始合同开始").setValue("2026-09-01");
     await findInputByLabel(wrapper, "初始合同年租金").setValue("50000");
     await findButton(wrapper, "保存").trigger("click");
@@ -727,9 +739,14 @@ describe("UnitsView contract download", () => {
         lessorLicenseCode: "91320281TEST000001",
         lessorContactName: "吴孝斌",
         lessorPhone: "18651510352",
+        lessorSafetyManager: "吴孝斌",
+        tenantName: "测试租户有限公司",
+        tenantSafetyManager: "张三",
+        signedDate: "2026-09-01",
         startDate: "2026-09-01",
         endDate: "2027-08-31",
         annualRent: 50000,
+        earlyTerminationPenaltyAmount: 4166.67,
       }),
     );
   });

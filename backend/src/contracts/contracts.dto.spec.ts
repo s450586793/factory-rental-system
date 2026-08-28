@@ -5,20 +5,31 @@ import { CreateContractDto } from "./contracts.dto";
 function buildDto(overrides: Record<string, unknown> = {}) {
   return Object.assign(new CreateContractDto(), {
     unitId: "unit-1",
+    lessorName: "吴孝斌",
+    tenantName: "张三",
     startDate: "2026-09-01",
     endDate: "2027-08-31",
     annualRent: 50000,
-    depositAmount: 10000,
+    depositAmount: 5000,
+    signedDate: "2026-08-28",
+    lessorSafetyManager: "吴孝斌",
+    tenantSafetyManager: "张三",
+    earlyTerminationPenaltyAmount: 4166.67,
     ...overrides,
   });
 }
 
 describe("CreateContractDto", () => {
-  it("allows all party identity fields to be omitted", async () => {
-    const errors = await validate(buildDto());
+  it.each(["lessorName", "tenantName"])(
+    "requires the %s party name",
+    async (property) => {
+      const errors = await validate(buildDto({ [property]: "" }));
 
-    expect(errors).toEqual([]);
-  });
+      expect(errors).toEqual(
+        expect.arrayContaining([expect.objectContaining({ property })]),
+      );
+    },
+  );
 
   it("enforces the lessor name length limit", async () => {
     const errors = await validate(
@@ -47,15 +58,26 @@ describe("CreateContractDto", () => {
   });
 
   it.each([
+    ["signedDate", ""],
+    ["lessorSafetyManager", ""],
+    ["tenantSafetyManager", ""],
+  ])("rejects a blank required document field %s", async (property, value) => {
+    const errors = await validate(buildDto({ [property]: value }));
+
+    expect(errors).toEqual(
+      expect.arrayContaining([expect.objectContaining({ property })]),
+    );
+  });
+
+  it.each([
     ["annualRent", 0],
+    ["earlyTerminationPenaltyAmount", -0.01],
     ["billingFrequency", "monthly"],
   ])("rejects an invalid %s", async (property, value) => {
     const errors = await validate(buildDto({ [property]: value }));
 
     expect(errors).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({ property }),
-      ]),
+      expect.arrayContaining([expect.objectContaining({ property })]),
     );
   });
 
@@ -64,16 +86,17 @@ describe("CreateContractDto", () => {
     const errors = await validate(buildDto({ [property]: null }));
 
     expect(errors).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({ property }),
-      ]),
+      expect.arrayContaining([expect.objectContaining({ property })]),
     );
   });
 
   it.each([
     ["depositSettlementMode", "carryover"],
     ["depositCarryoverAmount", 10000],
-    ["depositCarryoverSourceContractId", "00000000-0000-4000-8000-000000000001"],
+    [
+      "depositCarryoverSourceContractId",
+      "00000000-0000-4000-8000-000000000001",
+    ],
   ])("rejects the legacy non-whitelisted %s field", async (property, value) => {
     const errors = await validate(buildDto({ [property]: value }), {
       whitelist: true,
@@ -81,9 +104,7 @@ describe("CreateContractDto", () => {
     });
 
     expect(errors).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({ property }),
-      ]),
+      expect.arrayContaining([expect.objectContaining({ property })]),
     );
   });
 });

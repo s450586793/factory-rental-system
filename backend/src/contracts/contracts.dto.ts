@@ -19,9 +19,9 @@ export class CreateContractDto {
   unitId!: string;
 
   @IsString()
-  @IsOptional()
+  @IsNotEmpty()
   @MaxLength(120)
-  lessorName?: string;
+  lessorName!: string;
 
   @IsString()
   @IsOptional()
@@ -39,9 +39,14 @@ export class CreateContractDto {
   lessorPhone?: string;
 
   @IsString()
-  @IsOptional()
+  @IsNotEmpty()
   @MaxLength(120)
-  tenantName?: string;
+  lessorSafetyManager!: string;
+
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(120)
+  tenantName!: string;
 
   @IsString()
   @IsOptional()
@@ -58,6 +63,14 @@ export class CreateContractDto {
   @MaxLength(80)
   licenseCode?: string;
 
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(120)
+  tenantSafetyManager!: string;
+
+  @IsDateString()
+  signedDate!: string;
+
   @IsDateString()
   startDate!: string;
 
@@ -71,6 +84,10 @@ export class CreateContractDto {
   @IsNumber()
   @Min(0)
   depositAmount!: number;
+
+  @IsNumber()
+  @Min(0)
+  earlyTerminationPenaltyAmount!: number;
 
   @IsEnum(BillingFrequency)
   @ValidateIf((_object, value) => value !== undefined)

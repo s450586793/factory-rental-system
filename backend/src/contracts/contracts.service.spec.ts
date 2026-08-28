@@ -16,14 +16,18 @@ function existingContract(overrides: Record<string, unknown> = {}) {
     lessorLicenseCode: "original-lessor-license",
     lessorContactName: "原联系人",
     lessorPhone: "12345678900",
+    lessorSafetyManager: "原甲方安全负责人",
     tenantName: "测试租户有限公司",
     contactName: "原负责人",
     tenantPhone: "12345678901",
     licenseCode: "original-tenant-license",
+    tenantSafetyManager: "原乙方安全负责人",
+    signedDate: "2026-08-28",
     startDate: "2026-09-01",
     endDate: "2027-08-31",
     annualRent: 50000,
     depositAmount: 10000,
+    earlyTerminationPenaltyAmount: 4166.67,
     billingFrequency: BillingFrequency.SEMIANNUAL,
     depositSettlementMode: DepositSettlementMode.CARRYOVER,
     depositCarryoverAmount: 8000,
@@ -33,15 +37,25 @@ function existingContract(overrides: Record<string, unknown> = {}) {
   };
 }
 
-function buildService(options: {
-  existingContract?: Record<string, unknown>;
-  depositAccount?: Record<string, unknown> | null;
-  cachedGeneratedDocument?: Buffer | null;
-} = {}) {
+function buildService(
+  options: {
+    existingContract?: Record<string, unknown>;
+    depositAccount?: Record<string, unknown> | null;
+    cachedGeneratedDocument?: Buffer | null;
+  } = {},
+) {
   let savedContract: Record<string, unknown> | null = null;
   const contractsRepository = {
-    findOne: jest.fn().mockImplementation(() => Promise.resolve(options.existingContract ?? savedContract)),
-    find: jest.fn().mockResolvedValue(options.existingContract ? [options.existingContract] : []),
+    findOne: jest
+      .fn()
+      .mockImplementation(() =>
+        Promise.resolve(options.existingContract ?? savedContract),
+      ),
+    find: jest
+      .fn()
+      .mockResolvedValue(
+        options.existingContract ? [options.existingContract] : [],
+      ),
     create: jest.fn().mockImplementation((value) => value),
     save: jest.fn().mockImplementation((value) => {
       savedContract = {
@@ -50,7 +64,9 @@ function buildService(options: {
       };
       return Promise.resolve(savedContract);
     }),
-    findOneOrFail: jest.fn().mockImplementation(() => Promise.resolve(savedContract)),
+    findOneOrFail: jest
+      .fn()
+      .mockImplementation(() => Promise.resolve(savedContract)),
   };
   const unitsRepository = {
     findOne: jest.fn().mockResolvedValue({
@@ -64,7 +80,9 @@ function buildService(options: {
   const filesService = {
     findOneOrFail: jest.fn(),
     findByIds: jest.fn(),
-    readGeneratedContractDocument: jest.fn().mockResolvedValue(options.cachedGeneratedDocument ?? null),
+    readGeneratedContractDocument: jest
+      .fn()
+      .mockResolvedValue(options.cachedGeneratedDocument ?? null),
     saveGeneratedContractDocument: jest.fn().mockResolvedValue(undefined),
     removeGeneratedContractDocuments: jest.fn().mockResolvedValue(undefined),
   };
@@ -119,14 +137,18 @@ function buildDto(overrides: Record<string, unknown> = {}) {
     lessorLicenseCode: "  91320281TEST000001  ",
     lessorContactName: "  吴孝斌  ",
     lessorPhone: "  18651510352  ",
+    lessorSafetyManager: "  吴孝斌  ",
     tenantName: "  测试租户有限公司  ",
     contactName: "  张三  ",
     tenantPhone: "  13800000000  ",
     licenseCode: "  91320281TEST000002  ",
+    tenantSafetyManager: "  张三  ",
+    signedDate: "2026-08-28",
     startDate: "2026-09-01",
     endDate: "2027-08-31",
     annualRent: 50000,
-    depositAmount: 10000,
+    depositAmount: 5000,
+    earlyTerminationPenaltyAmount: 4166.67,
     ...overrides,
   };
 }
@@ -134,7 +156,9 @@ function buildDto(overrides: Record<string, unknown> = {}) {
 describe("ContractsService", () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    jest.mocked(buildContractDocumentPdf).mockResolvedValue(Buffer.from("generated-pdf"));
+    jest
+      .mocked(buildContractDocumentPdf)
+      .mockResolvedValue(Buffer.from("generated-pdf"));
   });
 
   it("saves a normalized contract and generated schedules in one transaction", async () => {
@@ -158,10 +182,14 @@ describe("ContractsService", () => {
         lessorLicenseCode: "91320281TEST000001",
         lessorContactName: "吴孝斌",
         lessorPhone: "18651510352",
+        lessorSafetyManager: "吴孝斌",
         tenantName: "测试租户有限公司",
         contactName: "张三",
         tenantPhone: "13800000000",
         licenseCode: "91320281TEST000002",
+        tenantSafetyManager: "张三",
+        signedDate: "2026-08-28",
+        earlyTerminationPenaltyAmount: 4166.67,
         billingFrequency: BillingFrequency.SEMIANNUAL,
       }),
     );
@@ -210,9 +238,13 @@ describe("ContractsService", () => {
 
   it("keeps a newly saved contract when PDF preparation fails", async () => {
     const { service } = buildService();
-    const logger = (service as unknown as { logger: { error: (message: string) => void } }).logger;
+    const logger = (
+      service as unknown as { logger: { error: (message: string) => void } }
+    ).logger;
     jest.spyOn(logger, "error").mockImplementation(() => undefined);
-    jest.mocked(buildContractDocumentPdf).mockRejectedValueOnce(new Error("render failed"));
+    jest
+      .mocked(buildContractDocumentPdf)
+      .mockRejectedValueOnce(new Error("render failed"));
 
     await expect(service.create(buildDto() as never)).resolves.toEqual(
       expect.objectContaining({ id: "contract-new" }),
@@ -268,10 +300,11 @@ describe("ContractsService", () => {
     expect(receivablesService.syncContractSchedules).not.toHaveBeenCalled();
   });
 
-
   it("preserves manually patched future schedules for non-shape updates", async () => {
     const contract = existingContract();
-    const { service, receivablesService } = buildService({ existingContract: contract });
+    const { service, receivablesService } = buildService({
+      existingContract: contract,
+    });
 
     await service.update(
       "contract-1",
@@ -326,10 +359,11 @@ describe("ContractsService", () => {
     );
   });
 
-
   it("allows empty party information when updating a contract", async () => {
     const contract = existingContract();
-    const { service, contractsRepository } = buildService({ existingContract: contract });
+    const { service, contractsRepository } = buildService({
+      existingContract: contract,
+    });
 
     await service.update(
       "contract-1",
@@ -360,12 +394,8 @@ describe("ContractsService", () => {
   });
 
   it("does not return a saved contract when schedule synchronization fails", async () => {
-    const {
-      service,
-      contractsRepository,
-      dataSource,
-      receivablesService,
-    } = buildService();
+    const { service, contractsRepository, dataSource, receivablesService } =
+      buildService();
     receivablesService.syncContractSchedules.mockRejectedValue(
       new Error("schedule sync failed"),
     );

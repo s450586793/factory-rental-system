@@ -22,6 +22,7 @@ const STANDARD_CONTRACT_PAGE_HEIGHT = 841.9;
 const SAFETY_AGREEMENT_TEMPLATE_START_PAGE = 3;
 const STANDARD_CONTRACT_BODY_X = 58;
 const STANDARD_CONTRACT_BODY_WIDTH = 480;
+const SAFETY_AGREEMENT_CLOSING_TEMPLATE_PAGE = 9;
 export const STANDARD_CONTRACT_SIGNATURE_TAB_STOP = 315;
 
 type ContractDocumentPayload = {
@@ -29,6 +30,23 @@ type ContractDocumentPayload = {
   unit: FactoryUnit & { meterConfigs: UtilityMeterConfig[] };
   generatedDate: string;
 };
+
+const REQUIRED_DOCUMENT_FIELDS: Array<{
+  label: string;
+  read: (contract: Contract) => string;
+}> = [
+  { label: "甲方名称", read: (contract) => contract.lessorName },
+  { label: "乙方名称", read: (contract) => contract.tenantName },
+  { label: "合同签订日期", read: (contract) => contract.signedDate },
+  {
+    label: "甲方安全管理负责人",
+    read: (contract) => contract.lessorSafetyManager,
+  },
+  {
+    label: "乙方安全管理负责人",
+    read: (contract) => contract.tenantSafetyManager,
+  },
+];
 
 export type StandardLeaseContractPage = {
   sections: string[];
@@ -69,10 +87,12 @@ type RasterizedOverlay = {
 
 function splitDateParts(value: string): DateParts {
   const [year = "", month = "", day = ""] = value.split("-");
+  const normalizePart = (part: string) =>
+    /^\d+$/.test(part) ? String(Number(part || 0) || "") : part;
   return {
     year,
-    month: String(Number(month || 0) || ""),
-    day: String(Number(day || 0) || ""),
+    month: normalizePart(month),
+    day: normalizePart(day),
   };
 }
 
@@ -92,7 +112,12 @@ function formatArea(area: number | null) {
 }
 
 function formatMoney(value: number) {
-  return Number(value || 0).toLocaleString("zh-CN", {
+  const amount = Number(value);
+  if (!Number.isFinite(amount)) {
+    return "【填写】";
+  }
+
+  return amount.toLocaleString("zh-CN", {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
     useGrouping: false,
@@ -144,7 +169,11 @@ function buildUnitLabel(unit: FactoryUnit) {
   if (unit.code) {
     segments.push(`编号${unit.code}`);
   }
-  if (unit.area !== null && unit.area !== undefined && !Number.isNaN(unit.area)) {
+  if (
+    unit.area !== null &&
+    unit.area !== undefined &&
+    !Number.isNaN(unit.area)
+  ) {
     segments.push(`面积${formatArea(unit.area)}平方米`);
   }
   return segments.join("，");
@@ -154,7 +183,10 @@ function buildUnitFullAddress(unit: FactoryUnit) {
   return `江阴市澄江街道澄山路265号，${buildUnitLabel(unit)}`;
 }
 
-function normalizeOptionalText(value: string | null | undefined, fallback = "未填写") {
+function normalizeOptionalText(
+  value: string | null | undefined,
+  fallback = "未填写",
+) {
   return value?.trim() || fallback;
 }
 
@@ -163,11 +195,11 @@ function stripClauseNumber(value: string) {
 }
 
 function buildStandardLeaseSignatureText(
-  startParts: DateParts,
+  signedDateParts: DateParts,
   lessorName: string,
   tenantName: string,
 ) {
-  const signDate = formatDateForText(startParts);
+  const signDate = formatDateForText(signedDateParts);
   return [
     `甲方（出租方）：${lessorName}\t乙方（承租方）：${tenantName}`,
     "",
@@ -177,22 +209,49 @@ function buildStandardLeaseSignatureText(
   ].join("\n");
 }
 
+export function assertContractDocumentFieldsComplete({
+  contract,
+}: ContractDocumentPayload) {
+  const missing = REQUIRED_DOCUMENT_FIELDS.filter(
+    ({ read }) => !read(contract)?.trim(),
+  ).map(({ label }) => label);
+
+  if (missing.length > 0) {
+    throw new Error(`合同信息不完整，请补充：${missing.join("、")}`);
+  }
+}
+
+export function buildSafetyAgreementSupplementSections() {
+  return [
+    "2.21 乙方应积极配合甲方及甲方委托的第三方安全生产管理、消防管理等专业服务机构开展厂区安全生产、消防、环保、职业健康等管理工作，包括安全检查、日常巡查、隐患排查、资料收集、台账建立、人员信息登记、安全教育培训、应急演练、风险辨识、危险作业管理及政府主管部门检查。乙方应在规定期限内完成整改并反馈结果，不得拒绝、阻碍、拖延上述工作，不得隐瞒真实情况或提供虚假资料。",
+    "2.22 乙方对甲方、甲方委托的第三方专业服务机构或有关主管部门提出的安全生产、消防、环保等隐患整改要求，应在规定期限内完成整改。存在重大事故隐患、严重消防安全隐患，或者乙方拒不整改、逾期整改、整改后仍不符合要求的，甲方有权要求乙方立即停止相关设备、区域、危险作业或生产经营活动；情节严重或经催告仍拒不整改的，甲方有权单方面解除租赁合同。由此造成乙方停工、停产、搬迁及其他损失的，由乙方自行承担。",
+    "2.23 因乙方及其员工、承包商、供应商、客户或其他与乙方有关人员违反安全生产、消防、环保、职业健康、特种设备、危险化学品等法律法规、规章制度、本合同或本协议，导致乙方或甲方受到行政处罚、罚款、责令整改、停产停业、行政强制措施，或者导致甲方承担赔偿责任及其他经济损失的，相关责任及费用由乙方承担。只要违法违规事项发生于乙方承租区域内，或者与乙方生产经营活动、人员行为、设备设施、物料存放、危险作业、安全管理、消防管理、环保管理、隐患整改等有关，甲方均有权全额追偿。即使行政主管部门基于出租方、厂中厂出租方或甲方安全管理责任直接对甲方作出处罚或要求甲方承担其他责任，乙方仍应向甲方承担全部补偿、赔偿及追偿责任，不得以行政文书所列责任主体为甲方或甲方依法承担出租方安全管理职责为由拒绝。乙方应在收到甲方通知后五日内支付；甲方有权从保证金、应付款项或其他应付乙方款项中直接抵扣，不足部分继续追偿。",
+  ];
+}
+
 export function buildStandardLeaseContractPages({
   contract,
   unit,
 }: ContractDocumentPayload): StandardLeaseContractPage[] {
   const startParts = splitDateParts(contract.startDate);
   const endParts = splitDateParts(contract.endDate);
-  const annualRentUppercase = toChineseCurrencyUppercase(contract.annualRent);
+  const signedDateParts = splitDateParts(contract.signedDate);
+  const annualRentUppercase = Number.isFinite(Number(contract.annualRent))
+    ? toChineseCurrencyUppercase(contract.annualRent)
+    : "【填写】";
   const annualRentText = formatMoney(contract.annualRent);
   const utilityText = stripClauseNumber(buildUtilityClause(unit.meterConfigs));
   const unitAddress = buildUnitFullAddress(unit);
   const lessorName = normalizeOptionalText(contract.lessorName);
-  const lessorContact = normalizeOptionalText(contract.lessorContactName || contract.lessorName);
+  const lessorContact = normalizeOptionalText(
+    contract.lessorContactName || contract.lessorName,
+  );
   const lessorPhone = normalizeOptionalText(contract.lessorPhone);
   const lessorLicenseCode = normalizeOptionalText(contract.lessorLicenseCode);
   const tenantName = normalizeOptionalText(contract.tenantName);
-  const tenantContact = normalizeOptionalText(contract.contactName || contract.tenantName);
+  const tenantContact = normalizeOptionalText(
+    contract.contactName || contract.tenantName,
+  );
   const tenantPhone = normalizeOptionalText(contract.tenantPhone);
   const licenseCode = normalizeOptionalText(contract.licenseCode);
 
@@ -218,9 +277,9 @@ export function buildStandardLeaseContractPages({
         "三、租金支付、押金及逾期违约",
         `1. 双方约定年租金为人民币${annualRentText}元，大写：${annualRentUppercase}。${buildRentPaymentClause(contract)}`,
         `2. ${buildDepositClause(contract)}押金不计利息。`,
-        "3. 乙方逾期支付租金、押金、水电费、公摊费或其他应付款项的，每逾期一日，应按逾期未付金额的万分之五向甲方支付违约金；逾期超过十五日仍未支付的，甲方有权解除合同、收回厂房，并要求乙方承担欠付款项、违约金、恢复原状费用、清场费用及由此造成的损失。",
-        "4. 乙方逾期付款期间，甲方有权暂停非紧急维修、门禁便利、开票协助等非基本服务；乙方仍应承担逾期期间产生的水电、公摊、安全环保及第三方责任。",
-        "5. 押金用于担保乙方履行本合同项下付款、使用、维修、恢复原状、交还厂房、安全环保等义务。合同期满且乙方结清全部费用、迁出并完成交还后，甲方在扣除应由乙方承担的费用和损失后无息退还剩余押金。",
+        "3. 乙方逾期支付租金、水电费及其他按本合同应由乙方承担的费用，每逾期一日，应按逾期未付金额的万分之五向甲方支付违约金。逾期超过七日，甲方有权书面催告乙方在催告送达后七日内付清；催告期限届满仍未付清的，甲方有权单方解除本合同，要求乙方限期腾退厂房，并追偿欠付款项、违约金及相关损失。",
+        "4. 甲方有权从保证金或其他应付乙方的款项中直接抵扣乙方拖欠的租金、水电费、违约金、修复费、清场费及其他应付款项，不足部分甲方有权继续追偿。抵扣后，乙方应按甲方通知及时补足保证金。",
+        "5. 押金用于担保乙方履行付款、使用、维修、恢复原状、交还厂房、安全环保等义务。合同期满且乙方结清全部费用、迁出并完成交还后，甲方在扣除应由乙方承担的费用和损失后无息退还剩余押金。",
         "四、水电、公摊、税费及其他费用",
         `1. ${utilityText}`,
         "2. 园区公共能耗、公共设施维护、垃圾清运、物业管理、门禁安防、消防维保等因乙方使用厂房和园区公共资源产生的费用，由乙方按甲方公示、通知或双方书面确认的标准承担。",
@@ -251,34 +310,32 @@ export function buildStandardLeaseContractPages({
         "2. 乙方装修施工不得破坏主体结构、承重构件、消防分区、疏散通道、防火间距、屋面防水、公共管网及相邻租户正常使用。施工期间发生安全事故、环境污染、噪声扰民、财产损坏或行政处罚的，由乙方承担责任。",
         "3. 未经甲方书面同意形成的装修、附属设施、设备基础、管线、隔断、搭建物等，甲方有权要求乙方限期拆除、恢复原状或保留但不予补偿。合同终止或期满交还时，乙方应按甲方要求完成清场、修复和恢复，包括电线、配电箱、地坪、门窗、隔墙、广告牌及其他附着物。",
         "八、消防、环保与安全责任边界",
-        "1. 甲方负责园区公共区域和依法应由出租方承担的安全、消防、环保协调管理职责，并按附件安全生产管理协议约定开展公共区域管理、巡查、告知和协调。",
-        "2. 乙方是承租区域内生产经营、安全生产、消防安全、环境保护、职业健康、特种设备、危险作业和员工管理的直接责任主体，应建立并执行相应制度，配备人员和器材，接受甲方和主管部门检查。",
-        "3. 乙方不得占用、堵塞、封闭疏散通道、安全出口、消防车通道，不得擅自停用、拆除、遮挡消防设施，不得违规充电、违规动火、违规用电或超负荷使用线路。",
-        "4. 乙方不得在厂房内设置宿舍、住宿或留宿人员，不得设置影响消防疏散和生产安全的生活设施；确需值守时应依法另行设置，并取得甲方书面同意。",
-        "5. 乙方开展动火、临时用电、高处、吊装、有限空间、检维修、外包施工等危险作业的，应依法履行审批、告知、监护和防护义务；需要甲方协调或向属地部门告知的，应提前向甲方提交材料。",
+        "1. 甲方负责园区公共区域和依法应由出租方承担的安全、消防、环保协调管理职责，并按附件安全生产管理协议开展管理。甲方有权委托具备相应专业能力的第三方安全生产管理、消防管理等专业服务机构，协助开展厂区安全生产、消防、环保、职业健康等工作；该委托不免除依法应由甲方承担的责任。",
+        "2. 乙方是承租区域内生产经营、安全生产、消防安全、环境保护、职业健康、特种设备、危险作业和员工管理的直接责任主体，应建立并执行相应制度，配备人员和器材，接受并配合甲方、甲方委托的第三方专业服务机构及主管部门的检查、巡查、资料收集、培训、演练、整改复查和政府检查。",
+        "3. 乙方不得占用、堵塞、封闭疏散通道、安全出口、消防车通道，不得擅自停用、拆除或遮挡消防设施，不得违规充电、动火、用电或超负荷使用线路，不得在厂房内设置宿舍、住宿或留宿人员。",
+        "4. 乙方开展动火、临时用电、高处、吊装、有限空间、检维修、外包施工等危险作业，应依法履行审批、告知、监护和防护义务，并提前向甲方提交需要协调、告知或备案的材料。",
+        "5. 对重大事故隐患、严重消防安全隐患，或者乙方拒不整改、逾期整改、整改后仍不符合要求的，甲方有权要求乙方停止相关设备、区域、危险作业或生产经营活动；情节严重或经催告仍拒不整改的，甲方有权单方解除本合同，由此造成乙方停工、停产、搬迁及其他损失由乙方自行承担。",
       ],
     },
     {
       sections: [
         "九、财产损坏、保险与不可抗力",
-        "1. 乙方对其人员、设备、物料、产品、车辆、装修及其他财产自行负责保管。除甲方故意或重大过失导致损失外，承租区域内乙方财产毁损、灭失、被盗、停产停业或第三方索赔，由乙方自行承担。",
-        "2. 因乙方或乙方人员、客户、承包商、供应商原因造成甲方、其他租户、园区公共设施或第三方人身、财产损失的，乙方应负责赔偿并使甲方免受损失。",
-        "3. 乙方应自行购买财产保险、公众责任险、安全生产责任险、雇主责任险或其他与经营风险相匹配的必要保险；依法或监管要求必须投保的，乙方应按要求投保并向甲方提供凭证。",
-        "4. 因地震、洪水、台风、火灾等不可抗力，或政府征收征用、市政建设、政策调整、监管整改等非任一方可合理控制的原因导致合同无法继续履行的，双方可协商变更或解除合同，并按实际使用期间结算费用；依法应由责任方承担的除外。",
+        "1. 乙方对其人员、设备、物料、产品、车辆、装修及其他财产自行负责保管。除甲方故意或重大过失外，乙方财产毁损、灭失、被盗、停产停业或第三方索赔由乙方自行承担；因乙方及其员工、客户、承包商或供应商造成甲方、其他租户或第三方损失的，乙方负责赔偿。",
+        "2. 乙方应自行购买财产保险、公众责任险、安全生产责任险、雇主责任险或其他与经营风险相匹配的必要保险；依法或监管要求必须投保的，应向甲方提供凭证。",
+        "3. 因不可抗力或政府征收征用、市政建设、政策调整等非任一方可合理控制的原因导致合同无法继续履行，双方可协商变更或解除，并按实际使用期间结算费用；依法应由责任方承担的除外。",
         "十、提前解除及违约责任",
-        "1. 乙方需提前解除合同的，应至少提前三十日书面通知甲方并取得甲方书面同意，同时结清租金、水电费、公摊费、违约金、修复费及其他应付款项；给甲方造成损失的，应予赔偿。",
+        `1. 租赁期限内，未经甲方书面同意，乙方不得单方面提前解除合同。乙方确需提前退租的，应至少提前三十日向甲方提出书面申请，经甲方书面同意后方可解除。因乙方原因提前解除的，甲方有权扣除保证金，并要求乙方支付提前解除合同违约金人民币${formatMoney(contract.earlyTerminationPenaltyAmount)}元；不足以弥补甲方损失的，甲方有权继续追偿。`,
         "2. 乙方存在逾期付款、擅自转租、擅自改变用途、违法违规生产经营、重大安全环保隐患拒不整改、破坏房屋结构、严重影响园区管理或其他根本违约情形的，甲方有权解除合同、收回厂房并要求乙方承担违约责任。",
-        "3. 因乙方违法经营、安全生产、环保、消防、职业健康、市场监管等原因导致甲方被行政处罚、停产整顿、限期整改、行政强制措施、民事赔偿或第三方索赔的，乙方应承担全部责任，并赔偿甲方因此遭受的一切损失，包括罚款、律师费、诉讼费、停租损失等。",
+        "3. 因乙方及其相关人员违法经营，或违反安全生产、环保、消防、职业健康、特种设备、危险化学品等规定，导致甲方被行政处罚、罚款、停产整顿、限期整改、行政强制措施、民事赔偿或第三方索赔的，乙方应承担全部责任，并赔偿甲方包括罚款、律师费、诉讼费、停租损失等在内的一切损失。即使主管部门基于出租方或厂中厂管理责任直接处罚甲方，只要相关事项发生于乙方承租区域或与乙方经营有关，甲方仍有权全额追偿；乙方不得以行政文书所列责任主体为甲方或甲方承担法定管理职责为由拒绝。",
         "4. 甲方因自身原因无法继续提供厂房且不属于不可抗力、政府行为或乙方原因的，应退还乙方已支付但未实际使用期间对应的租金，并按法律规定或双方书面约定承担相应责任。",
       ],
     },
     {
       sections: [
         "十一、期满交还、留置物与续租",
-        "1. 合同终止或期满后三日内，乙方应搬离人员、设备、物料、产品、垃圾和危险废物，结清全部费用，将厂房及附属设施按交付状态或甲方认可状态交还甲方。",
+        "1. 合同终止、解除或期满后三日内，乙方应搬离人员、设备、物料、产品、垃圾和危险废物，结清全部费用，将厂房及附属设施按交付状态或甲方认可状态交还甲方。厂房交付和退场时，双方可通过交接清单、照片、视频等方式固定厂房状态，作为判断恢复原状及损坏情况的依据。",
         "2. 乙方逾期交还厂房的，应按日向甲方支付相当于年租金千分之五的占用使用费；不足以弥补甲方损失的，乙方仍应赔偿。逾期交还期间发生的水电、公摊、安全环保及第三方责任由乙方承担。",
-        "3. 乙方遗留物品经甲方书面通知后仍未清理的，甲方有权进行清理、搬运、保管、处置；超过七日未领取的，视为乙方放弃所有权，甲方有权自行处置，由此产生的费用和损失由乙方承担。",
-        "4. 依法需要特殊处置的危险废物、污染物、压力容器、危化品等，不因遗留而转移责任，仍由乙方负责合规处置并承担费用和损失。",
+        "3. 乙方遗留的机器设备、原材料、产品、废料、垃圾或其他物品，经甲方书面通知后仍未处理的，甲方有权依法搬离、保管、仓储或清运；搬运费、人工费、仓储费、保管费、垃圾清运费及其他合理费用由乙方承担。超过七日未领取的，视为乙方放弃所有权，甲方有权自行处置。危险废物、污染物、压力容器、危化品等仍由乙方负责合规处置并承担责任。",
         "十二、争议解决及法院管辖",
         "1. 本合同履行过程中发生争议，双方应先友好协商；协商不成的，任一方可向厂房所在地有管辖权的人民法院提起诉讼。",
         "2. 争议处理期间，除争议事项外，双方仍应继续履行本合同中不受影响的其他条款。守约方为实现债权支出的诉讼费、保全费、担保费、律师费、评估费、鉴定费、执行费等合理费用，由违约方承担。",
@@ -289,7 +346,11 @@ export function buildStandardLeaseContractPages({
         "十三、其他",
         "1. 本合同未尽事宜，双方可另行签订书面补充协议。补充协议、交付确认、费用通知、整改通知、安全生产管理协议及双方确认的附件，与本合同具有同等法律效力。",
         "2. 本合同一式两份，甲、乙双方各执一份，自双方签字或盖章之日起生效。",
-        buildStandardLeaseSignatureText(startParts, lessorName, tenantName),
+        buildStandardLeaseSignatureText(
+          signedDateParts,
+          lessorName,
+          tenantName,
+        ),
       ],
     },
   ];
@@ -320,7 +381,14 @@ function resolveRuntimePath(type: "assets" | "scripts", ...segments: string[]) {
   return matched;
 }
 
-function clearArea(page: PDFPage, x: number, top: number, width: number, height: number, padding = 2) {
+function clearArea(
+  page: PDFPage,
+  x: number,
+  top: number,
+  width: number,
+  height: number,
+  padding = 2,
+) {
   page.drawRectangle({
     x: x - padding,
     y: page.getHeight() - top - height - padding,
@@ -330,38 +398,38 @@ function clearArea(page: PDFPage, x: number, top: number, width: number, height:
   });
 }
 
-function renderTextOverlays(fontPath: string, overlays: TemplateOverlay[]): RasterizedOverlay[] {
+function renderTextOverlays(
+  fontPath: string,
+  overlays: TemplateOverlay[],
+): RasterizedOverlay[] {
   if (overlays.length === 0) {
     return [];
   }
 
   const scriptPath = resolveRuntimePath("scripts", RENDER_SCRIPT);
-  const result = spawnSync(
-    "python3",
-    [scriptPath],
-    {
-      input: JSON.stringify({
+  const result = spawnSync("python3", [scriptPath], {
+    input: JSON.stringify({
+      fontPath,
+      overlays: overlays.map((overlay) => ({
+        id: overlay.id,
+        text: overlay.text,
         fontPath,
-        overlays: overlays.map((overlay) => ({
-          id: overlay.id,
-          text: overlay.text,
-          fontPath,
-          fontSize: overlay.fontSize ?? 14,
-          fontIndex: overlay.fontIndex ?? SONGTI_SC_REGULAR_INDEX,
-          rasterScale: RASTER_SCALE,
-          maxWidth: overlay.maxWidth ?? null,
-          lineHeight: overlay.lineHeight ?? Math.ceil((overlay.fontSize ?? 14) * 1.4),
-          maxLines: overlay.maxLines ?? 99,
-          align: overlay.align ?? "left",
-          tabStops: overlay.tabStops ?? [],
-          paddingX: overlay.paddingX ?? 0,
-          paddingY: overlay.paddingY ?? 0,
-        })),
-      }),
-      encoding: "utf8",
-      maxBuffer: 20 * 1024 * 1024,
-    },
-  );
+        fontSize: overlay.fontSize ?? 14,
+        fontIndex: overlay.fontIndex ?? SONGTI_SC_REGULAR_INDEX,
+        rasterScale: RASTER_SCALE,
+        maxWidth: overlay.maxWidth ?? null,
+        lineHeight:
+          overlay.lineHeight ?? Math.ceil((overlay.fontSize ?? 14) * 1.4),
+        maxLines: overlay.maxLines ?? 99,
+        align: overlay.align ?? "left",
+        tabStops: overlay.tabStops ?? [],
+        paddingX: overlay.paddingX ?? 0,
+        paddingY: overlay.paddingY ?? 0,
+      })),
+    }),
+    encoding: "utf8",
+    maxBuffer: 20 * 1024 * 1024,
+  });
 
   if (result.status !== 0) {
     throw new Error(result.stderr?.trim() || "合同模板文字渲染失败");
@@ -409,8 +477,12 @@ async function drawRasterOverlay(
   });
 }
 
-export function buildGeneratedContractFilename(contract: Contract, unit: FactoryUnit) {
-  const safeTenant = contract.tenantName.replace(/[\\/:*?"<>|]+/g, "-").trim() || "乙方";
+export function buildGeneratedContractFilename(
+  contract: Contract,
+  unit: FactoryUnit,
+) {
+  const safeTenant =
+    contract.tenantName.replace(/[\\/:*?"<>|]+/g, "-").trim() || "乙方";
   return `${GENERATED_CONTRACT_PREFIX}${unit.code}_${safeTenant}_${contract.startDate}_${contract.endDate}.pdf`;
 }
 
@@ -432,15 +504,22 @@ export function buildContractDocumentOverlays({
 }: ContractDocumentPayload): TemplateOverlay[] {
   const startParts = splitDateParts(contract.startDate);
   const endParts = splitDateParts(contract.endDate);
+  const signedDateParts = splitDateParts(contract.signedDate);
   const unitLabel = buildUnitLabel(unit);
-  const annualRentUppercase = toChineseCurrencyUppercase(contract.annualRent);
+  const annualRentUppercase = Number.isFinite(Number(contract.annualRent))
+    ? toChineseCurrencyUppercase(contract.annualRent)
+    : "【填写】";
   const annualRentText = formatMoney(contract.annualRent);
   const utilityClause = buildUtilityClause(unit.meterConfigs);
-  const signDate = `${formatDateForText(startParts)}签订`;
+  const signDate = `${formatDateForText(signedDateParts)}签订`;
   const lessorName = normalizeOptionalText(contract.lessorName);
   const tenantName = normalizeOptionalText(contract.tenantName);
-  const lessorContact = contract.lessorContactName?.trim() || contract.lessorName?.trim();
-  const tenantContact = contract.contactName?.trim() || contract.tenantName?.trim();
+  const lessorContact =
+    contract.lessorContactName?.trim() || contract.lessorName?.trim();
+  const tenantContact =
+    contract.contactName?.trim() || contract.tenantName?.trim();
+  const lessorSafetyManager = contract.lessorSafetyManager.trim();
+  const tenantSafetyManager = contract.tenantSafetyManager.trim();
 
   const overlays: TemplateOverlay[] = [
     {
@@ -546,9 +625,24 @@ export function buildContractDocumentOverlays({
       paddingX: 10,
     },
     {
+      id: "page8-clause-2-7",
+      pageIndex: 7,
+      text: "2.7 乙方应严格遵守安全生产法律法规和国家标准或行业规范，遵守甲方发布的厂内安全管理制度，并服从甲方及甲方委托的第三方专业服务机构对安全生产、消防、环保等工作的统一协调管理、检查和监督，及时落实提出的隐患整改意见，如实提供相关资料，并及时反馈整改情况。",
+      x: 84,
+      top: 119,
+      clearWidth: 455,
+      clearHeight: 69,
+      fontSize: 12,
+      fontIndex: SONGTI_SC_REGULAR_INDEX,
+      maxWidth: 450,
+      lineHeight: 16,
+      maxLines: 4,
+      padding: 2,
+    },
+    {
       id: "page10-lessor-contact",
       pageIndex: 9,
-      text: lessorContact ? `${lessorContact}同志` : "未填写",
+      text: `${lessorSafetyManager}同志`,
       x: 178,
       top: 155,
       clearWidth: 72,
@@ -560,7 +654,7 @@ export function buildContractDocumentOverlays({
     {
       id: "page10-tenant-contact",
       pageIndex: 9,
-      text: tenantContact ? `${tenantContact}同志` : "未填写",
+      text: `${tenantSafetyManager}同志`,
       x: 301,
       top: 186,
       clearWidth: 72,
@@ -577,17 +671,50 @@ export function buildContractDocumentOverlays({
       top: 592,
       clearWidth: 240,
       clearHeight: 22,
-      fontSize: 11,
+      fontSize: 10,
       fontIndex: SONGTI_SC_REGULAR_INDEX,
-      maxWidth: 195,
+      maxWidth: 240,
+      maxLines: 1,
       padding: 2,
+    },
+    {
+      id: "page10-lessor-signatory",
+      pageIndex: 9,
+      text: lessorContact,
+      x: 238,
+      top: 696,
+      clearWidth: 78,
+      clearHeight: 20,
+      fontSize: 10,
+      fontIndex: SONGTI_SC_REGULAR_INDEX,
+      maxWidth: 78,
+      lineHeight: 15,
+      maxLines: 1,
+      padding: 1,
+    },
+    {
+      id: "page10-tenant-signatory",
+      pageIndex: 9,
+      text: tenantContact,
+      x: 486,
+      top: 696,
+      clearWidth: 65,
+      clearHeight: 20,
+      fontSize: 10,
+      fontIndex: SONGTI_SC_REGULAR_INDEX,
+      maxWidth: 65,
+      lineHeight: 15,
+      maxLines: 1,
+      padding: 1,
     },
   ];
 
   return overlays;
 }
 
-function buildStandardLeaseBodyOverlays(pages: StandardLeaseContractPage[]): TemplateOverlay[] {
+function buildStandardLeaseBodyOverlays(
+  pages: StandardLeaseContractPage[],
+): TemplateOverlay[] {
   return pages.flatMap((page, index) => {
     const pageNumber = index + 1;
     const isFirstPage = index === 0;
@@ -628,7 +755,9 @@ function buildStandardLeaseBodyOverlays(pages: StandardLeaseContractPage[]): Tem
         lineHeight: 15,
         maxLines: isFirstPage ? 43 : 46,
         padding: 0,
-        tabStops: [STANDARD_CONTRACT_SIGNATURE_TAB_STOP - STANDARD_CONTRACT_BODY_X],
+        tabStops: [
+          STANDARD_CONTRACT_SIGNATURE_TAB_STOP - STANDARD_CONTRACT_BODY_X,
+        ],
       },
       {
         id: `standard-contract-footer-${pageNumber}`,
@@ -656,13 +785,60 @@ function shiftSafetyAgreementOverlays(
   standardLeasePageCount: number,
 ): TemplateOverlay[] {
   return overlays
-    .filter((overlay) => overlay.pageIndex >= SAFETY_AGREEMENT_TEMPLATE_START_PAGE)
+    .filter(
+      (overlay) => overlay.pageIndex >= SAFETY_AGREEMENT_TEMPLATE_START_PAGE,
+    )
     .map((overlay) => ({
       ...overlay,
       id: `safety-agreement-${overlay.id}`,
       pageIndex:
-        overlay.pageIndex - SAFETY_AGREEMENT_TEMPLATE_START_PAGE + standardLeasePageCount,
+        overlay.pageIndex -
+        SAFETY_AGREEMENT_TEMPLATE_START_PAGE +
+        standardLeasePageCount +
+        (overlay.pageIndex >= SAFETY_AGREEMENT_CLOSING_TEMPLATE_PAGE ? 1 : 0),
     }));
+}
+
+function buildSafetyAgreementSupplementOverlays(
+  standardLeasePageCount: number,
+): TemplateOverlay[] {
+  const pageIndex =
+    standardLeasePageCount +
+    SAFETY_AGREEMENT_CLOSING_TEMPLATE_PAGE -
+    SAFETY_AGREEMENT_TEMPLATE_START_PAGE;
+
+  return [
+    {
+      id: "safety-agreement-supplement-title",
+      pageIndex,
+      text: "二、乙方的安全管理职责（续）",
+      x: 58,
+      top: 52,
+      clearWidth: 480,
+      clearHeight: 28,
+      fontSize: 15,
+      fontIndex: SONGTI_SC_REGULAR_INDEX,
+      maxWidth: 480,
+      lineHeight: 22,
+      maxLines: 1,
+      padding: 0,
+    },
+    {
+      id: "safety-agreement-supplement-body",
+      pageIndex,
+      text: buildSafetyAgreementSupplementSections().join("\n\n"),
+      x: 58,
+      top: 92,
+      clearWidth: 480,
+      clearHeight: 680,
+      fontSize: 12,
+      fontIndex: SONGTI_SC_REGULAR_INDEX,
+      maxWidth: 480,
+      lineHeight: 20,
+      maxLines: 34,
+      padding: 0,
+    },
+  ];
 }
 
 export async function buildContractDocumentPdf({
@@ -670,25 +846,42 @@ export async function buildContractDocumentPdf({
   unit,
   generatedDate,
 }: ContractDocumentPayload) {
+  assertContractDocumentFieldsComplete({ contract, unit, generatedDate });
   const templatePath = resolveRuntimePath("assets", "templates", TEMPLATE_FILE);
   const fontPath = resolveRuntimePath("assets", "fonts", FONT_FILE);
   const templateBytes = await readFile(templatePath);
   const templatePdf = await PDFDocument.load(templateBytes);
   const pdf = await PDFDocument.create();
-  const standardLeasePages = buildStandardLeaseContractPages({ contract, unit, generatedDate });
+  const standardLeasePages = buildStandardLeaseContractPages({
+    contract,
+    unit,
+    generatedDate,
+  });
 
   for (let index = 0; index < standardLeasePages.length; index += 1) {
     pdf.addPage([STANDARD_CONTRACT_PAGE_WIDTH, STANDARD_CONTRACT_PAGE_HEIGHT]);
   }
 
-  const safetyPageIndices = Array.from(
-    { length: templatePdf.getPageCount() - SAFETY_AGREEMENT_TEMPLATE_START_PAGE },
+  const safetyLeadingPageIndices = Array.from(
+    {
+      length:
+        SAFETY_AGREEMENT_CLOSING_TEMPLATE_PAGE -
+        SAFETY_AGREEMENT_TEMPLATE_START_PAGE,
+    },
     (_, index) => SAFETY_AGREEMENT_TEMPLATE_START_PAGE + index,
   );
-  const safetyPages = await pdf.copyPages(templatePdf, safetyPageIndices);
-  for (const page of safetyPages) {
+  const safetyLeadingPages = await pdf.copyPages(
+    templatePdf,
+    safetyLeadingPageIndices,
+  );
+  for (const page of safetyLeadingPages) {
     pdf.addPage(page);
   }
+  pdf.addPage([STANDARD_CONTRACT_PAGE_WIDTH, STANDARD_CONTRACT_PAGE_HEIGHT]);
+  const [safetyClosingPage] = await pdf.copyPages(templatePdf, [
+    SAFETY_AGREEMENT_CLOSING_TEMPLATE_PAGE,
+  ]);
+  pdf.addPage(safetyClosingPage);
 
   const pages = pdf.getPages();
   const overlays = [
@@ -697,6 +890,7 @@ export async function buildContractDocumentPdf({
       buildContractDocumentOverlays({ contract, unit, generatedDate }),
       standardLeasePages.length,
     ),
+    ...buildSafetyAgreementSupplementOverlays(standardLeasePages.length),
   ];
 
   const rasterized = renderTextOverlays(fontPath, overlays);

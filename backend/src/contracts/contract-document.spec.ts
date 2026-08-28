@@ -4,15 +4,20 @@ import path from "node:path";
 import { PDFDocument } from "pdf-lib";
 import {
   STANDARD_CONTRACT_SIGNATURE_TAB_STOP,
+  assertContractDocumentFieldsComplete,
   buildContractDocumentPdf,
   buildContractDocumentOverlays,
   buildGeneratedContractFilename,
+  buildSafetyAgreementSupplementSections,
   buildStandardLeaseContractPages,
 } from "./contract-document";
 import { Contract, ContractStatus } from "./contract.entity";
 import { BillingFrequency, DepositSettlementMode } from "./contract.enums";
 import { FactoryUnit } from "../units/factory-unit.entity";
-import { UtilityMeterConfig, UtilityType } from "../utilities/utility-meter-config.entity";
+import {
+  UtilityMeterConfig,
+  UtilityType,
+} from "../utilities/utility-meter-config.entity";
 
 const nodeRequire = createRequire(__filename);
 const PngJs = nodeRequire("png-js") as {
@@ -29,14 +34,18 @@ function buildContractFixture(): Contract {
     lessorLicenseCode: "91320281TEST000001",
     lessorContactName: "吴孝斌",
     lessorPhone: "18651510352",
+    lessorSafetyManager: "吴孝斌",
     tenantName: "曹忠",
     contactName: "曹忠",
     tenantPhone: "",
     licenseCode: "",
+    tenantSafetyManager: "曹忠",
+    signedDate: "2025-06-28",
     startDate: "2025-07-01",
     endDate: "2026-06-30",
     annualRent: 50000,
-    depositAmount: 10000,
+    depositAmount: 5000,
+    earlyTerminationPenaltyAmount: 4166.67,
     billingFrequency: BillingFrequency.ANNUAL,
     depositSettlementMode: DepositSettlementMode.INITIAL,
     depositCarryoverAmount: 0,
@@ -56,7 +65,7 @@ function buildUnitFixture() {
     name: "电表",
     initialReading: 0,
     multiplier: 1,
-    unitPrice: 1,
+    unitPrice: 0.95,
     lineLossPercent: 5,
     enabled: true,
   });
@@ -82,27 +91,26 @@ function buildUnitFixture() {
 }
 
 function renderOverlayWithScript() {
-  const scriptPath = path.resolve(process.cwd(), "scripts/render_text_overlays.py");
-  const fontPath = path.resolve(process.cwd(), "assets/fonts/Songti.ttc");
-  const result = spawnSync(
-    "python3",
-    [scriptPath],
-    {
-      input: JSON.stringify({
-        overlays: [
-          {
-            id: "tenant",
-            text: "曹忠",
-            fontPath,
-            fontSize: 14,
-            fontIndex: 6,
-            rasterScale: 4,
-          },
-        ],
-      }),
-      encoding: "utf8",
-    },
+  const scriptPath = path.resolve(
+    process.cwd(),
+    "scripts/render_text_overlays.py",
   );
+  const fontPath = path.resolve(process.cwd(), "assets/fonts/Songti.ttc");
+  const result = spawnSync("python3", [scriptPath], {
+    input: JSON.stringify({
+      overlays: [
+        {
+          id: "tenant",
+          text: "曹忠",
+          fontPath,
+          fontSize: 14,
+          fontIndex: 6,
+          rasterScale: 4,
+        },
+      ],
+    }),
+    encoding: "utf8",
+  });
 
   if (result.status !== 0) {
     throw new Error(result.stderr);
@@ -121,30 +129,29 @@ function renderOverlayWithScript() {
 }
 
 function renderSignatureOverlay(text: string) {
-  const scriptPath = path.resolve(process.cwd(), "scripts/render_text_overlays.py");
-  const fontPath = path.resolve(process.cwd(), "assets/fonts/Songti.ttc");
-  const result = spawnSync(
-    "python3",
-    [scriptPath],
-    {
-      input: JSON.stringify({
-        overlays: [
-          {
-            id: "signature",
-            text,
-            fontPath,
-            fontSize: 10,
-            fontIndex: 6,
-            rasterScale: 4,
-            maxWidth: 480,
-            lineHeight: 15,
-            tabStops: [STANDARD_CONTRACT_SIGNATURE_TAB_STOP - 58],
-          },
-        ],
-      }),
-      encoding: "utf8",
-    },
+  const scriptPath = path.resolve(
+    process.cwd(),
+    "scripts/render_text_overlays.py",
   );
+  const fontPath = path.resolve(process.cwd(), "assets/fonts/Songti.ttc");
+  const result = spawnSync("python3", [scriptPath], {
+    input: JSON.stringify({
+      overlays: [
+        {
+          id: "signature",
+          text,
+          fontPath,
+          fontSize: 10,
+          fontIndex: 6,
+          rasterScale: 4,
+          maxWidth: 480,
+          lineHeight: 15,
+          tabStops: [STANDARD_CONTRACT_SIGNATURE_TAB_STOP - 58],
+        },
+      ],
+    }),
+    encoding: "utf8",
+  });
 
   if (result.status !== 0) {
     throw new Error(result.stderr);
@@ -169,7 +176,13 @@ async function decodePng(pngBase64: string, width: number, height: number) {
   }).then((pixels) => ({ pixels, width, height }));
 }
 
-function findFirstInkXNearRow(pixels: Buffer, width: number, height: number, row: number, startX: number) {
+function findFirstInkXNearRow(
+  pixels: Buffer,
+  width: number,
+  height: number,
+  row: number,
+  startX: number,
+) {
   const startRow = Math.max(0, row - 10);
   const endRow = Math.min(height - 1, row + 16);
   let firstX: number | null = null;
@@ -188,9 +201,12 @@ function findFirstInkXNearRow(pixels: Buffer, width: number, height: number, row
 
 describe("buildContractDocumentOverlays", () => {
   it("builds a contract filename without the auto-generated label", () => {
-    expect(buildGeneratedContractFilename(buildContractFixture(), buildUnitFixture())).toBe(
-      "厂房租赁合同_5_曹忠_2025-07-01_2026-06-30.pdf",
-    );
+    expect(
+      buildGeneratedContractFilename(
+        buildContractFixture(),
+        buildUnitFixture(),
+      ),
+    ).toBe("厂房租赁合同_5_曹忠_2025-07-01_2026-06-30.pdf");
   });
 
   it("builds a standard factory lease body with core commercial clauses", () => {
@@ -201,8 +217,7 @@ describe("buildContractDocumentOverlays", () => {
     });
     const bodyText = pages.map((page) => page.sections.join("\n")).join("\n");
 
-    expect(pages.length).toBeGreaterThanOrEqual(5);
-    expect(pages.length).toBeLessThanOrEqual(8);
+    expect(pages).toHaveLength(7);
     expect(bodyText).toContain("租金支付、押金及逾期违约");
     expect(bodyText).toContain("水电、公摊、税费及其他费用");
     expect(bodyText).toContain("用途限制与转租限制");
@@ -243,8 +258,30 @@ describe("buildContractDocumentOverlays", () => {
     });
     const bodyText = pages.map((page) => page.sections.join("\n")).join("\n");
 
-    expect(bodyText).toContain("履约保证金人民币10000.00元");
+    expect(bodyText).toContain("履约保证金人民币5000.00元");
     expect(bodyText).not.toContain("8333.33元");
+  });
+
+  it("renders explicit placeholders instead of fake zero values in a generic template", () => {
+    const contract = buildContractFixture();
+    contract.signedDate = "____-__-__";
+    contract.startDate = "____-__-__";
+    contract.endDate = "____-__-__";
+    contract.annualRent = Number.NaN;
+    contract.earlyTerminationPenaltyAmount = Number.NaN;
+    const pages = buildStandardLeaseContractPages({
+      contract,
+      unit: buildUnitFixture(),
+      generatedDate: "2026-08-28",
+    });
+    const bodyText = pages.flatMap((page) => page.sections).join("\n");
+
+    expect(bodyText).toContain("____年__月__日");
+    expect(bodyText).toContain("年租金为人民币【填写】元");
+    expect(bodyText).toContain("大写：【填写】");
+    expect(bodyText).toContain("履约保证金人民币5000.00元");
+    expect(bodyText).toContain("提前解除合同违约金人民币【填写】元");
+    expect(bodyText).not.toContain("NaN");
   });
 
   it("uses the standard delivery condition without deposit carryover wording", () => {
@@ -269,7 +306,9 @@ describe("buildContractDocumentOverlays", () => {
     });
     const bodyText = pages.flatMap((page) => page.sections).join("\n");
 
-    expect(bodyText).toContain("租金按年支付，先付后用；每期租金应于该租赁年度开始日支付。");
+    expect(bodyText).toContain(
+      "租金按年支付，先付后用；每期租金应于该租赁年度开始日支付。",
+    );
   });
 
   it("states semiannual rent payments using the contract billing frequency snapshot", () => {
@@ -282,7 +321,9 @@ describe("buildContractDocumentOverlays", () => {
     });
     const bodyText = pages.flatMap((page) => page.sections).join("\n");
 
-    expect(bodyText).toContain("租金按半年支付，先付后用；每期租金应于该期开始日支付。");
+    expect(bodyText).toContain(
+      "租金按半年支付，先付后用；每期租金应于该期开始日支付。",
+    );
   });
 
   it("describes an initial zero deposit without using a carryover snapshot", () => {
@@ -295,7 +336,9 @@ describe("buildContractDocumentOverlays", () => {
     });
     const bodyText = pages.flatMap((page) => page.sections).join("\n");
 
-    expect(bodyText).toContain("乙方应向甲方支付履约保证金人民币0.00元。押金不计利息。");
+    expect(bodyText).toContain(
+      "乙方应向甲方支付履约保证金人民币0.00元。押金不计利息。",
+    );
     expect(bodyText).not.toContain("原已支付押金");
   });
 
@@ -312,7 +355,9 @@ describe("buildContractDocumentOverlays", () => {
     });
     const bodyText = pages.flatMap((page) => page.sections).join("\n");
 
-    expect(bodyText).toContain("乙方应向甲方支付履约保证金人民币0.00元。押金不计利息。");
+    expect(bodyText).toContain(
+      "乙方应向甲方支付履约保证金人民币0.00元。押金不计利息。",
+    );
     expect(bodyText).not.toContain("原已支付押金");
     expect(bodyText).not.toContain("乙方尚需补足");
     expect(bodyText).not.toContain("甲方应退还");
@@ -329,7 +374,9 @@ describe("buildContractDocumentOverlays", () => {
     expect(bodyText).toContain("甲方可按乙方要求提供开票服务");
     expect(bodyText).toContain("乙方应承担并支付因此产生的相应税金");
     expect(bodyText).not.toContain("法律法规有明确承担主体的从其规定");
-    expect(bodyText).not.toContain("无明确规定的，由产生该费用或取得相应收益的一方承担");
+    expect(bodyText).not.toContain(
+      "无明确规定的，由产生该费用或取得相应收益的一方承担",
+    );
   });
 
   it("places the tenant signature column farther to the right", () => {
@@ -344,7 +391,7 @@ describe("buildContractDocumentOverlays", () => {
       "甲方（出租方）：江阴市示例产业园有限公司\t乙方（承租方）：曹忠",
     );
     expect(bodyText).toContain("签字/盖章：\t签字/盖章：");
-    expect(bodyText).toContain("日期：2025年7月1日\t日期：2025年7月1日");
+    expect(bodyText).toContain("日期：2025年6月28日\t日期：2025年6月28日");
   });
 
   it("renders tenant signature labels on one fixed right-side column", async () => {
@@ -357,7 +404,11 @@ describe("buildContractDocumentOverlays", () => {
     const signatureText = lastPage.sections[lastPage.sections.length - 1];
     const rendered = renderSignatureOverlay(signatureText);
     const item = rendered.items[0];
-    const image = await decodePng(item.pngBase64, item.pixelWidth, item.pixelHeight);
+    const image = await decodePng(
+      item.pngBase64,
+      item.pixelWidth,
+      item.pixelHeight,
+    );
     const expectedStartX = (STANDARD_CONTRACT_SIGNATURE_TAB_STOP - 58) * 4;
     const tenantStarts = [0, 2, 4].map((lineIndex) =>
       findFirstInkXNearRow(
@@ -384,17 +435,65 @@ describe("buildContractDocumentOverlays", () => {
     });
     const bodyText = pages.map((page) => page.sections.join("\n")).join("\n");
 
-    expect(bodyText).toContain("逾期超过十五日仍未支付的，甲方有权解除合同");
-    expect(bodyText).toContain("不得将本厂房作为其他企业注册地址、分公司注册地址或其他经营主体备案地址");
-    expect(bodyText).toContain("合同终止或期满后三日内");
+    expect(bodyText).toContain("逾期超过七日");
+    expect(bodyText).toContain("催告送达后七日内");
+    expect(bodyText).toContain("甲方有权单方解除本合同");
+    expect(bodyText).toContain("从保证金或其他应付乙方的款项中直接抵扣");
+    expect(bodyText).toContain(
+      "不得将本厂房作为其他企业注册地址、分公司注册地址或其他经营主体备案地址",
+    );
+    expect(bodyText).toContain("合同终止、解除或期满后三日内");
     expect(bodyText).toContain("超过七日未领取的，视为乙方放弃所有权");
-    expect(bodyText).toContain("不得储存易燃易爆、危险化学品、危险废物及国家限制物品");
-    expect(bodyText).toContain("乙方应自行购买财产保险、公众责任险、安全生产责任险");
-    expect(bodyText).toContain("甲方有权提前通知进入承租区域检查消防、环保、线路、漏水、违建等事项");
+    expect(bodyText).toContain(
+      "不得储存易燃易爆、危险化学品、危险废物及国家限制物品",
+    );
+    expect(bodyText).toContain(
+      "乙方应自行购买财产保险、公众责任险、安全生产责任险",
+    );
+    expect(bodyText).toContain(
+      "甲方有权提前通知进入承租区域检查消防、环保、线路、漏水、违建等事项",
+    );
     expect(bodyText).toContain("包括电线、配电箱、地坪、门窗、隔墙、广告牌");
     expect(bodyText).toContain("不得在厂房内设置宿舍、住宿或留宿人员");
-    expect(bodyText).toContain("停产整顿、限期整改、行政强制措施、民事赔偿或第三方索赔");
+    expect(bodyText).toContain(
+      "停产整顿、限期整改、行政强制措施、民事赔偿或第三方索赔",
+    );
     expect(bodyText).toContain("包括罚款、律师费、诉讼费、停租损失等");
+    expect(bodyText).toContain("提前解除合同违约金人民币4166.67元");
+    expect(bodyText).toContain("甲方委托的第三方专业服务机构");
+    expect(bodyText).toContain("停止相关设备、区域、危险作业或生产经营活动");
+    expect(bodyText).toContain("乙方不得以行政文书所列责任主体为甲方");
+    expect(bodyText).toContain("交接清单、照片、视频");
+    expect(bodyText).toContain("搬运费、人工费、仓储费、保管费、垃圾清运费");
+  });
+
+  it("adds concise tenant safety duties without weakening the lessor recourse", () => {
+    const text = buildSafetyAgreementSupplementSections().join("\n");
+
+    expect(text).toContain("2.21");
+    expect(text).toContain("甲方委托的第三方专业服务机构");
+    expect(text).toContain("不得拒绝、阻碍、拖延");
+    expect(text).toContain("2.22");
+    expect(text).toContain("停止相关设备、区域、危险作业或生产经营活动");
+    expect(text).toContain("单方面解除租赁合同");
+    expect(text).toContain("2.23");
+    expect(text).toContain("行政主管部门基于出租方");
+    expect(text).toContain("向甲方承担全部补偿、赔偿及追偿责任");
+    expect(text).toContain("收到甲方通知后五日内");
+    expect(text).not.toContain("按照甲乙双方过错比例");
+  });
+
+  it("rejects formal generation when required safety agreement information is blank", () => {
+    const contract = buildContractFixture();
+    contract.tenantSafetyManager = "";
+
+    expect(() =>
+      assertContractDocumentFieldsComplete({
+        contract,
+        unit: buildUnitFixture(),
+        generatedDate: "2026-07-01",
+      }),
+    ).toThrow("乙方安全管理负责人");
   });
 
   it("appends the existing safety production agreement after the standard lease body", async () => {
@@ -407,21 +506,32 @@ describe("buildContractDocumentOverlays", () => {
     const buffer = await buildContractDocumentPdf(payload);
     const pdf = await PDFDocument.load(buffer);
 
-    expect(pdf.getPageCount()).toBe(buildStandardLeaseContractPages(payload).length + 7);
+    expect(pdf.getPageCount()).toBe(
+      buildStandardLeaseContractPages(payload).length + 8,
+    );
   }, 20000);
 
-  it("uses contract start date in the safety agreement and fully clears replaced template text", () => {
+  it("uses the contract signing date in the safety agreement and replaces clause 2.7", () => {
     const overlays = buildContractDocumentOverlays({
       contract: buildContractFixture(),
       unit: buildUnitFixture(),
       generatedDate: "2026-07-01",
     });
-    const safetySignDate = overlays.find((item) => item.id === "page4-sign-date");
+    const safetySignDate = overlays.find(
+      (item) => item.id === "page4-sign-date",
+    );
+    const safetyClause27 = overlays.find(
+      (item) => item.id === "page8-clause-2-7",
+    );
     const utilityClause = overlays.find((item) => item.id === "page1-utility");
 
     expect(safetySignDate).toMatchObject({
-      text: "2025年7月1日签订",
+      text: "2025年6月28日签订",
     });
+    expect(safetyClause27?.text).toContain(
+      "甲方及甲方委托的第三方专业服务机构",
+    );
+    expect(safetyClause27?.text).toContain("如实提供相关资料");
     expect(utilityClause).toBeDefined();
     if (!safetySignDate || !utilityClause) {
       throw new Error("合同覆盖层缺少必要字段");
@@ -431,17 +541,19 @@ describe("buildContractDocumentOverlays", () => {
     const safetyPaddingX = safetySignDate.paddingX ?? 0;
     expect(safetySignDate.x - safetyPadding).toBeLessThanOrEqual(204);
     expect(safetySignDate.x + safetyPaddingX).toBe(214);
-    expect(safetySignDate.x + safetySignDate.clearWidth + safetyPadding).toBeLessThanOrEqual(310);
+    expect(
+      safetySignDate.x + safetySignDate.clearWidth + safetyPadding,
+    ).toBeLessThanOrEqual(310);
 
     expect(utilityClause).toMatchObject({
-      text: "1、租赁期间，使用该厂房所发生的水、电等费用由乙方承担，电费1.00元/度，线损耗按5.00%计算，水费1.00元/吨；",
+      text: "1、租赁期间，使用该厂房所发生的水、电等费用由乙方承担，电费0.95元/度，线损耗按5.00%计算，水费1.00元/吨；",
     });
     expect(utilityClause?.x).toBeLessThanOrEqual(64);
     expect(utilityClause.x + (utilityClause.paddingX ?? 0)).toBe(84);
     expect(utilityClause?.clearHeight).toBeGreaterThanOrEqual(70);
   });
 
-  it("keeps the safety contact title text complete when filling contact names", () => {
+  it("fills safety managers and authorized representatives without blanks", () => {
     const overlays = buildContractDocumentOverlays({
       contract: buildContractFixture(),
       unit: buildUnitFixture(),
@@ -462,29 +574,13 @@ describe("buildContractDocumentOverlays", () => {
           id: "page10-tenant-contact",
           text: "曹忠同志",
         }),
-      ]),
-    );
-  });
-
-  it("falls back to party names when safety contacts are empty", () => {
-    const contract = buildContractFixture();
-    contract.lessorContactName = "";
-    contract.contactName = "";
-    const overlays = buildContractDocumentOverlays({
-      contract,
-      unit: buildUnitFixture(),
-      generatedDate: "2026-07-01",
-    });
-
-    expect(overlays).toEqual(
-      expect.arrayContaining([
         expect.objectContaining({
-          id: "page10-lessor-contact",
-          text: "江阴市示例产业园有限公司同志",
+          id: "page10-lessor-signatory",
+          text: "吴孝斌",
         }),
         expect.objectContaining({
-          id: "page10-tenant-contact",
-          text: "曹忠同志",
+          id: "page10-tenant-signatory",
+          text: "曹忠",
         }),
       ]),
     );
@@ -504,10 +600,12 @@ describe("buildContractDocumentOverlays", () => {
     }
 
     expect(safetyPeriod.text).toBe("2025年7月1日至2026年6月30日；有效");
-    expect(safetyPeriod.x - (safetyPeriod.padding ?? 2)).toBeLessThanOrEqual(230);
-    expect(safetyPeriod.x + safetyPeriod.clearWidth + (safetyPeriod.padding ?? 2)).toBeGreaterThanOrEqual(
-      470,
+    expect(safetyPeriod.x - (safetyPeriod.padding ?? 2)).toBeLessThanOrEqual(
+      230,
     );
+    expect(
+      safetyPeriod.x + safetyPeriod.clearWidth + (safetyPeriod.padding ?? 2),
+    ).toBeGreaterThanOrEqual(470);
   });
 
   it("renders replacement text with the regular Songti face instead of the black face", () => {

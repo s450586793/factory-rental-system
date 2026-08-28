@@ -218,6 +218,52 @@
               </el-col>
             </el-row>
 
+            <h4 class="contract-party-heading">合同与安全协议</h4>
+            <el-row :gutter="14">
+              <el-col :span="12">
+                <el-form-item label="甲方安全管理负责人">
+                  <el-input
+                    v-model="unitContractForm.lessorSafetyManager"
+                    aria-label="初始合同甲方安全管理负责人"
+                  />
+                </el-form-item>
+              </el-col>
+              <el-col :span="12">
+                <el-form-item label="乙方安全管理负责人">
+                  <el-input
+                    v-model="unitContractForm.tenantSafetyManager"
+                    aria-label="初始合同乙方安全管理负责人"
+                  />
+                </el-form-item>
+              </el-col>
+            </el-row>
+
+            <el-row :gutter="14">
+              <el-col :span="12">
+                <el-form-item label="合同签订日期">
+                  <el-date-picker
+                    v-model="unitContractForm.signedDate"
+                    aria-label="初始合同签订日期"
+                    type="date"
+                    value-format="YYYY-MM-DD"
+                    style="width: 100%"
+                  />
+                </el-form-item>
+              </el-col>
+              <el-col :span="12">
+                <el-form-item label="提前退租违约金">
+                  <el-input-number
+                    v-model="unitContractForm.earlyTerminationPenaltyAmount"
+                    aria-label="初始合同提前退租违约金"
+                    :min="0"
+                    :precision="2"
+                    style="width: 100%"
+                    @update:model-value="unitPenaltyUsesDefault = false"
+                  />
+                </el-form-item>
+              </el-col>
+            </el-row>
+
             <el-row :gutter="14">
               <el-col :span="12">
                 <el-form-item label="合同开始">
@@ -252,6 +298,7 @@
                     :min="0"
                     :precision="2"
                     style="width: 100%"
+                    @update:model-value="handleUnitContractAnnualRentUpdate"
                   />
                   <el-radio-group
                     v-model="unitContractForm.billingFrequency"
@@ -592,6 +639,52 @@
           </el-col>
         </el-row>
 
+        <h4 class="contract-party-heading">合同与安全协议</h4>
+        <el-row :gutter="14">
+          <el-col :span="12">
+            <el-form-item label="甲方安全管理负责人">
+              <el-input
+                v-model="contractForm.lessorSafetyManager"
+                aria-label="甲方安全管理负责人"
+              />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="乙方安全管理负责人">
+              <el-input
+                v-model="contractForm.tenantSafetyManager"
+                aria-label="乙方安全管理负责人"
+              />
+            </el-form-item>
+          </el-col>
+        </el-row>
+
+        <el-row :gutter="14">
+          <el-col :span="12">
+            <el-form-item label="合同签订日期">
+              <el-date-picker
+                v-model="contractForm.signedDate"
+                aria-label="合同签订日期"
+                type="date"
+                value-format="YYYY-MM-DD"
+                style="width: 100%"
+              />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="提前退租违约金">
+              <el-input-number
+                v-model="contractForm.earlyTerminationPenaltyAmount"
+                aria-label="提前退租违约金"
+                :min="0"
+                :precision="2"
+                style="width: 100%"
+                @update:model-value="contractPenaltyUsesDefault = false"
+              />
+            </el-form-item>
+          </el-col>
+        </el-row>
+
         <el-row :gutter="14">
           <el-col :span="12">
             <el-form-item label="合同开始">
@@ -627,6 +720,7 @@
                 :min="0"
                 :precision="2"
                 style="width: 100%"
+                @update:model-value="handleContractAnnualRentUpdate"
               />
               <el-radio-group
                 v-model="contractForm.billingFrequency"
@@ -830,6 +924,7 @@ import type {
 import { formatCurrency } from "../utils/format";
 import { buildRentSchedulePreview } from "../utils/rent-schedule-preview";
 
+const DEFAULT_LESSOR_NAME = "吴孝斌";
 const DEFAULT_LESSOR_CONTACT_NAME = "吴孝斌";
 const DEFAULT_LESSOR_PHONE = "18651510352";
 
@@ -854,20 +949,25 @@ const unitForm = reactive({
   area: null as number | null,
 });
 const unitContractForm = reactive({
-  lessorName: "",
+  lessorName: DEFAULT_LESSOR_NAME,
   lessorLicenseCode: "",
   lessorContactName: DEFAULT_LESSOR_CONTACT_NAME,
   lessorPhone: DEFAULT_LESSOR_PHONE,
+  lessorSafetyManager: DEFAULT_LESSOR_CONTACT_NAME,
   tenantName: "",
   contactName: "",
   tenantPhone: "",
   licenseCode: "",
+  tenantSafetyManager: "",
+  signedDate: "",
   startDate: "",
   endDate: "",
   annualRent: 0,
   depositAmount: 0,
+  earlyTerminationPenaltyAmount: 0,
   billingFrequency: "annual" as const,
 });
+const unitPenaltyUsesDefault = ref(true);
 const unitBusinessLicenseUpload = ref<File | null>(null);
 const unitAttachmentUploads = ref<File[]>([]);
 const unitBusinessLicenseInput = ref<HTMLInputElement | null>(null);
@@ -877,22 +977,27 @@ const contractDialogVisible = ref(false);
 const submittingContract = ref(false);
 const contractForm = reactive({
   id: "",
-  lessorName: "",
+  lessorName: DEFAULT_LESSOR_NAME,
   lessorLicenseCode: "",
   lessorContactName: DEFAULT_LESSOR_CONTACT_NAME,
   lessorPhone: DEFAULT_LESSOR_PHONE,
+  lessorSafetyManager: DEFAULT_LESSOR_CONTACT_NAME,
   tenantName: "",
   contactName: "",
   tenantPhone: "",
   licenseCode: "",
+  tenantSafetyManager: "",
+  signedDate: "",
   startDate: "",
   endDate: "",
   annualRent: 0,
   depositAmount: 0,
+  earlyTerminationPenaltyAmount: 0,
   billingFrequency: "annual" as Contract["billingFrequency"],
   businessLicenseFileId: "",
   attachmentFileIds: [] as string[],
 });
+const contractPenaltyUsesDefault = ref(true);
 const existingBusinessLicense = ref<StoredFile | null>(null);
 const existingAttachments = ref<StoredFile[]>([]);
 const businessLicenseUpload = ref<File | null>(null);
@@ -971,18 +1076,23 @@ function resetUnitForm() {
 }
 
 function resetUnitContractForm() {
-  unitContractForm.lessorName = "";
+  unitContractForm.lessorName = DEFAULT_LESSOR_NAME;
   unitContractForm.lessorLicenseCode = "";
   unitContractForm.lessorContactName = DEFAULT_LESSOR_CONTACT_NAME;
   unitContractForm.lessorPhone = DEFAULT_LESSOR_PHONE;
+  unitContractForm.lessorSafetyManager = DEFAULT_LESSOR_CONTACT_NAME;
   unitContractForm.tenantName = "";
   unitContractForm.contactName = "";
   unitContractForm.tenantPhone = "";
   unitContractForm.licenseCode = "";
+  unitContractForm.tenantSafetyManager = "";
+  unitContractForm.signedDate = "";
   unitContractForm.startDate = "";
   unitContractForm.endDate = "";
   unitContractForm.annualRent = 0;
   unitContractForm.depositAmount = 0;
+  unitContractForm.earlyTerminationPenaltyAmount = 0;
+  unitPenaltyUsesDefault.value = true;
   unitBusinessLicenseUpload.value = null;
   unitAttachmentUploads.value = [];
   if (unitBusinessLicenseInput.value) {
@@ -1034,14 +1144,18 @@ async function saveUnit() {
             lessorLicenseCode: unitContractForm.lessorLicenseCode.trim(),
             lessorContactName: unitContractForm.lessorContactName.trim(),
             lessorPhone: unitContractForm.lessorPhone.trim(),
+            lessorSafetyManager: unitContractForm.lessorSafetyManager.trim(),
             tenantName: unitContractForm.tenantName.trim(),
             contactName: unitContractForm.contactName.trim(),
             tenantPhone: unitContractForm.tenantPhone.trim(),
             licenseCode: unitContractForm.licenseCode.trim(),
+            tenantSafetyManager: unitContractForm.tenantSafetyManager.trim(),
+            signedDate: unitContractForm.signedDate,
             startDate: unitContractForm.startDate,
             endDate: unitContractForm.endDate,
             annualRent: Number(unitContractForm.annualRent),
             depositAmount: Number(unitContractForm.depositAmount),
+            earlyTerminationPenaltyAmount: Number(unitContractForm.earlyTerminationPenaltyAmount),
             billingFrequency: unitContractForm.billingFrequency,
             businessLicenseFileId,
             attachmentFileIds,
@@ -1122,6 +1236,17 @@ function triggerFileDownload(url: string, filename: string) {
 
 function handleUnitContractStartDateChange() {
   unitContractForm.endDate = deriveContractEndDate(unitContractForm.startDate);
+  unitContractForm.signedDate = unitContractForm.startDate;
+}
+
+function defaultEarlyTerminationPenalty(annualRent: number) {
+  return Number((Number(annualRent || 0) / 12).toFixed(2));
+}
+
+function handleUnitContractAnnualRentUpdate(value: number | undefined) {
+  if (unitPenaltyUsesDefault.value) {
+    unitContractForm.earlyTerminationPenaltyAmount = defaultEarlyTerminationPenalty(Number(value ?? 0));
+  }
 }
 
 function validateUnitForm(code: string, location: string, area: number | null) {
@@ -1149,7 +1274,8 @@ function validateUnitForm(code: string, location: string, area: number | null) {
 
 function hasInitialContractInput() {
   return Boolean(
-    unitContractForm.lessorName.trim() ||
+    (unitContractForm.lessorName.trim() &&
+      unitContractForm.lessorName.trim() !== DEFAULT_LESSOR_NAME) ||
       unitContractForm.lessorLicenseCode.trim() ||
       unitContractForm.tenantName.trim() ||
       unitContractForm.contactName.trim() ||
@@ -1165,6 +1291,21 @@ function hasInitialContractInput() {
 }
 
 function validateInitialContractForm() {
+  if (!unitContractForm.lessorName.trim()) {
+    throw new Error("新增初始合同时，甲方名称不能为空");
+  }
+  if (!unitContractForm.tenantName.trim()) {
+    throw new Error("新增初始合同时，乙方名称不能为空");
+  }
+  if (!unitContractForm.lessorSafetyManager.trim()) {
+    throw new Error("新增初始合同时，甲方安全管理负责人不能为空");
+  }
+  if (!unitContractForm.tenantSafetyManager.trim()) {
+    throw new Error("新增初始合同时，乙方安全管理负责人不能为空");
+  }
+  if (!unitContractForm.signedDate) {
+    throw new Error("新增初始合同时，合同签订日期不能为空");
+  }
   if (!unitContractForm.startDate) {
     throw new Error("新增初始合同时，合同开始日期不能为空");
   }
@@ -1176,6 +1317,9 @@ function validateInitialContractForm() {
   }
   if (Number(unitContractForm.depositAmount) < 0) {
     throw new Error("新增初始合同时，押金不能小于 0");
+  }
+  if (Number(unitContractForm.earlyTerminationPenaltyAmount) < 0) {
+    throw new Error("新增初始合同时，提前退租违约金不能小于 0");
   }
 }
 
@@ -1233,18 +1377,23 @@ async function confirmRemoveUnit(unitId: string) {
 
 function resetContractForm() {
   contractForm.id = "";
-  contractForm.lessorName = "";
+  contractForm.lessorName = DEFAULT_LESSOR_NAME;
   contractForm.lessorLicenseCode = "";
   contractForm.lessorContactName = DEFAULT_LESSOR_CONTACT_NAME;
   contractForm.lessorPhone = DEFAULT_LESSOR_PHONE;
+  contractForm.lessorSafetyManager = DEFAULT_LESSOR_CONTACT_NAME;
   contractForm.tenantName = "";
   contractForm.contactName = "";
   contractForm.tenantPhone = "";
   contractForm.licenseCode = "";
+  contractForm.tenantSafetyManager = "";
+  contractForm.signedDate = "";
   contractForm.startDate = "";
   contractForm.endDate = "";
   contractForm.annualRent = 0;
   contractForm.depositAmount = 0;
+  contractForm.earlyTerminationPenaltyAmount = 0;
+  contractPenaltyUsesDefault.value = true;
   contractForm.billingFrequency = "annual";
   contractForm.businessLicenseFileId = "";
   contractForm.attachmentFileIds = [];
@@ -1262,34 +1411,43 @@ function openCreateContract() {
     contractForm.lessorLicenseCode = latestContract.lessorLicenseCode;
     contractForm.lessorContactName = latestContract.lessorContactName;
     contractForm.lessorPhone = latestContract.lessorPhone;
+    contractForm.lessorSafetyManager = latestContract.lessorSafetyManager;
     contractForm.tenantName = latestContract.tenantName;
     contractForm.contactName = latestContract.contactName;
     contractForm.tenantPhone = latestContract.tenantPhone;
     contractForm.licenseCode = latestContract.licenseCode;
+    contractForm.tenantSafetyManager = latestContract.tenantSafetyManager;
     contractForm.startDate = deriveNextDate(latestContract.endDate);
     contractForm.endDate = deriveContractEndDate(contractForm.startDate);
+    contractForm.signedDate = contractForm.startDate;
     contractForm.annualRent = latestContract.annualRent;
     contractForm.depositAmount = latestContract.depositAmount;
     contractForm.billingFrequency = latestContract.billingFrequency;
+    contractForm.earlyTerminationPenaltyAmount = defaultEarlyTerminationPenalty(contractForm.annualRent);
   }
   contractDialogVisible.value = true;
 }
 
 function openEditContract(contract: Contract) {
   resetContractForm();
+  contractPenaltyUsesDefault.value = false;
   contractForm.id = contract.id;
   contractForm.lessorName = contract.lessorName;
   contractForm.lessorLicenseCode = contract.lessorLicenseCode;
   contractForm.lessorContactName = contract.lessorContactName;
   contractForm.lessorPhone = contract.lessorPhone;
+  contractForm.lessorSafetyManager = contract.lessorSafetyManager;
   contractForm.tenantName = contract.tenantName;
   contractForm.contactName = contract.contactName;
   contractForm.tenantPhone = contract.tenantPhone;
   contractForm.licenseCode = contract.licenseCode;
+  contractForm.tenantSafetyManager = contract.tenantSafetyManager;
+  contractForm.signedDate = contract.signedDate;
   contractForm.startDate = contract.startDate;
   contractForm.endDate = contract.endDate;
   contractForm.annualRent = contract.annualRent;
   contractForm.depositAmount = contract.depositAmount;
+  contractForm.earlyTerminationPenaltyAmount = contract.earlyTerminationPenaltyAmount;
   contractForm.billingFrequency = contract.billingFrequency;
   contractForm.businessLicenseFileId = contract.businessLicenseFile?.id ?? "";
   contractForm.attachmentFileIds = contract.attachmentFiles.map((item) => item.id);
@@ -1315,10 +1473,32 @@ function onAttachmentFilesChange(event: Event) {
 function handleContractStartDateChange() {
   if (!contractForm.id) {
     contractForm.endDate = deriveContractEndDate(contractForm.startDate);
+    contractForm.signedDate = contractForm.startDate;
+  }
+}
+
+function handleContractAnnualRentUpdate(value: number | undefined) {
+  if (contractPenaltyUsesDefault.value) {
+    contractForm.earlyTerminationPenaltyAmount = defaultEarlyTerminationPenalty(Number(value ?? 0));
   }
 }
 
 function validateContractForm() {
+  if (!contractForm.lessorName.trim()) {
+    throw new Error("甲方名称不能为空");
+  }
+  if (!contractForm.tenantName.trim()) {
+    throw new Error("乙方名称不能为空");
+  }
+  if (!contractForm.lessorSafetyManager.trim()) {
+    throw new Error("甲方安全管理负责人不能为空");
+  }
+  if (!contractForm.tenantSafetyManager.trim()) {
+    throw new Error("乙方安全管理负责人不能为空");
+  }
+  if (!contractForm.signedDate) {
+    throw new Error("合同签订日期不能为空");
+  }
   if (!contractForm.startDate) {
     throw new Error("合同开始日期不能为空");
   }
@@ -1330,6 +1510,9 @@ function validateContractForm() {
   }
   if (Number(contractForm.depositAmount) < 0) {
     throw new Error("押金不能小于 0");
+  }
+  if (Number(contractForm.earlyTerminationPenaltyAmount) < 0) {
+    throw new Error("提前退租违约金不能小于 0");
   }
 }
 
@@ -1372,14 +1555,18 @@ async function saveContract(generateDocumentAfterSave = false) {
       lessorLicenseCode: contractForm.lessorLicenseCode.trim(),
       lessorContactName: contractForm.lessorContactName.trim(),
       lessorPhone: contractForm.lessorPhone.trim(),
+      lessorSafetyManager: contractForm.lessorSafetyManager.trim(),
       tenantName: contractForm.tenantName.trim(),
       contactName: contractForm.contactName.trim(),
       tenantPhone: contractForm.tenantPhone.trim(),
       licenseCode: contractForm.licenseCode.trim(),
+      tenantSafetyManager: contractForm.tenantSafetyManager.trim(),
+      signedDate: contractForm.signedDate,
       startDate: contractForm.startDate,
       endDate: contractForm.endDate,
       annualRent: Number(contractForm.annualRent),
       depositAmount: Number(contractForm.depositAmount),
+      earlyTerminationPenaltyAmount: Number(contractForm.earlyTerminationPenaltyAmount),
       billingFrequency: contractForm.billingFrequency,
       businessLicenseFileId,
       attachmentFileIds,

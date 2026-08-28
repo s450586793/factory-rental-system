@@ -28,7 +28,9 @@ export class Contract extends BaseEntityWithTimestamps {
   @Column({ type: "uuid" })
   unitId!: string;
 
-  @ManyToOne(() => FactoryUnit, (unit) => unit.contracts, { onDelete: "RESTRICT" })
+  @ManyToOne(() => FactoryUnit, (unit) => unit.contracts, {
+    onDelete: "RESTRICT",
+  })
   @JoinColumn({ name: "unitId" })
   unit!: FactoryUnit;
 
@@ -44,6 +46,9 @@ export class Contract extends BaseEntityWithTimestamps {
   @Column({ default: "" })
   lessorPhone!: string;
 
+  @Column({ default: "" })
+  lessorSafetyManager!: string;
+
   @Column()
   tenantName!: string;
 
@@ -55,6 +60,12 @@ export class Contract extends BaseEntityWithTimestamps {
 
   @Column({ default: "" })
   licenseCode!: string;
+
+  @Column({ default: "" })
+  tenantSafetyManager!: string;
+
+  @Column({ type: "date" })
+  signedDate!: string;
 
   @Column({ type: "date" })
   startDate!: string;
@@ -77,6 +88,14 @@ export class Contract extends BaseEntityWithTimestamps {
     transformer: numericTransformer,
   })
   depositAmount!: number;
+
+  @Column({
+    type: "numeric",
+    precision: 12,
+    scale: 2,
+    transformer: numericTransformer,
+  })
+  earlyTerminationPenaltyAmount!: number;
 
   @Column({
     type: "enum",
@@ -113,7 +132,11 @@ export class Contract extends BaseEntityWithTimestamps {
   @Column({ type: "uuid", nullable: true })
   businessLicenseFileId!: string | null;
 
-  @ManyToOne(() => StoredFile, { nullable: true, onDelete: "SET NULL", eager: true })
+  @ManyToOne(() => StoredFile, {
+    nullable: true,
+    onDelete: "SET NULL",
+    eager: true,
+  })
   @JoinColumn({ name: "businessLicenseFileId" })
   businessLicenseFile!: StoredFile | null;
 
@@ -125,7 +148,10 @@ export class Contract extends BaseEntityWithTimestamps {
   })
   attachmentFiles!: StoredFile[];
 
-  @OneToMany(() => UtilityChargeRecord, (utilityChargeRecord) => utilityChargeRecord.contract)
+  @OneToMany(
+    () => UtilityChargeRecord,
+    (utilityChargeRecord) => utilityChargeRecord.contract,
+  )
   utilityChargeRecords!: UtilityChargeRecord[];
 
   @OneToMany(() => RentPayment, (rentPayment) => rentPayment.contract)

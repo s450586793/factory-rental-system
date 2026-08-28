@@ -12,6 +12,7 @@ import { AddPaymentVoucherAttachments1712300000000 } from "./migrations/17123000
 import { AddContractLessorFields1712400000000 } from "./migrations/1712400000000-add-contract-lessor-fields";
 import { AddUtilityPaymentVoucherAttachments1712500000000 } from "./migrations/1712500000000-add-utility-payment-voucher-attachments";
 import { AddRentReceivableSchedules1712600000000 } from "./migrations/1712600000000-add-rent-receivable-schedules";
+import { AddContractDocumentFields1712700000000 } from "./migrations/1712700000000-add-contract-document-fields";
 
 export const databaseMigrations = [
   InitialSchema1711600000000,
@@ -23,9 +24,12 @@ export const databaseMigrations = [
   AddContractLessorFields1712400000000,
   AddUtilityPaymentVoucherAttachments1712500000000,
   AddRentReceivableSchedules1712600000000,
+  AddContractDocumentFields1712700000000,
 ];
 
-export function buildTypeOrmOptions(database: DatabaseConfig): DataSourceOptions {
+export function buildTypeOrmOptions(
+  database: DatabaseConfig,
+): DataSourceOptions {
   return {
     type: "postgres",
     host: database.host,
@@ -40,7 +44,9 @@ export function buildTypeOrmOptions(database: DatabaseConfig): DataSourceOptions
   };
 }
 
-export function buildTypeOrmModuleOptions(configService: ConfigService): TypeOrmModuleOptions {
+export function buildTypeOrmModuleOptions(
+  configService: ConfigService,
+): TypeOrmModuleOptions {
   const database = configService.getOrThrow<DatabaseConfig>("database");
   return buildTypeOrmOptions(database);
 }

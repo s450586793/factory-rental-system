@@ -31,7 +31,7 @@ function resolveContractStatus(startDate: string, endDate: string) {
   return ContractStatus.ACTIVE;
 }
 
-const CONTRACT_DOCUMENT_CACHE_VERSION = "2026-08-28-v1";
+const CONTRACT_DOCUMENT_CACHE_VERSION = "2026-08-28-v2";
 
 type GeneratedContractDocument = {
   filename: string;
@@ -42,7 +42,10 @@ type GeneratedContractDocument = {
 @Injectable()
 export class ContractsService {
   private readonly logger = new Logger(ContractsService.name);
-  private readonly documentBuilds = new Map<string, Promise<GeneratedContractDocument>>();
+  private readonly documentBuilds = new Map<
+    string,
+    Promise<GeneratedContractDocument>
+  >();
 
   constructor(
     @InjectRepository(Contract)
@@ -82,18 +85,22 @@ export class ContractsService {
     );
     const contractValues = {
       unitId: dto.unitId,
-      lessorName: dto.lessorName?.trim() ?? "",
+      lessorName: dto.lessorName.trim(),
       lessorLicenseCode: dto.lessorLicenseCode?.trim() ?? "",
       lessorContactName: dto.lessorContactName?.trim() ?? "",
       lessorPhone: dto.lessorPhone?.trim() ?? "",
-      tenantName: dto.tenantName?.trim() ?? "",
+      lessorSafetyManager: dto.lessorSafetyManager.trim(),
+      tenantName: dto.tenantName.trim(),
       contactName: dto.contactName?.trim() ?? "",
       tenantPhone: dto.tenantPhone?.trim() ?? "",
       licenseCode: dto.licenseCode?.trim() ?? "",
+      tenantSafetyManager: dto.tenantSafetyManager.trim(),
+      signedDate: dto.signedDate,
       startDate: dto.startDate,
       endDate: dto.endDate,
       annualRent: dto.annualRent,
       depositAmount: dto.depositAmount,
+      earlyTerminationPenaltyAmount: dto.earlyTerminationPenaltyAmount,
       billingFrequency: dto.billingFrequency ?? BillingFrequency.ANNUAL,
       depositSettlementMode: DepositSettlementMode.INITIAL,
       depositCarryoverAmount: 0,
@@ -131,18 +138,22 @@ export class ContractsService {
       dto.attachmentFileIds ?? [],
     );
     contract.unitId = dto.unitId;
-    contract.lessorName = dto.lessorName?.trim() ?? "";
+    contract.lessorName = dto.lessorName.trim();
     contract.lessorLicenseCode = dto.lessorLicenseCode?.trim() ?? "";
     contract.lessorContactName = dto.lessorContactName?.trim() ?? "";
     contract.lessorPhone = dto.lessorPhone?.trim() ?? "";
-    contract.tenantName = dto.tenantName?.trim() ?? "";
+    contract.lessorSafetyManager = dto.lessorSafetyManager.trim();
+    contract.tenantName = dto.tenantName.trim();
     contract.contactName = dto.contactName?.trim() ?? "";
     contract.tenantPhone = dto.tenantPhone?.trim() ?? "";
     contract.licenseCode = dto.licenseCode?.trim() ?? "";
+    contract.tenantSafetyManager = dto.tenantSafetyManager.trim();
+    contract.signedDate = dto.signedDate;
     contract.startDate = dto.startDate;
     contract.endDate = dto.endDate;
     contract.annualRent = dto.annualRent;
     contract.depositAmount = dto.depositAmount;
+    contract.earlyTerminationPenaltyAmount = dto.earlyTerminationPenaltyAmount;
     contract.billingFrequency = nextBillingFrequency;
     contract.status = resolveContractStatus(dto.startDate, dto.endDate);
     contract.businessLicenseFileId = businessLicenseFile?.id ?? null;
@@ -181,7 +192,10 @@ export class ContractsService {
 
     const filename = buildGeneratedContractFilename(contract, unit);
     const revision = this.buildDocumentRevision(contract, unit);
-    const cached = await this.filesService.readGeneratedContractDocument(id, revision);
+    const cached = await this.filesService.readGeneratedContractDocument(
+      id,
+      revision,
+    );
     if (cached) {
       return {
         filename,
@@ -196,7 +210,12 @@ export class ContractsService {
       return inFlight;
     }
 
-    const build = this.buildAndCacheDocument(contract, unit, filename, revision);
+    const build = this.buildAndCacheDocument(
+      contract,
+      unit,
+      filename,
+      revision,
+    );
     this.documentBuilds.set(buildKey, build);
 
     try {
@@ -219,7 +238,11 @@ export class ContractsService {
       unit,
       generatedDate: formatShanghaiDate(),
     });
-    await this.filesService.saveGeneratedContractDocument(contract.id, revision, buffer);
+    await this.filesService.saveGeneratedContractDocument(
+      contract.id,
+      revision,
+      buffer,
+    );
     return {
       filename,
       mimeType: "application/pdf",
@@ -257,14 +280,18 @@ export class ContractsService {
         lessorLicenseCode: contract.lessorLicenseCode,
         lessorContactName: contract.lessorContactName,
         lessorPhone: contract.lessorPhone,
+        lessorSafetyManager: contract.lessorSafetyManager,
         tenantName: contract.tenantName,
         contactName: contract.contactName,
         tenantPhone: contract.tenantPhone,
         licenseCode: contract.licenseCode,
+        tenantSafetyManager: contract.tenantSafetyManager,
+        signedDate: contract.signedDate,
         startDate: contract.startDate,
         endDate: contract.endDate,
         annualRent: contract.annualRent,
         depositAmount: contract.depositAmount,
+        earlyTerminationPenaltyAmount: contract.earlyTerminationPenaltyAmount,
         billingFrequency: contract.billingFrequency,
       },
       unit: {
@@ -286,7 +313,12 @@ export class ContractsService {
     return unit;
   }
 
-  private async validateRange(startDate: string, endDate: string, unitId: string, excludeId?: string) {
+  private async validateRange(
+    startDate: string,
+    endDate: string,
+    unitId: string,
+    excludeId?: string,
+  ) {
     if (startDate > endDate) {
       throw new BadRequestException("合同结束日期不能早于开始日期");
     }
@@ -307,7 +339,10 @@ export class ContractsService {
     }
   }
 
-  private async resolveFiles(businessLicenseFileId?: string, attachmentFileIds: string[] = []) {
+  private async resolveFiles(
+    businessLicenseFileId?: string,
+    attachmentFileIds: string[] = [],
+  ) {
     const normalizedBusinessLicenseId = businessLicenseFileId?.trim() || null;
     const businessLicenseFile = normalizedBusinessLicenseId
       ? await this.filesService.findOneOrFail(normalizedBusinessLicenseId)
@@ -336,5 +371,4 @@ export class ContractsService {
       }
     }
   }
-
 }
