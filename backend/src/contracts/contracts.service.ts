@@ -1,9 +1,11 @@
 import {
   BadRequestException,
   Injectable,
+  Logger,
   NotFoundException,
 } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
+import { createHash } from "node:crypto";
 import { DataSource, Repository } from "typeorm";
 import { formatShanghaiDate } from "../common/date/shanghai-date";
 import { toCents } from "../common/money/cents";
@@ -29,8 +31,19 @@ function resolveContractStatus(startDate: string, endDate: string) {
   return ContractStatus.ACTIVE;
 }
 
+const CONTRACT_DOCUMENT_CACHE_VERSION = "2026-08-28-v1";
+
+type GeneratedContractDocument = {
+  filename: string;
+  mimeType: "application/pdf";
+  buffer: Buffer;
+};
+
 @Injectable()
 export class ContractsService {
+  private readonly logger = new Logger(ContractsService.name);
+  private readonly documentBuilds = new Map<string, Promise<GeneratedContractDocument>>();
+
   constructor(
     @InjectRepository(Contract)
     private readonly contractsRepository: Repository<Contract>,
@@ -91,12 +104,14 @@ export class ContractsService {
       attachmentFiles,
     };
 
-    return this.dataSource.transaction(async (manager) => {
+    const saved = await this.dataSource.transaction(async (manager) => {
       const repository = manager.getRepository(Contract);
       const saved = await repository.save(repository.create(contractValues));
       await this.rentReceivablesService.syncContractSchedules(manager, saved);
       return repository.findOneOrFail({ where: { id: saved.id } });
     });
+    await this.prepareDocumentAfterSave(saved.id);
+    return saved;
   }
 
   async update(id: string, dto: UpdateContractDto) {
@@ -134,7 +149,7 @@ export class ContractsService {
     contract.businessLicenseFile = businessLicenseFile ?? null;
     contract.attachmentFiles = attachmentFiles;
 
-    return this.dataSource.transaction(async (manager) => {
+    const saved = await this.dataSource.transaction(async (manager) => {
       const repository = manager.getRepository(Contract);
       const saved = await repository.save(repository.create(contract));
       if (scheduleShapeChanged) {
@@ -142,11 +157,14 @@ export class ContractsService {
       }
       return repository.findOneOrFail({ where: { id: saved.id } });
     });
+    await this.prepareDocumentAfterSave(saved.id);
+    return saved;
   }
 
   async remove(id: string) {
     await this.findOneOrFail(id);
     await this.contractsRepository.softDelete(id);
+    await this.filesService.removeGeneratedContractDocuments(id);
     return { success: true };
   }
 
@@ -162,18 +180,102 @@ export class ContractsService {
     }
 
     const filename = buildGeneratedContractFilename(contract, unit);
-    const generatedDate = formatShanghaiDate();
+    const revision = this.buildDocumentRevision(contract, unit);
+    const cached = await this.filesService.readGeneratedContractDocument(id, revision);
+    if (cached) {
+      return {
+        filename,
+        mimeType: "application/pdf" as const,
+        buffer: cached,
+      };
+    }
+
+    const buildKey = `${id}:${revision}`;
+    const inFlight = this.documentBuilds.get(buildKey);
+    if (inFlight) {
+      return inFlight;
+    }
+
+    const build = this.buildAndCacheDocument(contract, unit, filename, revision);
+    this.documentBuilds.set(buildKey, build);
+
+    try {
+      return await build;
+    } finally {
+      if (this.documentBuilds.get(buildKey) === build) {
+        this.documentBuilds.delete(buildKey);
+      }
+    }
+  }
+
+  private async buildAndCacheDocument(
+    contract: Contract,
+    unit: FactoryUnit & { meterConfigs: FactoryUnit["meterConfigs"] },
+    filename: string,
+    revision: string,
+  ): Promise<GeneratedContractDocument> {
     const buffer = await buildContractDocumentPdf({
       contract,
       unit,
-      generatedDate,
+      generatedDate: formatShanghaiDate(),
     });
-
+    await this.filesService.saveGeneratedContractDocument(contract.id, revision, buffer);
     return {
       filename,
       mimeType: "application/pdf",
       buffer,
     };
+  }
+
+  private async prepareDocumentAfterSave(contractId: string) {
+    try {
+      await this.generateDocument(contractId);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "未知错误";
+      this.logger.error(`合同 ${contractId} PDF 预生成失败：${message}`);
+    }
+  }
+
+  private buildDocumentRevision(
+    contract: Contract,
+    unit: FactoryUnit & { meterConfigs: FactoryUnit["meterConfigs"] },
+  ) {
+    const meters = [...(unit.meterConfigs ?? [])]
+      .sort((left, right) => left.id.localeCompare(right.id))
+      .map((meter) => ({
+        id: meter.id,
+        type: meter.type,
+        name: meter.name,
+        unitPrice: meter.unitPrice,
+        lineLossPercent: meter.lineLossPercent,
+        enabled: meter.enabled,
+      }));
+    const payload = {
+      version: CONTRACT_DOCUMENT_CACHE_VERSION,
+      contract: {
+        lessorName: contract.lessorName,
+        lessorLicenseCode: contract.lessorLicenseCode,
+        lessorContactName: contract.lessorContactName,
+        lessorPhone: contract.lessorPhone,
+        tenantName: contract.tenantName,
+        contactName: contract.contactName,
+        tenantPhone: contract.tenantPhone,
+        licenseCode: contract.licenseCode,
+        startDate: contract.startDate,
+        endDate: contract.endDate,
+        annualRent: contract.annualRent,
+        depositAmount: contract.depositAmount,
+        billingFrequency: contract.billingFrequency,
+      },
+      unit: {
+        code: unit.code,
+        location: unit.location,
+        area: unit.area,
+        meters,
+      },
+    };
+
+    return createHash("sha256").update(JSON.stringify(payload)).digest("hex");
   }
 
   private async ensureUnitExists(unitId: string) {

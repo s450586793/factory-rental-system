@@ -1,6 +1,12 @@
 import { BillingFrequency, DepositSettlementMode } from "./contract.enums";
+import { buildContractDocumentPdf } from "./contract-document";
 import { Contract, ContractStatus } from "./contract.entity";
 import { ContractsService } from "./contracts.service";
+
+jest.mock("./contract-document", () => ({
+  ...jest.requireActual("./contract-document"),
+  buildContractDocumentPdf: jest.fn(),
+}));
 
 function existingContract(overrides: Record<string, unknown> = {}) {
   return {
@@ -30,10 +36,11 @@ function existingContract(overrides: Record<string, unknown> = {}) {
 function buildService(options: {
   existingContract?: Record<string, unknown>;
   depositAccount?: Record<string, unknown> | null;
+  cachedGeneratedDocument?: Buffer | null;
 } = {}) {
   let savedContract: Record<string, unknown> | null = null;
   const contractsRepository = {
-    findOne: jest.fn().mockResolvedValue(options.existingContract ?? null),
+    findOne: jest.fn().mockImplementation(() => Promise.resolve(options.existingContract ?? savedContract)),
     find: jest.fn().mockResolvedValue(options.existingContract ? [options.existingContract] : []),
     create: jest.fn().mockImplementation((value) => value),
     save: jest.fn().mockImplementation((value) => {
@@ -46,11 +53,20 @@ function buildService(options: {
     findOneOrFail: jest.fn().mockImplementation(() => Promise.resolve(savedContract)),
   };
   const unitsRepository = {
-    findOne: jest.fn().mockResolvedValue({ id: "unit-1" }),
+    findOne: jest.fn().mockResolvedValue({
+      id: "unit-1",
+      code: "1",
+      location: "测试厂房",
+      area: 500,
+      meterConfigs: [],
+    }),
   };
   const filesService = {
     findOneOrFail: jest.fn(),
     findByIds: jest.fn(),
+    readGeneratedContractDocument: jest.fn().mockResolvedValue(options.cachedGeneratedDocument ?? null),
+    saveGeneratedContractDocument: jest.fn().mockResolvedValue(undefined),
+    removeGeneratedContractDocuments: jest.fn().mockResolvedValue(undefined),
   };
   const manager = {
     getRepository: jest.fn((entity) => {
@@ -90,6 +106,7 @@ function buildService(options: {
     contractsRepository,
     dataSource,
     depositsService,
+    filesService,
     manager,
     receivablesService,
   };
@@ -115,6 +132,11 @@ function buildDto(overrides: Record<string, unknown> = {}) {
 }
 
 describe("ContractsService", () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    jest.mocked(buildContractDocumentPdf).mockResolvedValue(Buffer.from("generated-pdf"));
+  });
+
   it("saves a normalized contract and generated schedules in one transaction", async () => {
     const {
       service,
@@ -153,6 +175,48 @@ describe("ContractsService", () => {
     expect(contractsRepository.findOneOrFail).toHaveBeenCalledWith({
       where: { id: "contract-new" },
     });
+  });
+
+  it("pre-generates and caches the PDF before a new contract save resolves", async () => {
+    const { service, filesService } = buildService();
+
+    await service.create(buildDto() as never);
+
+    expect(buildContractDocumentPdf).toHaveBeenCalledTimes(1);
+    expect(filesService.saveGeneratedContractDocument).toHaveBeenCalledWith(
+      "contract-new",
+      expect.stringMatching(/^[a-f0-9]{64}$/),
+      Buffer.from("generated-pdf"),
+    );
+  });
+
+  it("returns a cached contract PDF without rebuilding it", async () => {
+    const cached = Buffer.from("cached-pdf");
+    const { service, filesService } = buildService({
+      existingContract: existingContract(),
+      cachedGeneratedDocument: cached,
+    });
+
+    const generated = await service.generateDocument("contract-1");
+
+    expect(generated.buffer).toEqual(cached);
+    expect(filesService.readGeneratedContractDocument).toHaveBeenCalledWith(
+      "contract-1",
+      expect.stringMatching(/^[a-f0-9]{64}$/),
+    );
+    expect(buildContractDocumentPdf).not.toHaveBeenCalled();
+    expect(filesService.saveGeneratedContractDocument).not.toHaveBeenCalled();
+  });
+
+  it("keeps a newly saved contract when PDF preparation fails", async () => {
+    const { service } = buildService();
+    const logger = (service as unknown as { logger: { error: (message: string) => void } }).logger;
+    jest.spyOn(logger, "error").mockImplementation(() => undefined);
+    jest.mocked(buildContractDocumentPdf).mockRejectedValueOnce(new Error("render failed"));
+
+    await expect(service.create(buildDto() as never)).resolves.toEqual(
+      expect.objectContaining({ id: "contract-new" }),
+    );
   });
 
   it("uses only the entered deposit and initializes legacy settlement fields", async () => {

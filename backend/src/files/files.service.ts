@@ -7,7 +7,7 @@ import { ConfigService } from "@nestjs/config";
 import { InjectRepository } from "@nestjs/typeorm";
 import { randomUUID } from "crypto";
 import { extname, join } from "path";
-import { mkdir, readFile, stat, unlink, writeFile } from "fs/promises";
+import { mkdir, readFile, readdir, rename, stat, unlink, writeFile } from "fs/promises";
 import { In, Repository } from "typeorm";
 import type { StorageConfig } from "../config/storage.config";
 import { GenerateStoredFileDto } from "./files.dto";
@@ -15,6 +15,7 @@ import { StoredFile, StoredFileCategory } from "./stored-file.entity";
 
 const PAYMENT_VOUCHER_IMAGE_MIME_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
 const MAX_PAYMENT_VOUCHERS_PER_RECORD = 10;
+const GENERATED_CONTRACT_DIRECTORY = "generated-contracts";
 
 type UploadLike = {
   originalname: string;
@@ -69,6 +70,40 @@ export class FilesService {
       category: dto.category,
     });
     return this.storedFilesRepository.save(entity);
+  }
+
+  async readGeneratedContractDocument(contractId: string, revision: string) {
+    const targetPath = this.buildGeneratedContractPath(contractId, revision);
+    try {
+      return await readFile(targetPath);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+        return null;
+      }
+      throw error;
+    }
+  }
+
+  async saveGeneratedContractDocument(contractId: string, revision: string, buffer: Buffer) {
+    const dir = join(this.storageRoot, GENERATED_CONTRACT_DIRECTORY);
+    await mkdir(dir, { recursive: true });
+    const targetPath = this.buildGeneratedContractPath(contractId, revision);
+    const safeContractId = this.sanitizeCacheSegment(contractId);
+    const tempPath = join(dir, `.contract-${safeContractId}-${randomUUID()}.tmp`);
+
+    await writeFile(tempPath, buffer);
+    try {
+      await rename(tempPath, targetPath);
+    } catch (error) {
+      await unlink(tempPath).catch(() => undefined);
+      throw error;
+    }
+
+    await this.cleanupGeneratedContractDocuments(contractId, targetPath);
+  }
+
+  async removeGeneratedContractDocuments(contractId: string) {
+    await this.cleanupGeneratedContractDocuments(contractId);
   }
 
   findByIds(fileIds: string[]) {
@@ -132,6 +167,42 @@ export class FilesService {
     const timestamp = this.buildTimestamp();
     const shortId = randomUUID().slice(0, 8);
     return `${categoryPrefix}_${timestamp}_${readableStem}_${shortId}${suffix}`;
+  }
+
+  private buildGeneratedContractPath(contractId: string, revision: string) {
+    const safeContractId = this.sanitizeCacheSegment(contractId);
+    const safeRevision = this.sanitizeCacheSegment(revision);
+    return join(
+      this.storageRoot,
+      GENERATED_CONTRACT_DIRECTORY,
+      `contract-${safeContractId}-${safeRevision}.pdf`,
+    );
+  }
+
+  private sanitizeCacheSegment(value: string) {
+    return value.replace(/[^a-z0-9-]+/gi, "-").replace(/^-+|-+$/g, "") || "unknown";
+  }
+
+  private async cleanupGeneratedContractDocuments(contractId: string, keepPath?: string) {
+    const dir = join(this.storageRoot, GENERATED_CONTRACT_DIRECTORY);
+    const prefix = `contract-${this.sanitizeCacheSegment(contractId)}-`;
+    let entries: string[];
+    try {
+      entries = await readdir(dir);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+        return;
+      }
+      throw error;
+    }
+
+    await Promise.all(
+      entries
+        .filter((entry) => entry.startsWith(prefix) && entry.endsWith(".pdf"))
+        .map((entry) => join(dir, entry))
+        .filter((filePath) => filePath !== keepPath)
+        .map((filePath) => unlink(filePath).catch(() => undefined)),
+    );
   }
 
   private validateFilesForCategory(files: UploadLike[], category: StoredFileCategory) {
