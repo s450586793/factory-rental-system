@@ -908,7 +908,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from "vue";
+import { computed, onMounted, reactive, ref, watch } from "vue";
 import { ElMessage, ElMessageBox } from "element-plus";
 import AppShell from "../components/AppShell.vue";
 import { apiFileUrl, apiGeneratedContractDocumentUrl } from "../api/client";
@@ -1048,7 +1048,48 @@ const unitContractPreview = computed(() =>
 const contractPreview = computed(() =>
   buildRentSchedulePreview(contractForm.startDate, contractForm.endDate, contractForm.billingFrequency),
 );
+
+watch(
+  [() => unitContractForm.lessorContactName, () => unitContractForm.contactName],
+  ([lessorContactName, tenantContactName], [previousLessorContactName, previousTenantContactName]) => {
+    unitContractForm.lessorSafetyManager = defaultSafetyManager(
+      unitContractForm.lessorSafetyManager,
+      previousLessorContactName,
+      lessorContactName,
+    );
+    unitContractForm.tenantSafetyManager = defaultSafetyManager(
+      unitContractForm.tenantSafetyManager,
+      previousTenantContactName,
+      tenantContactName,
+    );
+  },
+);
+
+watch(
+  [() => contractForm.lessorContactName, () => contractForm.contactName],
+  ([lessorContactName, tenantContactName], [previousLessorContactName, previousTenantContactName]) => {
+    if (contractForm.id) {
+      return;
+    }
+
+    contractForm.lessorSafetyManager = defaultSafetyManager(
+      contractForm.lessorSafetyManager,
+      previousLessorContactName,
+      lessorContactName,
+    );
+    contractForm.tenantSafetyManager = defaultSafetyManager(
+      contractForm.tenantSafetyManager,
+      previousTenantContactName,
+      tenantContactName,
+    );
+  },
+);
+
 onMounted(loadUnits);
+
+function defaultSafetyManager(currentManager: string, previousContact: string, currentContact: string) {
+  return !currentManager || currentManager === previousContact ? currentContact : currentManager;
+}
 
 async function loadUnits() {
   try {
@@ -1411,12 +1452,12 @@ function openCreateContract() {
     contractForm.lessorLicenseCode = latestContract.lessorLicenseCode;
     contractForm.lessorContactName = latestContract.lessorContactName;
     contractForm.lessorPhone = latestContract.lessorPhone;
-    contractForm.lessorSafetyManager = latestContract.lessorSafetyManager;
+    contractForm.lessorSafetyManager = latestContract.lessorContactName;
     contractForm.tenantName = latestContract.tenantName;
     contractForm.contactName = latestContract.contactName;
     contractForm.tenantPhone = latestContract.tenantPhone;
     contractForm.licenseCode = latestContract.licenseCode;
-    contractForm.tenantSafetyManager = latestContract.tenantSafetyManager;
+    contractForm.tenantSafetyManager = latestContract.contactName;
     contractForm.startDate = deriveNextDate(latestContract.endDate);
     contractForm.endDate = deriveContractEndDate(contractForm.startDate);
     contractForm.signedDate = contractForm.startDate;

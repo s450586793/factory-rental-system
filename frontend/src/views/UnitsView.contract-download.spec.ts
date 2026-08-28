@@ -673,6 +673,116 @@ describe("UnitsView contract download", () => {
     expect((findInputByLabel(wrapper, "甲方安全管理负责人").element as HTMLInputElement).value).toBe("吴孝斌");
   });
 
+  it("defaults safety managers to the contacts when creating a contract", async () => {
+    vi.mocked(unitsApi.list).mockResolvedValue([vacantUnit]);
+    vi.mocked(unitsApi.detail).mockResolvedValue(vacantUnit);
+    const wrapper = mountUnitsView();
+    await flushPromises();
+
+    await openCreateContractDialog(wrapper);
+    await findInputByLabel(wrapper, "甲方联系人").setValue("甲方联系人甲");
+    await findInputByLabel(wrapper, "乙方联系人").setValue("乙方联系人乙");
+    await flushPromises();
+
+    expect((findInputByLabel(wrapper, "甲方安全管理负责人").element as HTMLInputElement).value).toBe(
+      "甲方联系人甲",
+    );
+    expect((findInputByLabel(wrapper, "乙方安全管理负责人").element as HTMLInputElement).value).toBe(
+      "乙方联系人乙",
+    );
+  });
+
+  it("uses the contacts instead of prior safety managers for a renewal", async () => {
+    const previousContract = {
+      ...oldContract,
+      lessorSafetyManager: "上一期甲方安全员",
+      tenantSafetyManager: "上一期乙方安全员",
+    } as Contract;
+    const renewalUnit = {
+      ...unit,
+      contracts: [previousContract],
+    } satisfies UnitSummary;
+    vi.mocked(unitsApi.list).mockResolvedValue([renewalUnit]);
+    vi.mocked(unitsApi.detail).mockResolvedValue(renewalUnit);
+    const wrapper = mountUnitsView();
+    await flushPromises();
+
+    await openCreateContractDialog(wrapper);
+
+    expect((findInputByLabel(wrapper, "甲方安全管理负责人").element as HTMLInputElement).value).toBe(
+      "吴孝斌",
+    );
+    expect((findInputByLabel(wrapper, "乙方安全管理负责人").element as HTMLInputElement).value).toBe("曹忠");
+  });
+
+  it("defaults initial-contract safety managers to the contacts", async () => {
+    const wrapper = mountUnitsView();
+    await flushPromises();
+
+    await openCreateUnitDialog(wrapper);
+    await findInputByLabel(wrapper, "初始合同甲方联系人").setValue("初始甲方联系人");
+    await findInputByLabel(wrapper, "初始合同乙方联系人").setValue("初始乙方联系人");
+    await flushPromises();
+
+    expect(
+      (findInputByLabel(wrapper, "初始合同甲方安全管理负责人").element as HTMLInputElement).value,
+    ).toBe("初始甲方联系人");
+    expect(
+      (findInputByLabel(wrapper, "初始合同乙方安全管理负责人").element as HTMLInputElement).value,
+    ).toBe("初始乙方联系人");
+  });
+
+  it("does not overwrite a manually changed safety manager", async () => {
+    vi.mocked(unitsApi.list).mockResolvedValue([vacantUnit]);
+    vi.mocked(unitsApi.detail).mockResolvedValue(vacantUnit);
+    const wrapper = mountUnitsView();
+    await flushPromises();
+
+    await openCreateContractDialog(wrapper);
+    await findInputByLabel(wrapper, "乙方联系人").setValue("乙方联系人甲");
+    await flushPromises();
+    await findInputByLabel(wrapper, "乙方安全管理负责人").setValue("专职安全员");
+    await findInputByLabel(wrapper, "乙方联系人").setValue("乙方联系人乙");
+    await flushPromises();
+
+    expect((findInputByLabel(wrapper, "乙方安全管理负责人").element as HTMLInputElement).value).toBe(
+      "专职安全员",
+    );
+  });
+
+  it("preserves saved safety managers when editing an existing contract", async () => {
+    const contractWithDedicatedManagers = {
+      ...oldContract,
+      lessorSafetyManager: "甲方专职安全员",
+      tenantSafetyManager: "乙方专职安全员",
+    } as Contract;
+    const unitWithDedicatedManagers = {
+      ...unit,
+      activeContract: {
+        ...activeContract,
+        lessorSafetyManager: "甲方专职安全员",
+        tenantSafetyManager: "乙方专职安全员",
+      },
+      contracts: [contractWithDedicatedManagers],
+    } satisfies UnitSummary;
+    vi.mocked(unitsApi.list).mockResolvedValue([unitWithDedicatedManagers]);
+    vi.mocked(unitsApi.detail).mockResolvedValue(unitWithDedicatedManagers);
+    const wrapper = mountUnitsView();
+    await flushPromises();
+
+    await findButton(wrapper, "管理").trigger("click");
+    await flushPromises();
+    await findButton(wrapper, "编辑").trigger("click");
+    await flushPromises();
+
+    expect((findInputByLabel(wrapper, "甲方安全管理负责人").element as HTMLInputElement).value).toBe(
+      "甲方专职安全员",
+    );
+    expect((findInputByLabel(wrapper, "乙方安全管理负责人").element as HTMLInputElement).value).toBe(
+      "乙方专职安全员",
+    );
+  });
+
   it("blocks saving when required party and safety agreement fields are empty", async () => {
     const wrapper = mountUnitsView();
     await flushPromises();
