@@ -748,6 +748,9 @@ describe("buildContractDocumentOverlays", () => {
     const safetyClause27 = overlays.find(
       (item) => item.id === "page8-clause-2-7",
     );
+    const safetyClause33 = overlays.find(
+      (item) => item.id === "page10-clause-3-3",
+    );
     const utilityClause = overlays.find((item) => item.id === "page1-utility");
 
     expect(safetyIntroduction).toMatchObject({
@@ -771,6 +774,20 @@ describe("buildContractDocumentOverlays", () => {
       "甲方及甲方委托的第三方专业服务机构",
     );
     expect(safetyClause27?.text).toContain("如实提供相关资料");
+    expect(safetyClause33).toMatchObject({
+      pageIndex: 9,
+      x: 84,
+      top: 343,
+      clearWidth: 455,
+      clearHeight: 125,
+      tabStops: [44],
+    });
+    expect(safetyClause33?.text).toContain(
+      "本条约定不影响甲方依据本协议第2.23条及主合同约定向乙方追偿",
+    );
+    expect(safetyClause33?.text).toContain(
+      "由相关责任方各自承担相应的经济赔偿和法律责任",
+    );
     expect(utilityClause).toBeDefined();
     if (!safetyIntroduction || !utilityClause) {
       throw new Error("合同覆盖层缺少必要字段");
