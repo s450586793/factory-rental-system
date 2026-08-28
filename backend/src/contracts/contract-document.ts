@@ -76,6 +76,7 @@ export type TemplateOverlay = {
   paddingY?: number;
   align?: "left" | "center" | "right";
   tabStops?: number[];
+  paragraphStyle?: "standardLeaseBody";
 };
 
 type RasterizedOverlay = {
@@ -269,9 +270,9 @@ export function buildStandardLeaseContractPages({
   return [
     {
       sections: [
-        `出租方（甲方）：${lessorName}    营业执照代码：${lessorLicenseCode}`,
+        `出租方（甲方）：${lessorName}    营业执照/身份证：${lessorLicenseCode}`,
         `甲方联系人：${lessorContact}    联系电话：${lessorPhone}`,
-        `承租方（乙方）：${tenantName}    营业执照代码：${licenseCode}`,
+        `承租方（乙方）：${tenantName}    营业执照/身份证：${licenseCode}`,
         `乙方联系人：${tenantContact}    联系电话：${tenantPhone}`,
         "根据《中华人民共和国民法典》及有关法律法规，甲、乙双方在平等、自愿、诚实信用的基础上，就甲方将合法拥有或有权出租的厂房出租给乙方使用事宜，订立本合同。本合同正文与附件《入驻厂区企业安全生产管理协议书》共同构成双方完整约定。",
         "一、租赁标的及交付",
@@ -434,6 +435,7 @@ function renderTextOverlays(
         maxLines: overlay.maxLines ?? 99,
         align: overlay.align ?? "left",
         tabStops: overlay.tabStops ?? [],
+        paragraphStyle: overlay.paragraphStyle ?? null,
         paddingX: overlay.paddingX ?? 0,
         paddingY: overlay.paddingY ?? 0,
       })),
@@ -723,7 +725,7 @@ export function buildContractDocumentOverlays({
   return overlays;
 }
 
-function buildStandardLeaseBodyOverlays(
+export function buildStandardLeaseBodyOverlays(
   pages: StandardLeaseContractPage[],
 ): TemplateOverlay[] {
   return pages.flatMap((page, index) => {
@@ -769,6 +771,7 @@ function buildStandardLeaseBodyOverlays(
         tabStops: [
           STANDARD_CONTRACT_SIGNATURE_TAB_STOP - STANDARD_CONTRACT_BODY_X,
         ],
+        paragraphStyle: "standardLeaseBody",
       },
       {
         id: `standard-contract-footer-${pageNumber}`,

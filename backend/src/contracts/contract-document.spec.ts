@@ -9,6 +9,7 @@ import {
   buildContractDocumentOverlays,
   buildGeneratedContractFilename,
   buildSafetyAgreementSupplementSections,
+  buildStandardLeaseBodyOverlays,
   buildStandardLeaseContractPages,
 } from "./contract-document";
 import { Contract, ContractStatus } from "./contract.entity";
@@ -169,6 +170,84 @@ function renderSignatureOverlay(text: string) {
   };
 }
 
+function renderStandardLeaseBodyOverlay(text: string, maxWidth = 260) {
+  const scriptPath = path.resolve(
+    process.cwd(),
+    "scripts/render_text_overlays.py",
+  );
+  const fontPath = path.resolve(process.cwd(), "assets/fonts/Songti.ttc");
+  const result = spawnSync("python3", [scriptPath], {
+    input: JSON.stringify({
+      overlays: [
+        {
+          id: "standard-lease-body",
+          text,
+          fontPath,
+          fontSize: 10,
+          fontIndex: 6,
+          rasterScale: 4,
+          maxWidth,
+          lineHeight: 15,
+          maxLines: 99,
+          paragraphStyle: "standardLeaseBody",
+        },
+      ],
+    }),
+    encoding: "utf8",
+  });
+
+  if (result.status !== 0) {
+    throw new Error(result.stderr);
+  }
+
+  return JSON.parse(result.stdout) as {
+    items: Array<{
+      id: string;
+      width: number;
+      height: number;
+      pixelWidth: number;
+      pixelHeight: number;
+      pngBase64: string;
+    }>;
+  };
+}
+
+function renderStandardLeaseBodyOverlays(
+  overlays: ReturnType<typeof buildStandardLeaseBodyOverlays>,
+) {
+  const scriptPath = path.resolve(
+    process.cwd(),
+    "scripts/render_text_overlays.py",
+  );
+  const fontPath = path.resolve(process.cwd(), "assets/fonts/Songti.ttc");
+  const result = spawnSync("python3", [scriptPath], {
+    input: JSON.stringify({
+      overlays: overlays.map((overlay) => ({
+        ...overlay,
+        fontPath,
+        rasterScale: 4,
+      })),
+    }),
+    encoding: "utf8",
+    maxBuffer: 20 * 1024 * 1024,
+  });
+
+  if (result.status !== 0) {
+    throw new Error(result.stderr);
+  }
+
+  return JSON.parse(result.stdout) as {
+    items: Array<{
+      id: string;
+      width: number;
+      height: number;
+      pixelWidth: number;
+      pixelHeight: number;
+      pngBase64: string;
+    }>;
+  };
+}
+
 async function decodePng(pngBase64: string, width: number, height: number) {
   const png = new PngJs(Buffer.from(pngBase64, "base64"));
   return new Promise<Buffer>((resolve) => {
@@ -197,6 +276,50 @@ function findFirstInkXNearRow(
     }
   }
   return firstX;
+}
+
+function findFirstInkXInRows(
+  pixels: Buffer,
+  width: number,
+  height: number,
+  startRow: number,
+  endRow: number,
+) {
+  let firstX: number | null = null;
+  for (let y = Math.max(0, startRow); y < Math.min(height, endRow); y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      const offset = (y * width + x) * 4;
+      if (pixels[offset + 3] === 0) {
+        continue;
+      }
+      firstX = firstX === null ? x : Math.min(firstX, x);
+      break;
+    }
+  }
+  return firstX;
+}
+
+function countInkRows(
+  pixels: Buffer,
+  width: number,
+  height: number,
+  startRow: number,
+  endRow: number,
+) {
+  let count = 0;
+  for (let y = Math.max(0, startRow); y < Math.min(height, endRow); y += 1) {
+    let hasInk = false;
+    for (let x = 0; x < width; x += 1) {
+      if (pixels[(y * width + x) * 4 + 3] > 0) {
+        hasInk = true;
+        break;
+      }
+    }
+    if (hasInk) {
+      count += 1;
+    }
+  }
+  return count;
 }
 
 describe("buildContractDocumentOverlays", () => {
@@ -241,9 +364,9 @@ describe("buildContractDocumentOverlays", () => {
     });
     expect(pages[0].sections).toEqual(
       expect.arrayContaining([
-        "出租方（甲方）：江阴市示例产业园有限公司    营业执照代码：91320281TEST000001",
+        "出租方（甲方）：江阴市示例产业园有限公司    营业执照/身份证：91320281TEST000001",
         "甲方联系人：吴孝斌    联系电话：18651510352",
-        "承租方（乙方）：测试租户有限公司    营业执照代码：91320281TEST000002",
+        "承租方（乙方）：测试租户有限公司    营业执照/身份证：91320281TEST000002",
         "乙方联系人：张三    联系电话：13800000000",
       ]),
     );
@@ -424,6 +547,108 @@ describe("buildContractDocumentOverlays", () => {
       expect(startX).not.toBeNull();
       expect(Math.abs((startX ?? 0) - expectedStartX)).toBeLessThanOrEqual(8);
       expect(startX).toBeGreaterThan(185 * 4);
+    }
+  });
+
+  it("marks every standard lease body page for hierarchical paragraph styling", () => {
+    const pages = buildStandardLeaseContractPages({
+      contract: buildContractFixture(),
+      unit: buildUnitFixture(),
+      generatedDate: "2026-07-01",
+    });
+    const bodyOverlays = buildStandardLeaseBodyOverlays(pages).filter((overlay) =>
+      overlay.id.startsWith("standard-contract-body-"),
+    );
+
+    expect(bodyOverlays).toHaveLength(pages.length);
+    expect(bodyOverlays).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: "standard-contract-body-1",
+          paragraphStyle: "standardLeaseBody",
+        }),
+        expect.objectContaining({
+          id: `standard-contract-body-${pages.length}`,
+          paragraphStyle: "standardLeaseBody",
+        }),
+      ]),
+    );
+  });
+
+  it("renders lease headings larger and indents numbered clauses with wrapped lines", async () => {
+    const rendered = renderStandardLeaseBodyOverlay(
+      "一、租赁标的及交付\n\n1. 甲方出租给乙方的厂房位于测试地址，租赁范围以现场交付、双方确认的边界及附属设施为准。",
+      180,
+    );
+    const item = rendered.items[0];
+    const image = await decodePng(
+      item.pngBase64,
+      item.pixelWidth,
+      item.pixelHeight,
+    );
+    const scale = 4;
+    const headingInkX = findFirstInkXInRows(
+      image.pixels,
+      image.width,
+      image.height,
+      0,
+      18 * scale,
+    );
+    const firstClauseInkX = findFirstInkXInRows(
+      image.pixels,
+      image.width,
+      image.height,
+      33 * scale,
+      48 * scale,
+    );
+    const wrappedClauseInkX = findFirstInkXInRows(
+      image.pixels,
+      image.width,
+      image.height,
+      48 * scale,
+      63 * scale,
+    );
+    const headingInkRows = countInkRows(
+      image.pixels,
+      image.width,
+      image.height,
+      0,
+      18 * scale,
+    );
+    const clauseInkRows = countInkRows(
+      image.pixels,
+      image.width,
+      image.height,
+      33 * scale,
+      48 * scale,
+    );
+
+    expect(headingInkX).not.toBeNull();
+    expect(headingInkX).toBeLessThan(4);
+    expect(firstClauseInkX).toBeGreaterThanOrEqual(13 * scale);
+    expect(wrappedClauseInkX).toBeGreaterThanOrEqual(13 * scale);
+    expect(headingInkRows).toBeGreaterThan(clauseInkRows);
+  });
+
+  it("keeps every styled lease page complete and above its footer", () => {
+    const pages = buildStandardLeaseContractPages({
+      contract: buildContractFixture(),
+      unit: buildUnitFixture(),
+      generatedDate: "2026-07-01",
+    });
+    const bodyOverlays = buildStandardLeaseBodyOverlays(pages).filter((overlay) =>
+      overlay.id.startsWith("standard-contract-body-"),
+    );
+    const cappedItems = renderStandardLeaseBodyOverlays(bodyOverlays).items;
+    const uncappedItems = renderStandardLeaseBodyOverlays(
+      bodyOverlays.map((overlay) => ({ ...overlay, maxLines: 0 })),
+    ).items;
+
+    for (const [index, overlay] of bodyOverlays.entries()) {
+      expect(cappedItems[index].height).toBe(uncappedItems[index].height);
+      expect(cappedItems[index].height).toBeLessThanOrEqual(
+        overlay.clearHeight,
+      );
     }
   });
 
