@@ -276,7 +276,7 @@ describe("buildContractDocumentOverlays", () => {
     });
     const bodyText = pages.flatMap((page) => page.sections).join("\n");
 
-    expect(bodyText).toContain("____年__月__日");
+    expect(bodyText).toContain("【填写日期】");
     expect(bodyText).toContain("年租金为人民币【填写】元");
     expect(bodyText).toContain("大写：【填写】");
     expect(bodyText).toContain("履约保证金人民币5000.00元");
@@ -511,39 +511,45 @@ describe("buildContractDocumentOverlays", () => {
     );
   }, 20000);
 
-  it("uses the contract signing date in the safety agreement and replaces clause 2.7", () => {
+  it("replaces the full safety agreement introduction with fluent text and the signing date", () => {
     const overlays = buildContractDocumentOverlays({
       contract: buildContractFixture(),
       unit: buildUnitFixture(),
       generatedDate: "2026-07-01",
     });
-    const safetySignDate = overlays.find(
-      (item) => item.id === "page4-sign-date",
+    const safetyIntroduction = overlays.find(
+      (item) => item.id === "page4-introduction",
     );
     const safetyClause27 = overlays.find(
       (item) => item.id === "page8-clause-2-7",
     );
     const utilityClause = overlays.find((item) => item.id === "page1-utility");
 
-    expect(safetySignDate).toMatchObject({
-      text: "2025年6月28日签订",
+    expect(safetyIntroduction).toMatchObject({
+      pageIndex: 3,
+      x: 78,
+      top: 174,
+      clearWidth: 460,
+      clearHeight: 244,
+      maxWidth: 460,
+      lineHeight: 28,
+      maxLines: 8,
     });
+    expect(safetyIntroduction?.text).toContain(
+      "甲乙双方就已于2025年6月28日签订的《厂房租赁合同》所涉安全管理事项订立本协议",
+    );
+    expect(safetyIntroduction?.text).toContain(
+      "本协议为该租赁合同的附件，与该租赁合同具有同等法律效力",
+    );
+    expect(safetyIntroduction?.text).not.toContain("在原签订的租赁合同");
     expect(safetyClause27?.text).toContain(
       "甲方及甲方委托的第三方专业服务机构",
     );
     expect(safetyClause27?.text).toContain("如实提供相关资料");
     expect(utilityClause).toBeDefined();
-    if (!safetySignDate || !utilityClause) {
+    if (!safetyIntroduction || !utilityClause) {
       throw new Error("合同覆盖层缺少必要字段");
     }
-
-    const safetyPadding = safetySignDate.padding ?? 2;
-    const safetyPaddingX = safetySignDate.paddingX ?? 0;
-    expect(safetySignDate.x - safetyPadding).toBeLessThanOrEqual(204);
-    expect(safetySignDate.x + safetyPaddingX).toBe(214);
-    expect(
-      safetySignDate.x + safetySignDate.clearWidth + safetyPadding,
-    ).toBeLessThanOrEqual(310);
 
     expect(utilityClause).toMatchObject({
       text: "1、租赁期间，使用该厂房所发生的水、电等费用由乙方承担，电费0.95元/度，线损耗按5.00%计算，水费1.00元/吨；",
@@ -551,6 +557,26 @@ describe("buildContractDocumentOverlays", () => {
     expect(utilityClause?.x).toBeLessThanOrEqual(64);
     expect(utilityClause.x + (utilityClause.paddingX ?? 0)).toBe(84);
     expect(utilityClause?.clearHeight).toBeGreaterThanOrEqual(70);
+  });
+
+  it("keeps the generic signing-date placeholder inside the safety agreement introduction", () => {
+    const contract = buildContractFixture();
+    contract.signedDate = "____-__-__";
+    const overlays = buildContractDocumentOverlays({
+      contract,
+      unit: buildUnitFixture(),
+      generatedDate: "2026-08-28",
+    });
+    const safetyIntroduction = overlays.find(
+      (item) => item.id === "page4-introduction",
+    );
+
+    expect(safetyIntroduction?.text).toContain(
+      "就已于【填写日期】签订的《厂房租赁合同》所涉安全管理事项",
+    );
+    expect(safetyIntroduction?.maxWidth).toBeLessThanOrEqual(
+      safetyIntroduction?.clearWidth ?? 0,
+    );
   });
 
   it("fills safety managers and authorized representatives without blanks", () => {

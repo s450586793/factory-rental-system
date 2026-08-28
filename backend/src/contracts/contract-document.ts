@@ -97,6 +97,10 @@ function splitDateParts(value: string): DateParts {
 }
 
 function formatDateForText(parts: DateParts) {
+  if (![parts.year, parts.month, parts.day].every((part) => /^\d+$/.test(part))) {
+    return "【填写日期】";
+  }
+
   return `${parts.year}年${parts.month}月${parts.day}日`;
 }
 
@@ -162,6 +166,13 @@ function buildUtilityClause(meters: UtilityMeterConfig[]) {
         : "水费按各启用水表配置执行";
 
   return `1、租赁期间，使用该厂房所发生的水、电等费用由乙方承担，${electricText}，${waterText}；`;
+}
+
+function buildSafetyAgreementIntroduction(signedDateParts: DateParts) {
+  return [
+    "\u3000\u3000依据《中华人民共和国安全生产法》《江苏省安全生产条例》《无锡市安全生产条例》等规定，甲方已核查乙方经营主体证照及生产经营类型，确认乙方拟开展的生产经营项目不属于澄安办〔2025〕12号文所列《江阴市“厂中厂”准入负面清单（修订）》规定的禁止或限制准入情形，并已通过“厂中厂出租方安全管理平台”履行属地告知手续，经审核通过后允许乙方入驻。",
+    `\u3000\u3000为明确双方安全生产管理职责，经友好协商，甲乙双方就已于${formatDateForText(signedDateParts)}签订的《厂房租赁合同》所涉安全管理事项订立本协议。本协议为该租赁合同的附件，与该租赁合同具有同等法律效力。`,
+  ].join("\n");
 }
 
 function buildUnitLabel(unit: FactoryUnit) {
@@ -511,7 +522,6 @@ export function buildContractDocumentOverlays({
     : "【填写】";
   const annualRentText = formatMoney(contract.annualRent);
   const utilityClause = buildUtilityClause(unit.meterConfigs);
-  const signDate = `${formatDateForText(signedDateParts)}签订`;
   const lessorName = normalizeOptionalText(contract.lessorName);
   const tenantName = normalizeOptionalText(contract.tenantName);
   const lessorContact =
@@ -611,18 +621,19 @@ export function buildContractDocumentOverlays({
       maxWidth: 210,
     },
     {
-      id: "page4-sign-date",
+      id: "page4-introduction",
       pageIndex: 3,
-      text: signDate,
-      x: 204,
-      top: 364,
-      clearWidth: 101,
-      clearHeight: 22,
-      fontSize: 11,
+      text: buildSafetyAgreementIntroduction(signedDateParts),
+      x: 78,
+      top: 174,
+      clearWidth: 460,
+      clearHeight: 244,
+      fontSize: 13,
       fontIndex: SONGTI_SC_REGULAR_INDEX,
-      maxWidth: 115,
-      padding: 0,
-      paddingX: 10,
+      maxWidth: 460,
+      lineHeight: 28,
+      maxLines: 8,
+      padding: 2,
     },
     {
       id: "page8-clause-2-7",

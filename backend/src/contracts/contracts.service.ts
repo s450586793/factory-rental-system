@@ -31,7 +31,7 @@ function resolveContractStatus(startDate: string, endDate: string) {
   return ContractStatus.ACTIVE;
 }
 
-const CONTRACT_DOCUMENT_CACHE_VERSION = "2026-08-28-v2";
+const CONTRACT_DOCUMENT_CACHE_VERSION = "2026-08-28-v3";
 
 type GeneratedContractDocument = {
   filename: string;
