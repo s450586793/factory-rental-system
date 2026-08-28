@@ -155,7 +155,7 @@ describe("ContractsService", () => {
     });
   });
 
-  it("uses only the entered deposit amount even when a deposit account already exists", async () => {
+  it("uses only the entered deposit and initializes legacy settlement fields", async () => {
     const { service, contractsRepository, depositsService } = buildService({
       depositAccount: {
         heldAmount: 8000,
@@ -167,10 +167,14 @@ describe("ContractsService", () => {
 
     expect(depositsService.getAccount).not.toHaveBeenCalled();
     const values = contractsRepository.create.mock.calls.at(-1)?.[0];
-    expect(values).toEqual(expect.objectContaining({ depositAmount: 0 }));
-    expect(values).not.toHaveProperty("depositSettlementMode");
-    expect(values).not.toHaveProperty("depositCarryoverAmount");
-    expect(values).not.toHaveProperty("depositCarryoverSourceContractId");
+    expect(values).toEqual(
+      expect.objectContaining({
+        depositAmount: 0,
+        depositSettlementMode: DepositSettlementMode.INITIAL,
+        depositCarryoverAmount: 0,
+        depositCarryoverSourceContractId: null,
+      }),
+    );
   });
 
   it("preserves new contract fields when a V0.5.0 update omits them", async () => {

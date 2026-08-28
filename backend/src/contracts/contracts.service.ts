@@ -14,7 +14,7 @@ import {
   buildContractDocumentPdf,
   buildGeneratedContractFilename,
 } from "./contract-document";
-import { BillingFrequency } from "./contract.enums";
+import { BillingFrequency, DepositSettlementMode } from "./contract.enums";
 import { Contract, ContractStatus } from "./contract.entity";
 import { CreateContractDto, UpdateContractDto } from "./contracts.dto";
 
@@ -82,6 +82,9 @@ export class ContractsService {
       annualRent: dto.annualRent,
       depositAmount: dto.depositAmount,
       billingFrequency: dto.billingFrequency ?? BillingFrequency.ANNUAL,
+      depositSettlementMode: DepositSettlementMode.INITIAL,
+      depositCarryoverAmount: 0,
+      depositCarryoverSourceContractId: null,
       status: resolveContractStatus(dto.startDate, dto.endDate),
       businessLicenseFileId: businessLicenseFile?.id ?? null,
       businessLicenseFile,
