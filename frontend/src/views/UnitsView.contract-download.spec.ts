@@ -783,6 +783,43 @@ describe("UnitsView contract download", () => {
     );
   });
 
+  it("submits an edited deposit separately from the termination penalty", async () => {
+    const contractWithZeroDeposit = {
+      ...oldContract,
+      depositAmount: 0,
+      earlyTerminationPenaltyAmount: 5000,
+    } as Contract;
+    const unitWithZeroDeposit = {
+      ...unit,
+      activeContract: {
+        ...activeContract,
+        depositAmount: 0,
+        earlyTerminationPenaltyAmount: 5000,
+      },
+      contracts: [contractWithZeroDeposit],
+    } satisfies UnitSummary;
+    vi.mocked(unitsApi.list).mockResolvedValue([unitWithZeroDeposit]);
+    vi.mocked(unitsApi.detail).mockResolvedValue(unitWithZeroDeposit);
+    const wrapper = mountUnitsView();
+    await flushPromises();
+
+    await findButton(wrapper, "管理").trigger("click");
+    await flushPromises();
+    await findButton(wrapper, "编辑").trigger("click");
+    await flushPromises();
+    await findInputByLabel(wrapper, "押金").setValue("5000");
+    await findButton(wrapper, "保存").trigger("click");
+    await flushPromises();
+
+    expect(contractsApi.update).toHaveBeenCalledWith(
+      "contract-old",
+      expect.objectContaining({
+        depositAmount: 5000,
+        earlyTerminationPenaltyAmount: 5000,
+      }),
+    );
+  });
+
   it("blocks saving when required party and safety agreement fields are empty", async () => {
     const wrapper = mountUnitsView();
     await flushPromises();

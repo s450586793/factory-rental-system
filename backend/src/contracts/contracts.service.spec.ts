@@ -205,17 +205,54 @@ describe("ContractsService", () => {
     });
   });
 
-  it("pre-generates and caches the PDF before a new contract save resolves", async () => {
-    const { service, filesService } = buildService();
+  it("returns a newly saved contract without waiting for PDF preparation", async () => {
+    let markPdfStarted: () => void = () => undefined;
+    const pdfStarted = new Promise<"pdf-started">((resolve) => {
+      markPdfStarted = () => resolve("pdf-started");
+    });
+    jest.mocked(buildContractDocumentPdf).mockImplementationOnce(() => {
+      markPdfStarted();
+      return new Promise<never>(() => undefined);
+    });
+    const { service } = buildService();
 
-    await service.create(buildDto() as never);
+    const outcome = await Promise.race([
+      service
+        .create(buildDto() as never)
+        .then((contract) => ({ type: "saved" as const, contract })),
+      pdfStarted.then(() => ({ type: "pdf-started" as const })),
+    ]);
 
-    expect(buildContractDocumentPdf).toHaveBeenCalledTimes(1);
-    expect(filesService.saveGeneratedContractDocument).toHaveBeenCalledWith(
-      "contract-new",
-      expect.stringMatching(/^[a-f0-9]{64}$/),
-      Buffer.from("generated-pdf"),
-    );
+    expect(outcome).toEqual({
+      type: "saved",
+      contract: expect.objectContaining({ id: "contract-new" }),
+    });
+  });
+
+  it("returns an updated contract without waiting for PDF preparation", async () => {
+    let markPdfStarted: () => void = () => undefined;
+    const pdfStarted = new Promise<"pdf-started">((resolve) => {
+      markPdfStarted = () => resolve("pdf-started");
+    });
+    jest.mocked(buildContractDocumentPdf).mockImplementationOnce(() => {
+      markPdfStarted();
+      return new Promise<never>(() => undefined);
+    });
+    const { service } = buildService({
+      existingContract: existingContract(),
+    });
+
+    const outcome = await Promise.race([
+      service
+        .update("contract-1", buildDto({ depositAmount: 5000 }) as never)
+        .then((contract) => ({ type: "saved" as const, contract })),
+      pdfStarted.then(() => ({ type: "pdf-started" as const })),
+    ]);
+
+    expect(outcome).toEqual({
+      type: "saved",
+      contract: expect.objectContaining({ id: "contract-1" }),
+    });
   });
 
   it("returns a cached contract PDF without rebuilding it", async () => {

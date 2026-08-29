@@ -117,7 +117,7 @@ export class ContractsService {
       await this.rentReceivablesService.syncContractSchedules(manager, saved);
       return repository.findOneOrFail({ where: { id: saved.id } });
     });
-    await this.prepareDocumentAfterSave(saved.id);
+    void this.prepareDocumentAfterSave(saved.id);
     return saved;
   }
 
@@ -168,7 +168,7 @@ export class ContractsService {
       }
       return repository.findOneOrFail({ where: { id: saved.id } });
     });
-    await this.prepareDocumentAfterSave(saved.id);
+    void this.prepareDocumentAfterSave(saved.id);
     return saved;
   }
 
