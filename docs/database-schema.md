@@ -21,13 +21,13 @@
   厂房主表，保存厂房编号、位置等基础信息。
 
 - `contracts`
-  合同历史表，保存租户快照、合同起止、年租金、营业执照关联。`billingFrequency` 记录应收计划频率（`annual` 或 `semiannual`）；`depositSettlementMode` 记录押金结算方式（`initial` 或 `carryover`）；`depositCarryoverAmount` 保存本合同从续租来源结转的押金金额；`depositCarryoverSourceContractId` 可为空，指向结转来源合同。
+  合同历史表，保存租户快照、合同起止、年租金、营业执照关联。`electricUnitPrice`、`electricLineLossPercent`、`waterUnitPrice` 保存该合同约定的电费单价、电费线损和水费单价；`billingFrequency` 记录应收计划频率（`annual` 或 `semiannual`）；`depositSettlementMode` 记录押金结算方式（`initial` 或 `carryover`）；`depositCarryoverAmount` 保存本合同从续租来源结转的押金金额；`depositCarryoverSourceContractId` 可为空，指向结转来源合同。
 
 - `contract_attachment_files`
   合同与附件的多对多关联表。
 
 - `utility_meter_configs`
-  水表/电表配置表，保存表名、初始读数、倍率、单价、线损、启用状态。
+  水表/电表配置表，保存表名、初始读数、倍率、默认单价、默认线损和启用状态。新合同在没有历史合同时可读取这里的价格作为表单初始值，实际收费以所选合同的计费条款为准。
 
 - `utility_charge_records`
   水电收费主表，保存租户快照、抄表日期、总用量、调整后用量、金额、缴费状态。

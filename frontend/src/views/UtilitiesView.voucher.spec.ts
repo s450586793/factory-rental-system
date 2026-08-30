@@ -47,6 +47,9 @@ const contract = {
   endDate: "2026-12-31",
   annualRent: 12000,
   depositAmount: 1000,
+  electricUnitPrice: 0.95,
+  electricLineLossPercent: 5,
+  waterUnitPrice: 1,
   earlyTerminationPenaltyAmount: 1000,
   billingFrequency: "annual",
   depositSettlementMode: "initial",
@@ -182,8 +185,32 @@ function mountView() {
         "el-row": passthroughStub(),
         "el-col": passthroughStub(),
         "el-space": passthroughStub(),
-        "el-select": passthroughStub("select"),
-        "el-option": defineComponent({ setup: () => () => null }),
+        "el-select": defineComponent({
+          props: ["modelValue"],
+          emits: ["update:modelValue", "change"],
+          setup(props, { attrs, emit, slots }) {
+            return () =>
+              h(
+                "select",
+                {
+                  ...attrs,
+                  value: props.modelValue,
+                  onChange: (event: Event) => {
+                    const value = (event.target as HTMLSelectElement).value;
+                    emit("update:modelValue", value);
+                    emit("change", value);
+                  },
+                },
+                slots.default?.(),
+              );
+          },
+        }),
+        "el-option": defineComponent({
+          props: ["label", "value"],
+          setup(props) {
+            return () => h("option", { value: props.value }, String(props.label ?? ""));
+          },
+        }),
         "el-input": inputStub,
         "el-input-number": inputStub,
         "el-date-picker": inputStub,
@@ -308,5 +335,43 @@ describe("UtilitiesView 收款凭证", () => {
     await findButton(wrapper, "1 张").trigger("click");
 
     expect(wrapper.find(".voucher-preview-stub").text()).toContain("1 张凭证");
+  });
+
+  it("按当前选择的合同重新加载水电价格", async () => {
+    const nextContract = {
+      ...contract,
+      id: "contract-2",
+      tenantName: "下一任租户",
+      electricUnitPrice: 0.88,
+      electricLineLossPercent: 3,
+      waterUnitPrice: 1.2,
+    } satisfies Contract;
+    const unitWithTwoContracts = {
+      ...unit,
+      contracts: [contract, nextContract],
+    } satisfies UnitSummary;
+    vi.mocked(unitsApi.list).mockResolvedValue([unitWithTwoContracts]);
+    const wrapper = mountView();
+    await flushPromises();
+
+    await findButton(wrapper, "新增水电收费").trigger("click");
+    await flushPromises();
+
+    expect(utilitiesApi.prefill).toHaveBeenLastCalledWith(
+      "unit-1",
+      "electric",
+      "contract-1",
+    );
+
+    const contractSelect = wrapper.find('select[aria-label="水电收费合同"]');
+    expect(contractSelect.exists()).toBe(true);
+    await contractSelect.setValue("contract-2");
+    await flushPromises();
+
+    expect(utilitiesApi.prefill).toHaveBeenLastCalledWith(
+      "unit-1",
+      "electric",
+      "contract-2",
+    );
   });
 });

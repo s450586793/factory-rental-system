@@ -1,5 +1,9 @@
 import { validate } from "class-validator";
-import { MarkUtilityRecordPaidDto } from "./utilities.dto";
+import {
+  MarkUtilityRecordPaidDto,
+  UtilityPrefillQueryDto,
+} from "./utilities.dto";
+import { UtilityType } from "./utility-meter-config.entity";
 
 function buildDto(overrides: Partial<MarkUtilityRecordPaidDto> = {}) {
   return Object.assign(new MarkUtilityRecordPaidDto(), overrides);
@@ -46,5 +50,23 @@ describe("MarkUtilityRecordPaidDto", () => {
     );
 
     expect(errors).toEqual([]);
+  });
+});
+
+describe("UtilityPrefillQueryDto", () => {
+  it("requires the selected contract id", async () => {
+    const dto = Object.assign(new UtilityPrefillQueryDto(), {
+      unitId: "unit-1",
+      type: UtilityType.ELECTRIC,
+      contractId: "",
+    });
+
+    const errors = await validate(dto);
+
+    expect(errors).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ property: "contractId" }),
+      ]),
+    );
   });
 });

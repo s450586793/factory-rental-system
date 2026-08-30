@@ -87,6 +87,18 @@ export class CreateContractDto {
 
   @IsNumber()
   @Min(0)
+  electricUnitPrice!: number;
+
+  @IsNumber()
+  @Min(0)
+  electricLineLossPercent!: number;
+
+  @IsNumber()
+  @Min(0)
+  waterUnitPrice!: number;
+
+  @IsNumber()
+  @Min(0)
   earlyTerminationPenaltyAmount!: number;
 
   @IsEnum(BillingFrequency)

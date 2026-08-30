@@ -328,6 +328,42 @@
               </el-col>
             </el-row>
 
+            <el-row :gutter="14">
+              <el-col :span="8">
+                <el-form-item label="电费单价（元/度）">
+                  <el-input-number
+                    v-model="unitContractForm.electricUnitPrice"
+                    aria-label="初始合同电费单价（元/度）"
+                    :min="0"
+                    :precision="4"
+                    style="width: 100%"
+                  />
+                </el-form-item>
+              </el-col>
+              <el-col :span="8">
+                <el-form-item label="电费线损（%）">
+                  <el-input-number
+                    v-model="unitContractForm.electricLineLossPercent"
+                    aria-label="初始合同电费线损（%）"
+                    :min="0"
+                    :precision="2"
+                    style="width: 100%"
+                  />
+                </el-form-item>
+              </el-col>
+              <el-col :span="8">
+                <el-form-item label="水费单价（元/吨）">
+                  <el-input-number
+                    v-model="unitContractForm.waterUnitPrice"
+                    aria-label="初始合同水费单价（元/吨）"
+                    :min="0"
+                    :precision="4"
+                    style="width: 100%"
+                  />
+                </el-form-item>
+              </el-col>
+            </el-row>
+
             <el-form-item label="营业执照">
               <div class="detail-grid">
                 <div v-if="unitBusinessLicenseUpload" class="file-chip-list">
@@ -749,6 +785,42 @@
           </el-col>
         </el-row>
 
+        <el-row :gutter="14">
+          <el-col :span="8">
+            <el-form-item label="电费单价（元/度）">
+              <el-input-number
+                v-model="contractForm.electricUnitPrice"
+                aria-label="电费单价（元/度）"
+                :min="0"
+                :precision="4"
+                style="width: 100%"
+              />
+            </el-form-item>
+          </el-col>
+          <el-col :span="8">
+            <el-form-item label="电费线损（%）">
+              <el-input-number
+                v-model="contractForm.electricLineLossPercent"
+                aria-label="电费线损（%）"
+                :min="0"
+                :precision="2"
+                style="width: 100%"
+              />
+            </el-form-item>
+          </el-col>
+          <el-col :span="8">
+            <el-form-item label="水费单价（元/吨）">
+              <el-input-number
+                v-model="contractForm.waterUnitPrice"
+                aria-label="水费单价（元/吨）"
+                :min="0"
+                :precision="4"
+                style="width: 100%"
+              />
+            </el-form-item>
+          </el-col>
+        </el-row>
+
         <el-form-item label="营业执照">
           <div class="detail-grid">
             <div v-if="existingBusinessLicense" class="file-chip-list">
@@ -964,6 +1036,9 @@ const unitContractForm = reactive({
   endDate: "",
   annualRent: 0,
   depositAmount: 0,
+  electricUnitPrice: 0,
+  electricLineLossPercent: 0,
+  waterUnitPrice: 0,
   earlyTerminationPenaltyAmount: 0,
   billingFrequency: "annual" as const,
 });
@@ -992,6 +1067,9 @@ const contractForm = reactive({
   endDate: "",
   annualRent: 0,
   depositAmount: 0,
+  electricUnitPrice: 0,
+  electricLineLossPercent: 0,
+  waterUnitPrice: 0,
   earlyTerminationPenaltyAmount: 0,
   billingFrequency: "annual" as Contract["billingFrequency"],
   businessLicenseFileId: "",
@@ -1132,6 +1210,9 @@ function resetUnitContractForm() {
   unitContractForm.endDate = "";
   unitContractForm.annualRent = 0;
   unitContractForm.depositAmount = 0;
+  unitContractForm.electricUnitPrice = 0;
+  unitContractForm.electricLineLossPercent = 0;
+  unitContractForm.waterUnitPrice = 0;
   unitContractForm.earlyTerminationPenaltyAmount = 0;
   unitPenaltyUsesDefault.value = true;
   unitBusinessLicenseUpload.value = null;
@@ -1196,6 +1277,9 @@ async function saveUnit() {
             endDate: unitContractForm.endDate,
             annualRent: Number(unitContractForm.annualRent),
             depositAmount: Number(unitContractForm.depositAmount),
+            electricUnitPrice: Number(unitContractForm.electricUnitPrice),
+            electricLineLossPercent: Number(unitContractForm.electricLineLossPercent),
+            waterUnitPrice: Number(unitContractForm.waterUnitPrice),
             earlyTerminationPenaltyAmount: Number(unitContractForm.earlyTerminationPenaltyAmount),
             billingFrequency: unitContractForm.billingFrequency,
             businessLicenseFileId,
@@ -1326,6 +1410,9 @@ function hasInitialContractInput() {
       unitContractForm.endDate ||
       Number(unitContractForm.annualRent) > 0 ||
       Number(unitContractForm.depositAmount) > 0 ||
+      Number(unitContractForm.electricUnitPrice) > 0 ||
+      Number(unitContractForm.electricLineLossPercent) > 0 ||
+      Number(unitContractForm.waterUnitPrice) > 0 ||
       unitBusinessLicenseUpload.value ||
       unitAttachmentUploads.value.length,
   );
@@ -1358,6 +1445,15 @@ function validateInitialContractForm() {
   }
   if (Number(unitContractForm.depositAmount) < 0) {
     throw new Error("新增初始合同时，押金不能小于 0");
+  }
+  if (Number(unitContractForm.electricUnitPrice) < 0) {
+    throw new Error("新增初始合同时，电费单价不能小于 0");
+  }
+  if (Number(unitContractForm.electricLineLossPercent) < 0) {
+    throw new Error("新增初始合同时，电费线损不能小于 0");
+  }
+  if (Number(unitContractForm.waterUnitPrice) < 0) {
+    throw new Error("新增初始合同时，水费单价不能小于 0");
   }
   if (Number(unitContractForm.earlyTerminationPenaltyAmount) < 0) {
     throw new Error("新增初始合同时，提前退租违约金不能小于 0");
@@ -1433,6 +1529,9 @@ function resetContractForm() {
   contractForm.endDate = "";
   contractForm.annualRent = 0;
   contractForm.depositAmount = 0;
+  contractForm.electricUnitPrice = 0;
+  contractForm.electricLineLossPercent = 0;
+  contractForm.waterUnitPrice = 0;
   contractForm.earlyTerminationPenaltyAmount = 0;
   contractPenaltyUsesDefault.value = true;
   contractForm.billingFrequency = "annual";
@@ -1463,8 +1562,21 @@ function openCreateContract() {
     contractForm.signedDate = contractForm.startDate;
     contractForm.annualRent = latestContract.annualRent;
     contractForm.depositAmount = latestContract.depositAmount;
+    contractForm.electricUnitPrice = latestContract.electricUnitPrice;
+    contractForm.electricLineLossPercent = latestContract.electricLineLossPercent;
+    contractForm.waterUnitPrice = latestContract.waterUnitPrice;
     contractForm.billingFrequency = latestContract.billingFrequency;
     contractForm.earlyTerminationPenaltyAmount = defaultEarlyTerminationPenalty(contractForm.annualRent);
+  } else {
+    const electricMeter = selectedUnit.value?.meterConfigs.find(
+      (meter) => meter.enabled && meter.type === "electric",
+    );
+    const waterMeter = selectedUnit.value?.meterConfigs.find(
+      (meter) => meter.enabled && meter.type === "water",
+    );
+    contractForm.electricUnitPrice = Number(electricMeter?.unitPrice ?? 0);
+    contractForm.electricLineLossPercent = Number(electricMeter?.lineLossPercent ?? 0);
+    contractForm.waterUnitPrice = Number(waterMeter?.unitPrice ?? 0);
   }
   contractDialogVisible.value = true;
 }
@@ -1477,19 +1589,24 @@ function openEditContract(contract: Contract) {
   contractForm.lessorLicenseCode = contract.lessorLicenseCode;
   contractForm.lessorContactName = contract.lessorContactName;
   contractForm.lessorPhone = contract.lessorPhone;
-  contractForm.lessorSafetyManager = contract.lessorSafetyManager;
+  contractForm.lessorSafetyManager = contract.lessorSafetyManager?.trim() || contract.lessorContactName?.trim() || "";
   contractForm.tenantName = contract.tenantName;
   contractForm.contactName = contract.contactName;
   contractForm.tenantPhone = contract.tenantPhone;
   contractForm.licenseCode = contract.licenseCode;
-  contractForm.tenantSafetyManager = contract.tenantSafetyManager;
-  contractForm.signedDate = contract.signedDate;
+  contractForm.tenantSafetyManager = contract.tenantSafetyManager?.trim() || contract.contactName?.trim() || "";
+  contractForm.signedDate = contract.signedDate || contract.startDate || "";
   contractForm.startDate = contract.startDate;
   contractForm.endDate = contract.endDate;
   contractForm.annualRent = contract.annualRent;
   contractForm.depositAmount = contract.depositAmount;
-  contractForm.earlyTerminationPenaltyAmount = contract.earlyTerminationPenaltyAmount;
-  contractForm.billingFrequency = contract.billingFrequency;
+  contractForm.electricUnitPrice = Number(contract.electricUnitPrice ?? 0);
+  contractForm.electricLineLossPercent = Number(contract.electricLineLossPercent ?? 0);
+  contractForm.waterUnitPrice = Number(contract.waterUnitPrice ?? 0);
+  contractForm.earlyTerminationPenaltyAmount = Number.isFinite(Number(contract.earlyTerminationPenaltyAmount))
+    ? Number(contract.earlyTerminationPenaltyAmount)
+    : defaultEarlyTerminationPenalty(contract.annualRent);
+  contractForm.billingFrequency = contract.billingFrequency ?? "annual";
   contractForm.businessLicenseFileId = contract.businessLicenseFile?.id ?? "";
   contractForm.attachmentFileIds = contract.attachmentFiles.map((item) => item.id);
   existingBusinessLicense.value = contract.businessLicenseFile;
@@ -1552,6 +1669,15 @@ function validateContractForm() {
   if (Number(contractForm.depositAmount) < 0) {
     throw new Error("押金不能小于 0");
   }
+  if (Number(contractForm.electricUnitPrice) < 0) {
+    throw new Error("电费单价不能小于 0");
+  }
+  if (Number(contractForm.electricLineLossPercent) < 0) {
+    throw new Error("电费线损不能小于 0");
+  }
+  if (Number(contractForm.waterUnitPrice) < 0) {
+    throw new Error("水费单价不能小于 0");
+  }
   if (Number(contractForm.earlyTerminationPenaltyAmount) < 0) {
     throw new Error("提前退租违约金不能小于 0");
   }
@@ -1607,6 +1733,9 @@ async function saveContract(generateDocumentAfterSave = false) {
       endDate: contractForm.endDate,
       annualRent: Number(contractForm.annualRent),
       depositAmount: Number(contractForm.depositAmount),
+      electricUnitPrice: Number(contractForm.electricUnitPrice),
+      electricLineLossPercent: Number(contractForm.electricLineLossPercent),
+      waterUnitPrice: Number(contractForm.waterUnitPrice),
       earlyTerminationPenaltyAmount: Number(contractForm.earlyTerminationPenaltyAmount),
       billingFrequency: contractForm.billingFrequency,
       businessLicenseFileId,

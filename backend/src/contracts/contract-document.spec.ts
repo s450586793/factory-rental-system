@@ -46,6 +46,9 @@ function buildContractFixture(): Contract {
     endDate: "2026-06-30",
     annualRent: 50000,
     depositAmount: 5000,
+    electricUnitPrice: 0.95,
+    electricLineLossPercent: 5,
+    waterUnitPrice: 1,
     earlyTerminationPenaltyAmount: 4166.67,
     billingFrequency: BillingFrequency.ANNUAL,
     depositSettlementMode: DepositSettlementMode.INITIAL,
@@ -383,6 +386,34 @@ describe("buildContractDocumentOverlays", () => {
 
     expect(bodyText).toContain("履约保证金人民币5000.00元");
     expect(bodyText).not.toContain("8333.33元");
+  });
+
+  it("uses contract utility terms instead of current meter pricing", () => {
+    const contract = buildContractFixture();
+    contract.electricUnitPrice = 0.88;
+    contract.electricLineLossPercent = 3;
+    contract.waterUnitPrice = 1.2;
+    const unit = buildUnitFixture();
+
+    const pages = buildStandardLeaseContractPages({
+      contract,
+      unit,
+      generatedDate: "2026-07-01",
+    });
+    const bodyText = pages.flatMap((page) => page.sections).join("\n");
+    const utilityOverlay = buildContractDocumentOverlays({
+      contract,
+      unit,
+      generatedDate: "2026-07-01",
+    }).find((item) => item.id === "page1-utility");
+
+    expect(bodyText).toContain(
+      "电费0.88元/度，线损耗按3.00%计算，水费1.20元/吨",
+    );
+    expect(utilityOverlay?.text).toContain(
+      "电费0.88元/度，线损耗按3.00%计算，水费1.20元/吨",
+    );
+    expect(bodyText).not.toContain("电费0.95元/度");
   });
 
   it("renders explicit placeholders instead of fake zero values in a generic template", () => {

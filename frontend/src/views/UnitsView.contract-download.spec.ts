@@ -90,6 +90,9 @@ const activeContract = {
   endDate: "2027-06-30",
   annualRent: 50000,
   depositAmount: 5000,
+  electricUnitPrice: 0.95,
+  electricLineLossPercent: 5,
+  waterUnitPrice: 1,
   earlyTerminationPenaltyAmount: 4166.67,
   billingFrequency: "annual",
   depositSettlementMode: "initial",
@@ -121,6 +124,9 @@ const oldContract = {
   endDate: "2027-06-30",
   annualRent: 50000,
   depositAmount: 5000,
+  electricUnitPrice: 0.95,
+  electricLineLossPercent: 5,
+  waterUnitPrice: 1,
   earlyTerminationPenaltyAmount: 4166.67,
   billingFrequency: "annual",
   depositSettlementMode: "initial",
@@ -167,6 +173,9 @@ const savedContract = {
   endDate: "2028-06-30",
   annualRent: 50000,
   depositAmount: 5000,
+  electricUnitPrice: 0.95,
+  electricLineLossPercent: 5,
+  waterUnitPrice: 1,
   earlyTerminationPenaltyAmount: 4166.67,
   billingFrequency: "annual",
   depositSettlementMode: "initial",
@@ -633,6 +642,9 @@ describe("UnitsView contract download", () => {
     expect((findInputByLabel(wrapper, "乙方安全管理负责人").element as HTMLInputElement).value).toBe("曹忠");
     expect((findInputByLabel(wrapper, "合同签订日期").element as HTMLInputElement).value).toBe("2027-07-01");
     expect((findInputByLabel(wrapper, "提前退租违约金").element as HTMLInputElement).value).toBe("4166.67");
+    expect((findInputByLabel(wrapper, "电费单价（元/度）").element as HTMLInputElement).value).toBe("0.95");
+    expect((findInputByLabel(wrapper, "电费线损（%）").element as HTMLInputElement).value).toBe("5");
+    expect((findInputByLabel(wrapper, "水费单价（元/吨）").element as HTMLInputElement).value).toBe("1");
 
     await depositInput.setValue("0");
     await findButton(wrapper, "保存").trigger("click");
@@ -650,6 +662,9 @@ describe("UnitsView contract download", () => {
         signedDate: "2027-07-01",
         annualRent: 50000,
         depositAmount: 0,
+        electricUnitPrice: 0.95,
+        electricLineLossPercent: 5,
+        waterUnitPrice: 1,
         earlyTerminationPenaltyAmount: 4166.67,
       }),
     );
@@ -671,6 +686,46 @@ describe("UnitsView contract download", () => {
     expect((findInputByLabel(wrapper, "甲方联系人").element as HTMLInputElement).value).toBe("吴孝斌");
     expect((findInputByLabel(wrapper, "甲方电话").element as HTMLInputElement).value).toBe("18651510352");
     expect((findInputByLabel(wrapper, "甲方安全管理负责人").element as HTMLInputElement).value).toBe("吴孝斌");
+  });
+
+  it("defaults utility terms from enabled meters when no previous contract exists", async () => {
+    const meteredVacantUnit = {
+      ...vacantUnit,
+      meterConfigs: [
+        {
+          id: "electric-meter",
+          unitId: vacantUnit.id,
+          type: "electric" as const,
+          name: "总电表",
+          initialReading: 0,
+          multiplier: 1,
+          unitPrice: 0.88,
+          lineLossPercent: 3,
+          enabled: true,
+        },
+        {
+          id: "water-meter",
+          unitId: vacantUnit.id,
+          type: "water" as const,
+          name: "总水表",
+          initialReading: 0,
+          multiplier: 1,
+          unitPrice: 1.2,
+          lineLossPercent: 0,
+          enabled: true,
+        },
+      ],
+    } satisfies UnitSummary;
+    vi.mocked(unitsApi.list).mockResolvedValue([meteredVacantUnit]);
+    vi.mocked(unitsApi.detail).mockResolvedValue(meteredVacantUnit);
+    const wrapper = mountUnitsView();
+    await flushPromises();
+
+    await openCreateContractDialog(wrapper);
+
+    expect((findInputByLabel(wrapper, "电费单价（元/度）").element as HTMLInputElement).value).toBe("0.88");
+    expect((findInputByLabel(wrapper, "电费线损（%）").element as HTMLInputElement).value).toBe("3");
+    expect((findInputByLabel(wrapper, "水费单价（元/吨）").element as HTMLInputElement).value).toBe("1.2");
   });
 
   it("defaults safety managers to the contacts when creating a contract", async () => {
@@ -780,6 +835,44 @@ describe("UnitsView contract download", () => {
     );
     expect((findInputByLabel(wrapper, "乙方安全管理负责人").element as HTMLInputElement).value).toBe(
       "乙方专职安全员",
+    );
+  });
+
+  it("falls back safely when a legacy contract summary omits document fields", async () => {
+    const legacyContract = {
+      ...oldContract,
+      lessorSafetyManager: undefined,
+      tenantSafetyManager: undefined,
+      signedDate: undefined,
+      earlyTerminationPenaltyAmount: undefined,
+    } as unknown as Contract;
+    const legacyUnit = {
+      ...unit,
+      contracts: [legacyContract],
+    } satisfies UnitSummary;
+    vi.mocked(unitsApi.list).mockResolvedValue([legacyUnit]);
+    vi.mocked(unitsApi.detail).mockResolvedValue(legacyUnit);
+    const wrapper = mountUnitsView();
+    await flushPromises();
+
+    await findButton(wrapper, "管理").trigger("click");
+    await flushPromises();
+    await findButton(wrapper, "编辑").trigger("click");
+    await flushPromises();
+    await findButton(wrapper, "保存").trigger("click");
+    await flushPromises();
+
+    expect(contractsApi.update).toHaveBeenCalledWith(
+      "contract-old",
+      expect.objectContaining({
+        lessorSafetyManager: "吴孝斌",
+        tenantSafetyManager: "曹忠",
+        signedDate: "2026-07-01",
+        earlyTerminationPenaltyAmount: 4166.67,
+      }),
+    );
+    expect(ElMessage.error).not.toHaveBeenCalledWith(
+      expect.stringContaining("trim"),
     );
   });
 

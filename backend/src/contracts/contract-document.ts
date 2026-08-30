@@ -139,32 +139,9 @@ function buildDepositClause(contract: Contract) {
   return `乙方应向甲方支付履约保证金人民币${formatMoney(contract.depositAmount)}元。`;
 }
 
-function buildUtilityClause(meters: UtilityMeterConfig[]) {
-  const enabled = meters.filter((item) => item.enabled);
-  const electricMeters = enabled.filter((item) => item.type === "electric");
-  const waterMeters = enabled.filter((item) => item.type === "water");
-
-  const electricPrice = electricMeters[0]?.unitPrice;
-  const electricLoss = electricMeters[0]?.lineLossPercent;
-  const waterPrice = waterMeters[0]?.unitPrice;
-
-  const electricText =
-    electricMeters.length === 0
-      ? "电费按甲方现场表计配置执行"
-      : electricMeters.every(
-            (item) =>
-              item.unitPrice === electricPrice &&
-              item.lineLossPercent === electricLoss,
-          )
-        ? `电费${formatMoney(electricPrice || 0)}元/度，线损耗按${formatMoney(electricLoss || 0)}%计算`
-        : "电费按各启用电表配置执行";
-
-  const waterText =
-    waterMeters.length === 0
-      ? "水费按甲方现场表计配置执行"
-      : waterMeters.every((item) => item.unitPrice === waterPrice)
-        ? `水费${formatMoney(waterPrice || 0)}元/吨`
-        : "水费按各启用水表配置执行";
+function buildUtilityClause(contract: Contract) {
+  const electricText = `电费${formatMoney(contract.electricUnitPrice)}元/度，线损耗按${formatMoney(contract.electricLineLossPercent)}%计算`;
+  const waterText = `水费${formatMoney(contract.waterUnitPrice)}元/吨`;
 
   return `1、租赁期间，使用该厂房所发生的水、电等费用由乙方承担，${electricText}，${waterText}；`;
 }
@@ -252,7 +229,7 @@ export function buildStandardLeaseContractPages({
     ? toChineseCurrencyUppercase(contract.annualRent)
     : "【填写】";
   const annualRentText = formatMoney(contract.annualRent);
-  const utilityText = stripClauseNumber(buildUtilityClause(unit.meterConfigs));
+  const utilityText = stripClauseNumber(buildUtilityClause(contract));
   const unitAddress = buildUnitFullAddress(unit);
   const lessorName = normalizeOptionalText(contract.lessorName);
   const lessorContact = normalizeOptionalText(
@@ -523,7 +500,7 @@ export function buildContractDocumentOverlays({
     ? toChineseCurrencyUppercase(contract.annualRent)
     : "【填写】";
   const annualRentText = formatMoney(contract.annualRent);
-  const utilityClause = buildUtilityClause(unit.meterConfigs);
+  const utilityClause = buildUtilityClause(contract);
   const lessorName = normalizeOptionalText(contract.lessorName);
   const tenantName = normalizeOptionalText(contract.tenantName);
   const lessorContact =

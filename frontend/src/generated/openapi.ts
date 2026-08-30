@@ -37,6 +37,9 @@ export type Contract = {
   endDate: string;
   annualRent: number;
   depositAmount: number;
+  electricUnitPrice: number;
+  electricLineLossPercent: number;
+  waterUnitPrice: number;
   earlyTerminationPenaltyAmount: number;
   billingFrequency: "annual" | "semiannual";
   depositSettlementMode: "initial" | "carryover";
@@ -88,6 +91,9 @@ export type UnitSummary = {
     endDate: string;
     annualRent: number;
     depositAmount: number;
+    electricUnitPrice: number;
+    electricLineLossPercent: number;
+    waterUnitPrice: number;
     earlyTerminationPenaltyAmount: number;
     billingFrequency: "annual" | "semiannual";
     depositSettlementMode: "initial" | "carryover";

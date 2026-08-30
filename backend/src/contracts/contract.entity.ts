@@ -92,6 +92,30 @@ export class Contract extends BaseEntityWithTimestamps {
   @Column({
     type: "numeric",
     precision: 12,
+    scale: 4,
+    transformer: numericTransformer,
+  })
+  electricUnitPrice!: number;
+
+  @Column({
+    type: "numeric",
+    precision: 8,
+    scale: 2,
+    transformer: numericTransformer,
+  })
+  electricLineLossPercent!: number;
+
+  @Column({
+    type: "numeric",
+    precision: 12,
+    scale: 4,
+    transformer: numericTransformer,
+  })
+  waterUnitPrice!: number;
+
+  @Column({
+    type: "numeric",
+    precision: 12,
     scale: 2,
     transformer: numericTransformer,
   })

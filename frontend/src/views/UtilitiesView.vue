@@ -124,7 +124,13 @@
           </el-col>
           <el-col :span="8">
             <el-form-item label="合同">
-              <el-select v-model="form.contractId" style="width: 100%" :disabled="isViewMode">
+              <el-select
+                v-model="form.contractId"
+                aria-label="水电收费合同"
+                style="width: 100%"
+                :disabled="isViewMode"
+                @change="handleContractChange"
+              >
                 <el-option
                   v-for="contract in selectedContracts"
                   :key="contract.id"
@@ -420,14 +426,18 @@ async function handleTypeChange() {
   await loadPrefill();
 }
 
+async function handleContractChange() {
+  await loadPrefill();
+}
+
 async function loadPrefill() {
-  if (!form.unitId) {
+  if (!form.unitId || !form.contractId) {
     form.items = [];
     return;
   }
 
   try {
-    const payload = await utilitiesApi.prefill(form.unitId, form.type);
+    const payload = await utilitiesApi.prefill(form.unitId, form.type, form.contractId);
     form.items = payload.meters.map((item) => ({
       meterConfigId: item.meterConfigId,
       name: item.name,

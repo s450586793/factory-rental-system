@@ -116,6 +116,10 @@ export class UtilityPrefillQueryDto {
   @IsString()
   unitId!: string;
 
+  @IsString()
+  @IsNotEmpty()
+  contractId!: string;
+
   @IsEnum(UtilityType)
   type!: UtilityType;
 }

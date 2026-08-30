@@ -11,6 +11,9 @@ function buildDto(overrides: Record<string, unknown> = {}) {
     endDate: "2027-08-31",
     annualRent: 50000,
     depositAmount: 5000,
+    electricUnitPrice: 0.95,
+    electricLineLossPercent: 5,
+    waterUnitPrice: 1,
     signedDate: "2026-08-28",
     lessorSafetyManager: "吴孝斌",
     tenantSafetyManager: "张三",
@@ -72,6 +75,9 @@ describe("CreateContractDto", () => {
   it.each([
     ["annualRent", 0],
     ["earlyTerminationPenaltyAmount", -0.01],
+    ["electricUnitPrice", -0.0001],
+    ["electricLineLossPercent", -0.01],
+    ["waterUnitPrice", -0.0001],
     ["billingFrequency", "monthly"],
   ])("rejects an invalid %s", async (property, value) => {
     const errors = await validate(buildDto({ [property]: value }));

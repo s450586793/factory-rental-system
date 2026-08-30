@@ -51,7 +51,11 @@ export class UtilitiesController {
 
   @Get("prefill")
   getPrefill(@Query() query: UtilityPrefillQueryDto) {
-    return this.utilitiesService.getPrefill(query.unitId, query.type);
+    return this.utilitiesService.getPrefill(
+      query.unitId,
+      query.type,
+      query.contractId,
+    );
   }
 
   @Get("records")

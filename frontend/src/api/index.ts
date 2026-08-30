@@ -135,9 +135,9 @@ export const utilitiesApi = {
     apiFetch<{ success: boolean }>(`/utilities/meter-configs/${id}`, {
       method: "DELETE",
     }),
-  prefill: (unitId: string, type: "electric" | "water") =>
+  prefill: (unitId: string, type: "electric" | "water", contractId: string) =>
     apiFetch<{ unitId: string; type: string; meters: UtilityPrefillMeter[] }>(
-      `/utilities/prefill?unitId=${unitId}&type=${type}`,
+      `/utilities/prefill${buildSearch({ unitId, type, contractId })}`,
     ),
   listRecords: () => apiFetch<UtilityChargeRecord[]>("/utilities/records"),
   createRecord: (payload: Record<string, unknown>) =>

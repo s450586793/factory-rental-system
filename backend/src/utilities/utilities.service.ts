@@ -82,8 +82,21 @@ export class UtilitiesService {
     return { success: true };
   }
 
-  async getPrefill(unitId: string, type: UtilityType) {
+  async getPrefill(
+    unitId: string,
+    type: UtilityType,
+    contractId: string,
+  ) {
     await this.ensureUnit(unitId);
+    const contract = await this.ensureContract(contractId, unitId);
+    const unitPrice =
+      type === UtilityType.ELECTRIC
+        ? contract.electricUnitPrice
+        : contract.waterUnitPrice;
+    const lineLossPercent =
+      type === UtilityType.ELECTRIC
+        ? contract.electricLineLossPercent
+        : 0;
     const meterConfigs = await this.meterConfigsRepository.find({
       where: { unitId, type, enabled: true },
       order: { name: "ASC" },
@@ -108,8 +121,8 @@ export class UtilitiesService {
         meterConfigId: config.id,
         name: config.name,
         multiplier: config.multiplier,
-        unitPrice: config.unitPrice,
-        lineLossPercent: config.lineLossPercent,
+        unitPrice,
+        lineLossPercent,
         previousReading: latestItem?.item.currentReading ?? config.initialReading,
         previousReadAt: latestItem?.record.currentReadAt ?? "",
       };
@@ -179,6 +192,14 @@ export class UtilitiesService {
 
     await this.ensureUnit(dto.unitId);
     const contract = await this.ensureContract(dto.contractId, dto.unitId);
+    const unitPrice =
+      dto.type === UtilityType.ELECTRIC
+        ? contract.electricUnitPrice
+        : contract.waterUnitPrice;
+    const lineLossPercent =
+      dto.type === UtilityType.ELECTRIC
+        ? contract.electricLineLossPercent
+        : 0;
     const meterConfigs = await this.meterConfigsRepository.findBy({
       id: In(dto.items.map((item) => item.meterConfigId)),
     });
@@ -203,8 +224,8 @@ export class UtilitiesService {
         previousReading: input.previousReading,
         currentReading: input.currentReading,
         multiplier: config.multiplier,
-        unitPrice: config.unitPrice,
-        lineLossPercent: config.lineLossPercent,
+        unitPrice,
+        lineLossPercent,
       });
 
       return {
@@ -212,8 +233,8 @@ export class UtilitiesService {
         meterConfig: config,
         meterNameSnapshot: config.name,
         multiplierSnapshot: config.multiplier,
-        unitPriceSnapshot: config.unitPrice,
-        lineLossPercentSnapshot: config.lineLossPercent,
+        unitPriceSnapshot: unitPrice,
+        lineLossPercentSnapshot: lineLossPercent,
         previousReading: input.previousReading,
         currentReading: input.currentReading,
         usage: calculation.usage,

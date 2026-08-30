@@ -100,6 +100,9 @@ export class ContractsService {
       endDate: dto.endDate,
       annualRent: dto.annualRent,
       depositAmount: dto.depositAmount,
+      electricUnitPrice: dto.electricUnitPrice,
+      electricLineLossPercent: dto.electricLineLossPercent,
+      waterUnitPrice: dto.waterUnitPrice,
       earlyTerminationPenaltyAmount: dto.earlyTerminationPenaltyAmount,
       billingFrequency: dto.billingFrequency ?? BillingFrequency.ANNUAL,
       depositSettlementMode: DepositSettlementMode.INITIAL,
@@ -153,6 +156,9 @@ export class ContractsService {
     contract.endDate = dto.endDate;
     contract.annualRent = dto.annualRent;
     contract.depositAmount = dto.depositAmount;
+    contract.electricUnitPrice = dto.electricUnitPrice;
+    contract.electricLineLossPercent = dto.electricLineLossPercent;
+    contract.waterUnitPrice = dto.waterUnitPrice;
     contract.earlyTerminationPenaltyAmount = dto.earlyTerminationPenaltyAmount;
     contract.billingFrequency = nextBillingFrequency;
     contract.status = resolveContractStatus(dto.startDate, dto.endDate);
@@ -291,6 +297,9 @@ export class ContractsService {
         endDate: contract.endDate,
         annualRent: contract.annualRent,
         depositAmount: contract.depositAmount,
+        electricUnitPrice: contract.electricUnitPrice,
+        electricLineLossPercent: contract.electricLineLossPercent,
+        waterUnitPrice: contract.waterUnitPrice,
         earlyTerminationPenaltyAmount: contract.earlyTerminationPenaltyAmount,
         billingFrequency: contract.billingFrequency,
       },
