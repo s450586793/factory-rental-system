@@ -1,4 +1,7 @@
 import type {
+  UnitPage,
+  ContractDocumentStatus,
+  ContractFinancialHistory,
   Contract,
   DepositAccountSummary,
   DepositRecord,
@@ -44,6 +47,18 @@ export type DeploymentUpdateStatus = {
   onlineVersion: string | null;
   onlineVersionCheckedAt: string | null;
   onlineVersionError: string | null;
+  onlineRevision?: string | null;
+  phase?: "starting" | "updating" | "pulling" | "backing-up" | "starting-services" | "checking-health" | null;
+  result?: {
+    status: "succeeded" | "failed";
+    exitCode: number | null;
+    message: string;
+    logs: string;
+    revision: string | null;
+    version: string | null;
+    startedAt: string | null;
+    finishedAt: string | null;
+  } | null;
 };
 
 export type DeploymentUpdateStartResult = {
@@ -66,14 +81,16 @@ export const authApi = {
 };
 
 export const deploymentUpdateApi = {
-  status: () => apiFetch<DeploymentUpdateStatus>("/deployment-update/status"),
-  start: () =>
+  status: (signal?: AbortSignal) => apiFetch<DeploymentUpdateStatus>("/deployment-update/status", { signal }),
+  start: (signal?: AbortSignal) =>
     apiFetch<DeploymentUpdateStartResult>("/deployment-update/start", {
       method: "POST",
+      signal,
     }),
 };
 
 export const unitsApi = {
+  page: (query: { page: number; pageSize: number }) => apiFetch<UnitPage>(`/units/page${buildSearch(query)}`),
   list: () => apiFetch<UnitSummary[]>("/units"),
   detail: (id: string) => apiFetch<UnitSummary>(`/units/${id}`),
   create: (payload: { code: string; location: string; area: number | null }) =>
@@ -93,6 +110,9 @@ export const unitsApi = {
 };
 
 export const contractsApi = {
+  documentStatus: (id: string) => apiFetch<ContractDocumentStatus>(`/contracts/${id}/document-status`),
+  retryDocument: (id: string) => apiFetch<ContractDocumentStatus>(`/contracts/${id}/retry-document`, { method: "POST" }),
+  history: (id: string) => apiFetch<ContractFinancialHistory[]>(`/contracts/${id}/history`),
   list: (unitId?: string) => apiFetch<Contract[]>(`/contracts${unitId ? `?unitId=${unitId}` : ""}`),
   create: (payload: Record<string, unknown>) =>
     apiFetch<Contract>("/contracts", {

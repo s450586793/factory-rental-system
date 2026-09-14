@@ -11,6 +11,10 @@ export type DeploymentUpdateConfig = {
   containerName: string;
   onlineVersionUrl: string;
   onlineVersionTimeoutMs: number;
+  dockerRequestTimeoutMs: number;
+  updateTimeoutSeconds: number;
+  healthTimeoutSeconds: number;
+  backupEnabled: boolean;
   proxyUrl: string;
   noProxy: string;
 };
@@ -35,12 +39,16 @@ export function resolveDeploymentUpdateConfig(env: NodeJS.ProcessEnv): Deploymen
     }),
     onlineVersionUrl: readString(env, "WEB_UPDATE_ONLINE_VERSION_URL", {
       defaultValue:
-        "https://raw.githubusercontent.com/s450586793/factory-rental-system/main/frontend/src/config/app-meta.ts",
+        "https://github.com/s450586793/factory-rental-system/releases/latest/download/release-manifest.json",
     }),
     onlineVersionTimeoutMs: readNumber(env, "WEB_UPDATE_ONLINE_VERSION_TIMEOUT_MS", {
       defaultValue: 5_000,
       minimum: 1_000,
     }),
+    dockerRequestTimeoutMs: readTimeout(env, "WEB_UPDATE_DOCKER_TIMEOUT_MS", 120_000),
+    updateTimeoutSeconds: readTimeout(env, "WEB_UPDATE_TIMEOUT_SECONDS", 900),
+    healthTimeoutSeconds: readTimeout(env, "WEB_UPDATE_HEALTH_TIMEOUT_SECONDS", 300),
+    backupEnabled: readBoolean(env, "WEB_UPDATE_BACKUP_ENABLED", true),
     proxyUrl: readString(env, "WEB_UPDATE_PROXY_URL", {
       defaultValue: env.HTTPS_PROXY || env.HTTP_PROXY || env.https_proxy || env.http_proxy || "",
       allowEmpty: true,
@@ -50,6 +58,14 @@ export function resolveDeploymentUpdateConfig(env: NodeJS.ProcessEnv): Deploymen
       allowEmpty: true,
     }),
   };
+}
+
+function readTimeout(env: NodeJS.ProcessEnv, key: string, defaultValue: number) {
+  const value = readNumber(env, key, { defaultValue, minimum: 1 });
+  if (!Number.isSafeInteger(value)) {
+    throw new Error(`环境变量 ${key} 必须是有限正整数`);
+  }
+  return value;
 }
 
 export default registerAs("deploymentUpdate", () => resolveDeploymentUpdateConfig(process.env));

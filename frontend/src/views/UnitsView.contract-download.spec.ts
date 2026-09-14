@@ -1,8 +1,8 @@
-import { flushPromises, mount } from "@vue/test-utils";
-import { defineComponent, h, provide, inject } from "vue";
-import { ElMessage } from "element-plus";
+import { enableAutoUnmount, flushPromises, mount } from "@vue/test-utils";
+import { defineComponent, h, provide, inject, ref } from "vue";
+import { ElMessage, ElMessageBox } from "element-plus";
 import UnitsView from "./UnitsView.vue";
-import { contractsApi, depositsApi, rentPaymentsApi, rentReceivablesApi, unitsApi } from "../api";
+import { contractsApi, depositsApi, filesApi, rentPaymentsApi, rentReceivablesApi, unitsApi } from "../api";
 import type {
   Contract,
   RentPayment,
@@ -10,13 +10,21 @@ import type {
   RentPaymentMutationResult,
   RentReceivable,
   UnitSummary,
+  UnitPage,
+  StoredFile,
 } from "../types/models";
+
+const viewport = vi.hoisted(() => ({ width: 1280 }));
+enableAutoUnmount(afterEach);
 
 vi.mock("../api", () => ({
   contractsApi: {
     create: vi.fn(),
     update: vi.fn(),
     generateDocument: vi.fn(),
+    documentStatus: vi.fn(),
+    retryDocument: vi.fn(),
+    history: vi.fn(),
   },
   depositsApi: {
     listAccounts: vi.fn(),
@@ -26,6 +34,7 @@ vi.mock("../api", () => ({
   },
   unitsApi: {
     list: vi.fn(),
+    page: vi.fn(),
     detail: vi.fn(),
     create: vi.fn(),
     update: vi.fn(),
@@ -54,6 +63,7 @@ vi.mock("element-plus", () => ({
   ElMessage: {
     success: vi.fn(),
     warning: vi.fn(),
+    info: vi.fn(),
     error: vi.fn(),
   },
   ElMessageBox: {
@@ -70,7 +80,7 @@ vi.mock("../components/AppShell.vue", () => ({
 }));
 
 vi.mock("../composables/useViewportWidth", () => ({
-  useViewportWidth: () => ({ value: 1280 }),
+  useViewportWidth: () => ref(viewport.width),
 }));
 
 const activeContract = {
@@ -284,6 +294,17 @@ function mountUnitsView() {
           },
         }),
         "el-dialog": dialogStub,
+        "el-pagination": defineComponent({
+          props: ["currentPage", "pageSize", "total", "layout"],
+          emits: ["current-change", "size-change"],
+          setup(props, { emit }) {
+            return () => h("div", { "data-pagination-layout": props.layout }, [
+              h("span", `第 ${props.currentPage} 页，共 ${props.total} 条`),
+              h("button", { onClick: () => emit("current-change", Number(props.currentPage) + 1) }, "下一页"),
+              h("button", { onClick: () => emit("size-change", 50) }, "每页 50 条"),
+            ]);
+          },
+        }),
         "el-drawer": dialogStub,
         "el-form": passthroughStub("form"),
         "el-form-item": passthroughStub("div"),
@@ -460,10 +481,39 @@ function findInputByLabel(wrapper: ReturnType<typeof mountUnitsView>, label: str
   return input;
 }
 
+function unitPage(items: UnitSummary[], overrides: Partial<UnitPage> = {}): UnitPage {
+  return {
+    items: items.map(({ id, code, location, area, status, activeContract, contractCount, contracts }) => ({
+      id, code, location, area, status, activeContract, contractCount,
+      outstandingAmount: contracts.reduce((sum, contract) => sum + contract.outstandingAmount, 0),
+    })),
+    page: 1,
+    pageSize: 20,
+    total: items.length,
+    stats: {
+      occupiedCount: items.filter((item) => ["occupied", "expiring"].includes(item.status)).length,
+      vacantCount: items.filter((item) => item.status === "vacant").length,
+      expiringCount: items.filter((item) => item.status === "expiring").length,
+      expiredCount: items.filter((item) => item.status === "expired").length,
+      activeRentSum: items.reduce((sum, item) => sum + Number(item.activeContract?.annualRent ?? 0), 0),
+    },
+    ...overrides,
+  };
+}
+
+function mockUnitsPage(items: UnitSummary[]) {
+  vi.mocked(unitsApi.page).mockResolvedValue(unitPage(items));
+}
+
 describe("UnitsView contract download", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.mocked(unitsApi.list).mockResolvedValue([unit]);
+    viewport.width = 1280;
+    vi.mocked(contractsApi.documentStatus).mockImplementation(async (contractId) => ({
+      contractId, revision: "revision-1", status: "ready", attempts: 1, error: null, updatedAt: "2026-09-14T00:00:00.000Z",
+    }));
+    vi.mocked(contractsApi.history).mockResolvedValue([]);
+    mockUnitsPage([unit]);
     vi.mocked(unitsApi.detail).mockResolvedValue(unit);
     vi.mocked(contractsApi.create).mockResolvedValue(savedContract);
     vi.mocked(contractsApi.update).mockResolvedValue(savedContract);
@@ -480,6 +530,140 @@ describe("UnitsView contract download", () => {
     });
   });
 
+  it("loads only a summary page until management is opened and keeps server totals", async () => {
+    vi.mocked(unitsApi.page).mockResolvedValue(unitPage([unit], {
+      total: 41,
+      stats: { occupiedCount: 30, vacantCount: 5, expiringCount: 2, expiredCount: 6, activeRentSum: 900000 },
+    }));
+    const wrapper = mountUnitsView();
+    await flushPromises();
+    expect(unitsApi.page).toHaveBeenCalledWith({ page: 1, pageSize: 20 });
+    expect(unitsApi.list).not.toHaveBeenCalled();
+    expect(unitsApi.detail).not.toHaveBeenCalled();
+    expect(wrapper.findAll(".stat-item strong").map((item) => item.text())).toEqual(["41", "30", "5", "2", "6", "*****"]);
+    await findButton(wrapper, "下一页").trigger("click");
+    await flushPromises();
+    expect(unitsApi.page).toHaveBeenLastCalledWith({ page: 2, pageSize: 20 });
+    expect(wrapper.find(".stat-item strong").text()).toBe("41");
+    await findButton(wrapper, "管理").trigger("click");
+    await flushPromises();
+    expect(unitsApi.detail).toHaveBeenCalledTimes(1);
+    expect(unitsApi.detail).toHaveBeenCalledWith("unit-1");
+    wrapper.unmount();
+  });
+
+  it("returns to the last valid page after deleting its only item", async () => {
+    vi.mocked(unitsApi.page)
+      .mockResolvedValueOnce(unitPage([unit], { total: 21 }))
+      .mockResolvedValueOnce(unitPage([vacantUnit], { page: 2, total: 21 }))
+      .mockResolvedValueOnce(unitPage([], { page: 2, total: 20 }))
+      .mockResolvedValueOnce(unitPage([unit], { total: 20 }));
+    vi.mocked(ElMessageBox.confirm).mockResolvedValue("confirm" as Awaited<ReturnType<typeof ElMessageBox.confirm>>);
+    vi.mocked(unitsApi.remove).mockResolvedValue({ success: true });
+    const wrapper = mountUnitsView();
+    await flushPromises();
+    await findButton(wrapper, "下一页").trigger("click");
+    await flushPromises();
+    await findButton(wrapper, "删除").trigger("click");
+    await flushPromises();
+    expect(unitsApi.remove).toHaveBeenCalledWith(vacantUnit.id);
+    expect(unitsApi.page).toHaveBeenLastCalledWith({ page: 1, pageSize: 20 });
+    expect(wrapper.text()).toContain("第 1 页，共 20 条");
+    wrapper.unmount();
+  });
+
+  it("ignores stale pages and resets the page when the page size changes", async () => {
+    const oldPage = deferred<UnitPage>();
+    vi.mocked(unitsApi.page)
+      .mockReturnValueOnce(oldPage.promise)
+      .mockResolvedValueOnce(unitPage([vacantUnit], { page: 2, total: 41 }))
+      .mockResolvedValueOnce(unitPage([unit], { pageSize: 50, total: 41 }));
+    const wrapper = mountUnitsView();
+    await findButton(wrapper, "下一页").trigger("click");
+    await flushPromises();
+    oldPage.resolve(unitPage([unit], { total: 41 }));
+    await flushPromises();
+    expect(wrapper.text()).toContain("空置厂房");
+    expect(wrapper.text()).not.toContain("测试厂房");
+    await findButton(wrapper, "每页 50 条").trigger("click");
+    await flushPromises();
+    expect(unitsApi.page).toHaveBeenLastCalledWith({ page: 1, pageSize: 50 });
+    wrapper.unmount();
+  });
+
+  it("uses compact pagination on mobile while preserving the create form", async () => {
+    viewport.width = 390;
+    const wrapper = mountUnitsView();
+    await flushPromises();
+    expect(wrapper.find("[data-pagination-layout]").attributes("data-pagination-layout")).toBe("prev, pager, next");
+    await openCreateUnitDialog(wrapper);
+    expect(wrapper.find('input[aria-label="初始合同甲方名称"]').element).toHaveProperty("value", "吴孝斌");
+    expect(wrapper.find('input[aria-label="初始合同押金"]').exists()).toBe(true);
+    wrapper.unmount();
+  });
+
+  it("loads monetary history on demand with actor and exact monetary values", async () => {
+    vi.mocked(contractsApi.history).mockResolvedValue([{
+      id: "history-1", contractId: oldContract.id, field: "annualRent", beforeValue: "50000.00",
+      afterValue: "55000.00", actorId: "user-1", actorUsername: "管理员", createdAt: "2026-09-14T08:00:00.000Z",
+    }]);
+    const wrapper = mountUnitsView();
+    await flushPromises();
+    await findButton(wrapper, "管理").trigger("click");
+    await flushPromises();
+    expect(contractsApi.history).not.toHaveBeenCalled();
+    await findButton(wrapper, "金额历史").trigger("click");
+    await flushPromises();
+    expect(contractsApi.history).toHaveBeenCalledWith(oldContract.id);
+    expect(wrapper.text()).toContain("管理员");
+    expect(wrapper.text()).toContain("50000.00");
+    expect(wrapper.text()).toContain("55000.00");
+    wrapper.unmount();
+  });
+
+  it("keeps existing attachments while adding an upload in the shared edit form", async () => {
+    const attachment: StoredFile = {
+      id: "attachment-old", originalName: "signed.pdf", mimeType: "application/pdf", size: 100,
+      category: "contract-attachment", storagePath: "test/signed.pdf",
+    };
+    const license: StoredFile = { ...attachment, id: "license-old", category: "business-license" };
+    vi.mocked(unitsApi.detail).mockResolvedValue({
+      ...unit, contracts: [{ ...oldContract, businessLicenseFile: license, attachmentFiles: [attachment] }],
+    });
+    vi.mocked(filesApi.upload).mockResolvedValue([{ ...attachment, id: "attachment-new" }]);
+    const wrapper = mountUnitsView();
+    await flushPromises();
+    await findButton(wrapper, "管理").trigger("click");
+    await flushPromises();
+    await findButton(wrapper, "编辑").trigger("click");
+    await flushPromises();
+    const upload = new File(["new attachment"], "new.pdf", { type: "application/pdf" });
+    const input = wrapper.findAll('input[type="file"]').find((item) => item.attributes("multiple") !== undefined)!;
+    Object.defineProperty(input.element, "files", { value: [upload], configurable: true });
+    await input.trigger("change");
+    await findButton(wrapper, "保存").trigger("click");
+    await flushPromises();
+    expect(filesApi.upload).toHaveBeenCalledWith([upload], "contract-attachment");
+    expect(contractsApi.update).toHaveBeenCalledWith(oldContract.id, expect.objectContaining({
+      businessLicenseFileId: "license-old", attachmentFileIds: ["attachment-old", "attachment-new"],
+    }));
+  });
+
+  it("allows retrying monetary history after a request failure", async () => {
+    vi.mocked(contractsApi.history).mockRejectedValueOnce(new Error("历史暂不可用")).mockResolvedValueOnce([]);
+    const wrapper = mountUnitsView();
+    await flushPromises();
+    await findButton(wrapper, "管理").trigger("click");
+    await flushPromises();
+    await findButton(wrapper, "金额历史").trigger("click");
+    await flushPromises();
+    expect(wrapper.find('[role="alert"]').text()).toContain("历史暂不可用");
+    await findButton(wrapper, "重新加载").trigger("click");
+    await flushPromises();
+    expect(contractsApi.history).toHaveBeenCalledTimes(2);
+    expect(wrapper.find('[role="alert"]').exists()).toBe(false);
+  });
+
   it("shows due receivable, prepaid amount and billing frequency in contract history", async () => {
     const accruedContract = Object.assign({}, oldContract, {
       billingFrequency: "semiannual",
@@ -490,7 +674,7 @@ describe("UnitsView contract download", () => {
       ...unit,
       contracts: [accruedContract],
     };
-    vi.mocked(unitsApi.list).mockResolvedValue([accruedUnit]);
+    mockUnitsPage([accruedUnit]);
     vi.mocked(unitsApi.detail).mockResolvedValue(accruedUnit);
     const wrapper = mountUnitsView();
     await flushPromises();
@@ -507,7 +691,7 @@ describe("UnitsView contract download", () => {
 
   it("renders zero contract summary amounts instead of placeholders", async () => {
     const zeroUnit = { ...unit, activeContract: savedContract, contracts: [savedContract] };
-    vi.mocked(unitsApi.list).mockResolvedValue([zeroUnit]);
+    mockUnitsPage([zeroUnit]);
     vi.mocked(unitsApi.detail).mockResolvedValue(zeroUnit);
     const wrapper = mountUnitsView();
     await flushPromises();
@@ -541,7 +725,7 @@ describe("UnitsView contract download", () => {
     const twoContractUnit = { ...unit, contracts: [oldContract, contractB] };
     const requestA = deferred<{ items: RentReceivable[] }>();
     const requestB = deferred<{ items: RentReceivable[] }>();
-    vi.mocked(unitsApi.list).mockResolvedValue([twoContractUnit]);
+    mockUnitsPage([twoContractUnit]);
     vi.mocked(unitsApi.detail).mockResolvedValue(twoContractUnit);
     vi.mocked(rentReceivablesApi.list).mockImplementation((query) =>
       query.contractId === "contract-old" ? requestA.promise : requestB.promise,
@@ -585,7 +769,7 @@ describe("UnitsView contract download", () => {
     const twoContractUnit = { ...unit, contracts: [oldContract, contractB] };
     const requestA = deferred<{ items: RentReceivable[] }>();
     const requestB = deferred<{ items: RentReceivable[] }>();
-    vi.mocked(unitsApi.list).mockResolvedValue([twoContractUnit]);
+    mockUnitsPage([twoContractUnit]);
     vi.mocked(unitsApi.detail).mockResolvedValue(twoContractUnit);
     vi.mocked(rentReceivablesApi.list).mockImplementation((query) =>
       query.contractId === "contract-old" ? requestA.promise : requestB.promise,
@@ -674,7 +858,7 @@ describe("UnitsView contract download", () => {
   });
 
   it("uses the individual lessor and safety manager defaults when no previous contract exists", async () => {
-    vi.mocked(unitsApi.list).mockResolvedValue([vacantUnit]);
+    mockUnitsPage([vacantUnit]);
     vi.mocked(unitsApi.detail).mockResolvedValue(vacantUnit);
     const wrapper = mountUnitsView();
     await flushPromises();
@@ -716,7 +900,7 @@ describe("UnitsView contract download", () => {
         },
       ],
     } satisfies UnitSummary;
-    vi.mocked(unitsApi.list).mockResolvedValue([meteredVacantUnit]);
+    mockUnitsPage([meteredVacantUnit]);
     vi.mocked(unitsApi.detail).mockResolvedValue(meteredVacantUnit);
     const wrapper = mountUnitsView();
     await flushPromises();
@@ -729,7 +913,7 @@ describe("UnitsView contract download", () => {
   });
 
   it("defaults safety managers to the contacts when creating a contract", async () => {
-    vi.mocked(unitsApi.list).mockResolvedValue([vacantUnit]);
+    mockUnitsPage([vacantUnit]);
     vi.mocked(unitsApi.detail).mockResolvedValue(vacantUnit);
     const wrapper = mountUnitsView();
     await flushPromises();
@@ -757,7 +941,7 @@ describe("UnitsView contract download", () => {
       ...unit,
       contracts: [previousContract],
     } satisfies UnitSummary;
-    vi.mocked(unitsApi.list).mockResolvedValue([renewalUnit]);
+    mockUnitsPage([renewalUnit]);
     vi.mocked(unitsApi.detail).mockResolvedValue(renewalUnit);
     const wrapper = mountUnitsView();
     await flushPromises();
@@ -788,7 +972,7 @@ describe("UnitsView contract download", () => {
   });
 
   it("does not overwrite a manually changed safety manager", async () => {
-    vi.mocked(unitsApi.list).mockResolvedValue([vacantUnit]);
+    mockUnitsPage([vacantUnit]);
     vi.mocked(unitsApi.detail).mockResolvedValue(vacantUnit);
     const wrapper = mountUnitsView();
     await flushPromises();
@@ -820,7 +1004,7 @@ describe("UnitsView contract download", () => {
       },
       contracts: [contractWithDedicatedManagers],
     } satisfies UnitSummary;
-    vi.mocked(unitsApi.list).mockResolvedValue([unitWithDedicatedManagers]);
+    mockUnitsPage([unitWithDedicatedManagers]);
     vi.mocked(unitsApi.detail).mockResolvedValue(unitWithDedicatedManagers);
     const wrapper = mountUnitsView();
     await flushPromises();
@@ -850,7 +1034,7 @@ describe("UnitsView contract download", () => {
       ...unit,
       contracts: [legacyContract],
     } satisfies UnitSummary;
-    vi.mocked(unitsApi.list).mockResolvedValue([legacyUnit]);
+    mockUnitsPage([legacyUnit]);
     vi.mocked(unitsApi.detail).mockResolvedValue(legacyUnit);
     const wrapper = mountUnitsView();
     await flushPromises();
@@ -891,7 +1075,7 @@ describe("UnitsView contract download", () => {
       },
       contracts: [contractWithZeroDeposit],
     } satisfies UnitSummary;
-    vi.mocked(unitsApi.list).mockResolvedValue([unitWithZeroDeposit]);
+    mockUnitsPage([unitWithZeroDeposit]);
     vi.mocked(unitsApi.detail).mockResolvedValue(unitWithZeroDeposit);
     const wrapper = mountUnitsView();
     await flushPromises();
@@ -1011,7 +1195,8 @@ describe("UnitsView contract download", () => {
     expect(contractsApi.generateDocument).not.toHaveBeenCalled();
     expect(anchorClick).toHaveBeenCalledTimes(1);
     expect(downloadNames).toEqual(["厂房租赁合同_曹忠_2027-07-01_2028-06-30.pdf"]);
-    expect(ElMessage.success).toHaveBeenCalledWith("合同已新增并已下载合同文件");
+    expect(ElMessage.success).toHaveBeenCalledWith("合同已新增");
+    expect(ElMessage.success).toHaveBeenCalledWith("合同已开始下载");
 
     anchorClick.mockRestore();
   });

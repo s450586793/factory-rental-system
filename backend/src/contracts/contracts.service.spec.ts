@@ -1,12 +1,7 @@
 import { BillingFrequency, DepositSettlementMode } from "./contract.enums";
-import { buildContractDocumentPdf } from "./contract-document";
+import { ContractFinancialHistory } from "./contract-financial-history.entity";
 import { Contract, ContractStatus } from "./contract.entity";
 import { ContractsService } from "./contracts.service";
-
-jest.mock("./contract-document", () => ({
-  ...jest.requireActual("./contract-document"),
-  buildContractDocumentPdf: jest.fn(),
-}));
 
 function existingContract(overrides: Record<string, unknown> = {}) {
   return {
@@ -94,8 +89,15 @@ function buildService(
       if (entity === Contract) {
         return contractsRepository;
       }
+      if (entity === ContractFinancialHistory) {
+        return historyRepository;
+      }
       throw new Error(`Unexpected repository: ${entity.name}`);
     }),
+  };
+  const historyRepository = {
+    create: jest.fn((values) => values),
+    insert: jest.fn().mockResolvedValue(undefined),
   };
   const dataSource = {
     transaction: jest.fn().mockImplementation((callback) => callback(manager)),
@@ -106,13 +108,22 @@ function buildService(
   const depositsService = {
     getAccount: jest.fn().mockResolvedValue(options.depositAccount ?? null),
   };
+  const documentQueue = {
+    enqueue: jest.fn().mockResolvedValue(undefined),
+    kick: jest.fn(),
+    generate: jest.fn().mockResolvedValue({
+      filename: "contract.pdf",
+      mimeType: "application/pdf",
+      buffer: options.cachedGeneratedDocument,
+    }),
+  };
   const ServiceWithMocks = ContractsService as unknown as new (
     contractsRepository: unknown,
     unitsRepository: unknown,
     filesService: unknown,
     dataSource: unknown,
     receivablesService: unknown,
-    depositsService: unknown,
+    documentQueue: unknown,
   ) => ContractsService;
 
   return {
@@ -122,7 +133,7 @@ function buildService(
       filesService,
       dataSource,
       receivablesService,
-      depositsService,
+      documentQueue,
     ),
     contractsRepository,
     dataSource,
@@ -130,6 +141,8 @@ function buildService(
     filesService,
     manager,
     receivablesService,
+    documentQueue,
+    historyRepository,
   };
 }
 
@@ -162,9 +175,6 @@ function buildDto(overrides: Record<string, unknown> = {}) {
 describe("ContractsService", () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    jest
-      .mocked(buildContractDocumentPdf)
-      .mockResolvedValue(Buffer.from("generated-pdf"));
   });
 
   it("saves a normalized contract and generated schedules in one transaction", async () => {
@@ -215,58 +225,40 @@ describe("ContractsService", () => {
   });
 
   it("returns a newly saved contract without waiting for PDF preparation", async () => {
-    let markPdfStarted: () => void = () => undefined;
-    const pdfStarted = new Promise<"pdf-started">((resolve) => {
-      markPdfStarted = () => resolve("pdf-started");
-    });
-    jest.mocked(buildContractDocumentPdf).mockImplementationOnce(() => {
-      markPdfStarted();
-      return new Promise<never>(() => undefined);
-    });
-    const { service } = buildService();
-
-    const outcome = await Promise.race([
-      service
-        .create(buildDto() as never)
-        .then((contract) => ({ type: "saved" as const, contract })),
-      pdfStarted.then(() => ({ type: "pdf-started" as const })),
-    ]);
-
-    expect(outcome).toEqual({
-      type: "saved",
-      contract: expect.objectContaining({ id: "contract-new" }),
-    });
+    const { service, documentQueue, manager } = buildService();
+    documentQueue.generate.mockImplementation(
+      () => new Promise(() => undefined),
+    );
+    await expect(service.create(buildDto() as never)).resolves.toEqual(
+      expect.objectContaining({ id: "contract-new" }),
+    );
+    expect(documentQueue.enqueue).toHaveBeenCalledWith(
+      manager,
+      expect.objectContaining({ id: "contract-new" }),
+      expect.objectContaining({ id: "unit-1" }),
+    );
+    expect(documentQueue.kick).toHaveBeenCalledTimes(1);
+    expect(documentQueue.generate).not.toHaveBeenCalled();
   });
 
   it("returns an updated contract without waiting for PDF preparation", async () => {
-    let markPdfStarted: () => void = () => undefined;
-    const pdfStarted = new Promise<"pdf-started">((resolve) => {
-      markPdfStarted = () => resolve("pdf-started");
-    });
-    jest.mocked(buildContractDocumentPdf).mockImplementationOnce(() => {
-      markPdfStarted();
-      return new Promise<never>(() => undefined);
-    });
-    const { service } = buildService({
+    const { service, documentQueue } = buildService({
       existingContract: existingContract(),
     });
-
-    const outcome = await Promise.race([
-      service
-        .update("contract-1", buildDto({ depositAmount: 5000 }) as never)
-        .then((contract) => ({ type: "saved" as const, contract })),
-      pdfStarted.then(() => ({ type: "pdf-started" as const })),
-    ]);
-
-    expect(outcome).toEqual({
-      type: "saved",
-      contract: expect.objectContaining({ id: "contract-1" }),
-    });
+    documentQueue.generate.mockImplementation(
+      () => new Promise(() => undefined),
+    );
+    await expect(
+      service.update("contract-1", buildDto() as never),
+    ).resolves.toEqual(expect.objectContaining({ id: "contract-1" }));
+    expect(documentQueue.enqueue).toHaveBeenCalledTimes(1);
+    expect(documentQueue.kick).toHaveBeenCalledTimes(1);
+    expect(documentQueue.generate).not.toHaveBeenCalled();
   });
 
   it("returns a cached contract PDF without rebuilding it", async () => {
     const cached = Buffer.from("cached-pdf");
-    const { service, filesService } = buildService({
+    const { service, documentQueue } = buildService({
       existingContract: existingContract(),
       cachedGeneratedDocument: cached,
     });
@@ -274,27 +266,16 @@ describe("ContractsService", () => {
     const generated = await service.generateDocument("contract-1");
 
     expect(generated.buffer).toEqual(cached);
-    expect(filesService.readGeneratedContractDocument).toHaveBeenCalledWith(
-      "contract-1",
-      expect.stringMatching(/^[a-f0-9]{64}$/),
-    );
-    expect(buildContractDocumentPdf).not.toHaveBeenCalled();
-    expect(filesService.saveGeneratedContractDocument).not.toHaveBeenCalled();
+    expect(documentQueue.generate).toHaveBeenCalledWith("contract-1");
   });
 
-  it("keeps a newly saved contract when PDF preparation fails", async () => {
-    const { service } = buildService();
-    const logger = (
-      service as unknown as { logger: { error: (message: string) => void } }
-    ).logger;
-    jest.spyOn(logger, "error").mockImplementation(() => undefined);
-    jest
-      .mocked(buildContractDocumentPdf)
-      .mockRejectedValueOnce(new Error("render failed"));
-
-    await expect(service.create(buildDto() as never)).resolves.toEqual(
-      expect.objectContaining({ id: "contract-new" }),
+  it("rolls back rather than returning a contract without a durable PDF task", async () => {
+    const { service, documentQueue } = buildService();
+    documentQueue.enqueue.mockRejectedValue(new Error("queue unavailable"));
+    await expect(service.create(buildDto() as never)).rejects.toThrow(
+      "queue unavailable",
     );
+    expect(documentQueue.kick).not.toHaveBeenCalled();
   });
 
   it("uses only the entered deposit and initializes legacy settlement fields", async () => {
@@ -453,5 +434,85 @@ describe("ContractsService", () => {
     expect(dataSource.transaction).toHaveBeenCalledTimes(1);
     expect(contractsRepository.save).toHaveBeenCalledTimes(1);
     expect(contractsRepository.findOneOrFail).not.toHaveBeenCalled();
+  });
+
+  it("records six initial financial values and the authenticated actor in the saving transaction", async () => {
+    const { service, historyRepository, documentQueue } = buildService();
+    const actor = { id: "user-1", username: "admin" };
+    await service.create(buildDto() as never, actor);
+    expect(historyRepository.insert).toHaveBeenCalledWith(
+      expect.arrayContaining([
+        expect.objectContaining({
+          contractId: "contract-new",
+          field: "annualRent",
+          beforeValue: null,
+          afterValue: "50000.00",
+          actorId: "user-1",
+          actorUsername: "admin",
+        }),
+        expect.objectContaining({
+          field: "electricUnitPrice",
+          beforeValue: null,
+          afterValue: "0.9500",
+        }),
+        expect.objectContaining({
+          field: "waterUnitPrice",
+          beforeValue: null,
+          afterValue: "1.0000",
+        }),
+      ]),
+    );
+    expect(historyRepository.insert.mock.calls[0][0]).toHaveLength(6);
+    expect(historyRepository.insert.mock.invocationCallOrder[0]).toBeLessThan(
+      documentQueue.kick.mock.invocationCallOrder[0],
+    );
+  });
+
+  it("records only actual monetary changes and reads the previous value under a transaction lock", async () => {
+    const previous = existingContract();
+    const { service, historyRepository, contractsRepository } = buildService({
+      existingContract: previous,
+    });
+    await service.update(
+      "contract-1",
+      { ...previous, depositAmount: 9999.99 } as never,
+      { id: "user-2", username: "operator" },
+    );
+    expect(historyRepository.insert).toHaveBeenCalledWith([
+      expect.objectContaining({
+        field: "depositAmount",
+        beforeValue: "10000.00",
+        afterValue: "9999.99",
+        actorUsername: "operator",
+      }),
+    ]);
+    expect(contractsRepository.findOne).toHaveBeenCalledWith(
+      expect.objectContaining({ lock: { mode: "pessimistic_write" } }),
+    );
+  });
+
+  it("omits history for normalized no-op monetary values", async () => {
+    const previous = existingContract();
+    const { service, historyRepository } = buildService({
+      existingContract: previous,
+    });
+    await service.update("contract-1", {
+      ...previous,
+      contactName: "新联系人",
+      annualRent: 50000.000001,
+    } as never);
+    expect(historyRepository.insert).not.toHaveBeenCalled();
+  });
+
+  it("fails the contract transaction when history cannot be persisted", async () => {
+    const { service, historyRepository, documentQueue } = buildService();
+    historyRepository.insert.mockRejectedValue(
+      new Error("history write failed"),
+    );
+    await expect(service.create(buildDto() as never)).rejects.toThrow(
+      "history write failed",
+    );
+    expect(documentQueue.enqueue).not.toHaveBeenCalled();
+    expect(documentQueue.kick).not.toHaveBeenCalled();
   });
 });

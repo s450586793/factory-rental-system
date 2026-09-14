@@ -137,6 +137,20 @@
           {{ deploymentUpdateStatus.onlineVersionError }}
         </p>
 
+        <p v-if="updateStatusError" class="version-update-error" role="status">{{ updateStatusError }}</p>
+        <p v-if="deploymentUpdateStatus?.running" class="version-update-hint" role="status">
+          {{ updateProgressText }}
+        </p>
+        <div v-if="deploymentUpdateStatus?.result && !deploymentUpdateStatus.running" class="version-update-result" role="status">
+          <p :class="deploymentUpdateStatus.result.status === 'failed' ? 'version-update-error' : 'version-update-hint'">
+            {{ deploymentUpdateStatus.result.message }}
+          </p>
+          <details v-if="deploymentUpdateStatus.result.logs">
+            <summary>更新日志<span v-if="deploymentUpdateStatus.result.exitCode !== null">（退出码 {{ deploymentUpdateStatus.result.exitCode }}）</span></summary>
+            <pre class="version-update-logs">{{ deploymentUpdateStatus.result.logs }}</pre>
+          </details>
+        </div>
+
         <p v-if="shouldReloadForOnlineVersion" class="version-update-hint">
           当前页面仍是旧版本，请刷新页面加载最新前端。
         </p>
@@ -246,6 +260,12 @@ const deploymentUpdateStatus = ref<DeploymentUpdateStatus | null>(null);
 const updateStarting = ref(false);
 const updateStatusRefreshing = ref(false);
 const versionDialogVisible = ref(false);
+const updateStatusError = ref("");
+let updateStatusTimer: ReturnType<typeof setTimeout> | undefined;
+let statusRequest: Promise<void> | null = null;
+let statusController: AbortController | null = null;
+let startController: AbortController | null = null;
+let unmounted = false;
 
 const currentUsername = computed(() => authStore.state.user?.username || "管理员");
 const userInitial = computed(() => currentUsername.value.slice(0, 1).toUpperCase());
@@ -254,16 +274,18 @@ const showTopbar = computed(() => !showSidebar.value || hasTopActions.value);
 const canStartDeploymentUpdate = computed(
   () =>
     Boolean(deploymentUpdateStatus.value?.enabled) &&
+    !updateStatusError.value &&
     !deploymentUpdateStatus.value?.onlineVersionError &&
     !deploymentUpdateStatus.value?.running &&
     !updateStarting.value,
 );
 const updateActionCaption = computed(() => {
+  if (updateStatusError.value) return "刷新后重试";
   if (!deploymentUpdateStatus.value) {
     return "更新";
   }
 
-  if (deploymentUpdateStatus.value.onlineVersionError) {
+  if (deploymentUpdateStatus.value.onlineVersionError || updateStatusError.value) {
     return "刷新后重试";
   }
 
@@ -282,9 +304,17 @@ const updateActionCaption = computed(() => {
   return "更新";
 });
 const onlineVersionText = computed(() => deploymentUpdateStatus.value?.onlineVersion || "未查询到");
+const updateProgressText = computed(() => {
+  const captions = {
+    starting: "正在准备更新。", pulling: "正在拉取已发布镜像。", "backing-up": "正在备份并验证数据。",
+    "starting-services": "正在启动新版本服务。", "checking-health": "正在检查两个服务的健康与版本。",
+    updating: "正在更新，等待服务恢复并校验版本。",
+  };
+  return captions[deploymentUpdateStatus.value?.phase ?? "updating"];
+});
 const shouldReloadForOnlineVersion = computed(() => {
-  const onlineVersion = deploymentUpdateStatus.value?.onlineVersion;
-  return Boolean(onlineVersion && compareAppVersions(onlineVersion, APP_VERSION) > 0);
+  const result = deploymentUpdateStatus.value?.result;
+  return Boolean(result?.status === "succeeded" && result.version && compareAppVersions(result.version, APP_VERSION) > 0);
 });
 
 const isSidebarPinned = computed(() => {
@@ -322,8 +352,14 @@ onMounted(() => {
 });
 
 onBeforeUnmount(() => {
+  unmounted = true;
+  clearTimeout(updateStatusTimer);
+  statusController?.abort();
+  startController?.abort();
   window.removeEventListener("resize", syncViewport);
 });
+
+watch(versionDialogVisible, () => scheduleStatusRefresh());
 
 function readSidebarMode(): SidebarMode {
   if (typeof window === "undefined") {
@@ -390,18 +426,34 @@ async function handleLogout() {
 }
 
 async function loadDeploymentUpdateStatus() {
-  try {
-    deploymentUpdateStatus.value = await deploymentUpdateApi.status();
-  } catch {
-    deploymentUpdateStatus.value = {
-      enabled: true,
-      running: false,
-      services: [],
-      composeFiles: [],
-      onlineVersion: null,
-      onlineVersionCheckedAt: null,
-      onlineVersionError: "查询失败",
-    };
+  if (unmounted) return;
+  if (statusRequest) return statusRequest;
+  statusController = new AbortController();
+  const timeout = setTimeout(() => statusController?.abort(), 30_000);
+  statusRequest = (async () => {
+    try {
+      const status = await deploymentUpdateApi.status(statusController!.signal);
+      if (unmounted) return;
+      deploymentUpdateStatus.value = status;
+      updateStatusError.value = "";
+    } catch {
+      if (unmounted) return;
+      updateStatusError.value = deploymentUpdateStatus.value?.running
+        ? "服务暂时断开，正在重新连接并确认更新结果。" : "查询失败，正在重试。";
+    } finally {
+      clearTimeout(timeout);
+      statusController = null;
+      statusRequest = null;
+      scheduleStatusRefresh();
+    }
+  })();
+  return statusRequest;
+}
+
+function scheduleStatusRefresh() {
+  clearTimeout(updateStatusTimer);
+  if (!unmounted && (versionDialogVisible.value || deploymentUpdateStatus.value?.running)) {
+    updateStatusTimer = setTimeout(() => { void refreshDeploymentUpdateStatus(); }, 3_000);
   }
 }
 
@@ -411,6 +463,7 @@ function openVersionDialog() {
 }
 
 async function refreshDeploymentUpdateStatus() {
+  clearTimeout(updateStatusTimer);
   updateStatusRefreshing.value = true;
   try {
     await loadDeploymentUpdateStatus();
@@ -424,9 +477,10 @@ async function handleDeploymentUpdate() {
     return;
   }
 
+  updateStarting.value = true;
   try {
     await ElMessageBox.confirm(
-      "系统会在后台拉取最新镜像并重建服务，页面可能短暂断开。确认现在更新？",
+      "系统会更新到已发布版本并检查服务状态，页面可能短暂断开。确认现在更新？",
       "更新系统",
       {
         confirmButtonText: "开始更新",
@@ -435,17 +489,25 @@ async function handleDeploymentUpdate() {
       },
     );
   } catch {
+    updateStarting.value = false;
     return;
   }
 
-  updateStarting.value = true;
+  startController = new AbortController();
+  const timeout = setTimeout(() => startController?.abort(), 180_000);
   try {
-    const result = await deploymentUpdateApi.start();
+    const result = await deploymentUpdateApi.start(startController.signal);
+    if (deploymentUpdateStatus.value) {
+      deploymentUpdateStatus.value = { ...deploymentUpdateStatus.value, running: true, result: null };
+    }
     ElMessage.success(result.message);
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : "启动系统更新失败");
   } finally {
+    clearTimeout(timeout);
+    startController = null;
     updateStarting.value = false;
+    await refreshDeploymentUpdateStatus();
   }
 }
 
@@ -475,3 +537,24 @@ function parseAppVersion(value: string) {
     .map((part) => (Number.isNaN(part) ? 0 : part));
 }
 </script>
+
+<style scoped>
+.version-update-dialog {
+  max-height: calc(100dvh - 40px);
+  overflow-y: auto;
+}
+
+.version-update-result {
+  min-width: 0;
+  margin-top: 12px;
+}
+
+.version-update-logs {
+  max-height: 220px;
+  max-width: 100%;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: 12px;
+}
+</style>

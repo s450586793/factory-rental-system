@@ -39,14 +39,21 @@ docker compose -f docker-compose.ghcr.yml up -d
 
 ## Web 端更新
 
-Web 端更新功能默认关闭。启用后，登录用户可以点击页面版本号打开版本弹窗，再点击“更新”，后端会通过宿主机 Docker socket 启动一个一次性 updater 容器，执行：
+Web 端更新功能默认关闭。启用前，将仓库 `scripts/backup.sh`、`scripts/verify-backup.sh` 安装到项目的 `scripts/` 目录，并按[备份与恢复说明](./backup-restore.md)完成首次恢复验证与每日任务配置。
+
+登录后点击页面版本号打开版本弹窗，查询最新完整发布。点击“更新”会启动独立 updater 容器，按发布清单固定前后端镜像摘要，在项目目录生成 `.web-update-images.json`，然后执行以下流程（主 Compose 文件名可配置）：
 
 ```bash
-docker compose -f docker-compose.ghcr.yml pull backend frontend
-docker compose -f docker-compose.ghcr.yml up -d --no-deps --remove-orphans backend frontend
+docker compose -f docker-compose.ghcr.yml -f docker-compose.web-update.yml -f .web-update-images.json pull backend frontend
+BACKUP_DIR="$WEB_UPDATE_PROJECT_DIR/backups/automatic" sh scripts/backup.sh
+docker compose -f docker-compose.ghcr.yml -f docker-compose.web-update.yml -f .web-update-images.json up -d --no-deps --no-build backend frontend
 ```
 
 `--no-deps` 和明确的服务名用于只重建应用容器，避免更新前后端时重建 PostgreSQL。
+
+备份或恢复验证失败时不重建服务。重建后同时校验两个容器的健康状态和提交版本；弹窗显示更新阶段、结果与脱敏日志，应用短暂重启期间自动恢复查询。updater 退出后保留结果，下次更新前清理上一次 updater。更新总超时建议 `WEB_UPDATE_TIMEOUT_SECONDS=1800`。
+
+线上版本来自 GitHub Release 的 `release-manifest.json`，只包含通过 CI 的完整双镜像发布。如果旧 DSM 配置显式设置 `WEB_UPDATE_ONLINE_VERSION_URL` 指向 `raw.githubusercontent.com`，请删除该配置以使用新默认地址。
 
 命令行部署时使用覆盖文件启用：
 

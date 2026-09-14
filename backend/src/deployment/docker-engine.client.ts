@@ -6,6 +6,19 @@ type DockerRequestOptions = {
   method: "GET" | "POST" | "DELETE";
   path: string;
   body?: unknown;
+  raw?: boolean;
+  stream?: boolean;
+};
+
+export type DockerContainer = {
+  Config?: { Labels?: Record<string, string> };
+  State?: {
+    Running?: boolean;
+    Status?: string;
+    ExitCode?: number;
+    StartedAt?: string;
+    FinishedAt?: string;
+  };
 };
 
 @Injectable()
@@ -16,6 +29,7 @@ export class DockerEngineHttpClient {
     await this.request({
       method: "POST",
       path: `/images/create?fromImage=${encodeURIComponent(image)}`,
+      stream: true,
     });
   }
 
@@ -42,9 +56,17 @@ export class DockerEngineHttpClient {
     });
   }
 
+  async containerLogs(name: string) {
+    return this.request<string>({
+      method: "GET",
+      path: `/containers/${encodeURIComponent(name)}/logs?stdout=1&stderr=1&tail=100`,
+      raw: true,
+    });
+  }
+
   async inspectContainer(name: string) {
     try {
-      return await this.request<{ State?: { Running?: boolean } }>({
+      return await this.request<DockerContainer>({
         method: "GET",
         path: `/containers/${encodeURIComponent(name)}/json`,
       });
@@ -70,38 +92,59 @@ export class DockerEngineHttpClient {
           },
         },
         (res) => {
-          const chunks: Buffer[] = [];
-
-          res.on("data", (chunk: Buffer) => chunks.push(chunk));
+          let raw = "";
+          let streamError = false;
+          res.setEncoding("utf8");
+          res.on("data", (chunk: string) => {
+            raw += chunk;
+            if (options.stream) {
+              const lines = raw.split("\n");
+              raw = lines.pop() ?? "";
+              for (const line of lines) {
+                try {
+                  const event = JSON.parse(line);
+                  if (event.error || event.errorDetail) streamError = true;
+                } catch { /* Docker 进度流的空行不影响最终状态。 */ }
+              }
+            }
+            if (raw.length > 1_048_576) {
+              if (options.raw) raw = raw.slice(-16_384);
+              else req.destroy(new Error("Docker Engine response exceeds size limit"));
+            }
+          });
+          res.on("error", reject);
+          res.on("aborted", () => reject(new Error("Docker Engine response interrupted")));
           res.on("end", () => {
-            const raw = Buffer.concat(chunks).toString("utf8");
             const statusCode = res.statusCode ?? 500;
 
             if (statusCode >= 400) {
-              reject(new DockerEngineError(statusCode, raw));
+              reject(new DockerEngineError(statusCode));
               return;
             }
 
-            if (!raw.trim()) {
-              resolve(undefined as T);
+            if (options.raw) {
+              resolve(raw.slice(-16_384) as T);
               return;
             }
-
-            const lines = raw
-              .split("\n")
-              .map((line) => line.trim())
-              .filter(Boolean);
-            const lastLine = lines.at(-1);
-
+            let parsed: { error?: unknown; errorDetail?: unknown } | undefined;
             try {
-              resolve(JSON.parse(lastLine ?? raw) as T);
+              parsed = raw.trim() ? JSON.parse(raw) : undefined;
             } catch {
-              resolve(raw as T);
+              reject(new Error("Invalid Docker Engine response"));
+              return;
             }
+            if (streamError || parsed?.error || parsed?.errorDetail) {
+              reject(new Error("Docker image pull failed"));
+              return;
+            }
+            resolve(parsed as T);
           });
         },
       );
 
+      const timeoutMs = options.stream ? this.config.dockerRequestTimeoutMs : Math.min(this.config.dockerRequestTimeoutMs, 10_000);
+      const timer = setTimeout(() => req.destroy(new Error("Docker Engine request timed out")), timeoutMs);
+      req.on("close", () => clearTimeout(timer));
       req.on("error", reject);
       if (body) {
         req.write(body);
@@ -114,7 +157,6 @@ export class DockerEngineHttpClient {
 export class DockerEngineError extends Error {
   constructor(
     readonly statusCode: number,
-    readonly responseBody: string,
   ) {
     super(`Docker Engine API returned ${statusCode}`);
   }

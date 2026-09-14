@@ -1,21 +1,22 @@
 import {
   BadRequestException,
   Injectable,
-  Logger,
   NotFoundException,
 } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
-import { createHash } from "node:crypto";
 import { DataSource, Repository } from "typeorm";
 import { formatShanghaiDate } from "../common/date/shanghai-date";
 import { toCents } from "../common/money/cents";
 import { FilesService } from "../files/files.service";
 import { RentReceivablesService } from "../rent-receivables/rent-receivables.service";
 import { FactoryUnit } from "../units/factory-unit.entity";
+import { ContractDocumentQueueService } from "./contract-document-queue.service";
+import { ContractDocumentJob } from "./contract-document-job.entity";
+import { ContractFinancialHistory } from "./contract-financial-history.entity";
 import {
-  buildContractDocumentPdf,
-  buildGeneratedContractFilename,
-} from "./contract-document";
+  appendContractFinancialHistory,
+  ContractActor,
+} from "./contract-financial-history";
 import { BillingFrequency, DepositSettlementMode } from "./contract.enums";
 import { Contract, ContractStatus } from "./contract.entity";
 import { CreateContractDto, UpdateContractDto } from "./contracts.dto";
@@ -31,22 +32,8 @@ function resolveContractStatus(startDate: string, endDate: string) {
   return ContractStatus.ACTIVE;
 }
 
-const CONTRACT_DOCUMENT_CACHE_VERSION = "2026-08-28-v5";
-
-type GeneratedContractDocument = {
-  filename: string;
-  mimeType: "application/pdf";
-  buffer: Buffer;
-};
-
 @Injectable()
 export class ContractsService {
-  private readonly logger = new Logger(ContractsService.name);
-  private readonly documentBuilds = new Map<
-    string,
-    Promise<GeneratedContractDocument>
-  >();
-
   constructor(
     @InjectRepository(Contract)
     private readonly contractsRepository: Repository<Contract>,
@@ -55,6 +42,7 @@ export class ContractsService {
     private readonly filesService: FilesService,
     private readonly dataSource: DataSource,
     private readonly rentReceivablesService: RentReceivablesService,
+    private readonly documentQueue: ContractDocumentQueueService,
   ) {}
 
   async list(unitId?: string) {
@@ -75,9 +63,9 @@ export class ContractsService {
     return contract;
   }
 
-  async create(dto: CreateContractDto) {
+  async create(dto: CreateContractDto, actor?: ContractActor) {
     this.assertOptionalContractFieldsNotNull(dto);
-    await this.ensureUnitExists(dto.unitId);
+    const unit = await this.ensureUnitExists(dto.unitId);
     await this.validateRange(dto.startDate, dto.endDate, dto.unitId);
     const { businessLicenseFile, attachmentFiles } = await this.resolveFiles(
       dto.businessLicenseFileId,
@@ -118,200 +106,119 @@ export class ContractsService {
       const repository = manager.getRepository(Contract);
       const saved = await repository.save(repository.create(contractValues));
       await this.rentReceivablesService.syncContractSchedules(manager, saved);
-      return repository.findOneOrFail({ where: { id: saved.id } });
+      const persisted = await repository.findOneOrFail({
+        where: { id: saved.id },
+      });
+      await appendContractFinancialHistory(manager, null, persisted, actor);
+      await this.documentQueue.enqueue(manager, persisted, unit);
+      return persisted;
     });
-    void this.prepareDocumentAfterSave(saved.id);
+    this.documentQueue.kick();
     return saved;
   }
 
-  async update(id: string, dto: UpdateContractDto) {
+  async update(id: string, dto: UpdateContractDto, actor?: ContractActor) {
     this.assertOptionalContractFieldsNotNull(dto);
-    const contract = await this.findOneOrFail(id);
-    const nextBillingFrequency =
-      dto.billingFrequency ?? contract.billingFrequency;
-    const scheduleShapeChanged =
-      contract.startDate !== dto.startDate ||
-      contract.endDate !== dto.endDate ||
-      toCents(contract.annualRent) !== toCents(dto.annualRent) ||
-      contract.billingFrequency !== nextBillingFrequency;
-    await this.ensureUnitExists(dto.unitId);
+    const unit = await this.ensureUnitExists(dto.unitId);
     await this.validateRange(dto.startDate, dto.endDate, dto.unitId, id);
     const { businessLicenseFile, attachmentFiles } = await this.resolveFiles(
       dto.businessLicenseFileId,
       dto.attachmentFileIds ?? [],
     );
-    contract.unitId = dto.unitId;
-    contract.lessorName = dto.lessorName.trim();
-    contract.lessorLicenseCode = dto.lessorLicenseCode?.trim() ?? "";
-    contract.lessorContactName = dto.lessorContactName?.trim() ?? "";
-    contract.lessorPhone = dto.lessorPhone?.trim() ?? "";
-    contract.lessorSafetyManager = dto.lessorSafetyManager.trim();
-    contract.tenantName = dto.tenantName.trim();
-    contract.contactName = dto.contactName?.trim() ?? "";
-    contract.tenantPhone = dto.tenantPhone?.trim() ?? "";
-    contract.licenseCode = dto.licenseCode?.trim() ?? "";
-    contract.tenantSafetyManager = dto.tenantSafetyManager.trim();
-    contract.signedDate = dto.signedDate;
-    contract.startDate = dto.startDate;
-    contract.endDate = dto.endDate;
-    contract.annualRent = dto.annualRent;
-    contract.depositAmount = dto.depositAmount;
-    contract.electricUnitPrice = dto.electricUnitPrice;
-    contract.electricLineLossPercent = dto.electricLineLossPercent;
-    contract.waterUnitPrice = dto.waterUnitPrice;
-    contract.earlyTerminationPenaltyAmount = dto.earlyTerminationPenaltyAmount;
-    contract.billingFrequency = nextBillingFrequency;
-    contract.status = resolveContractStatus(dto.startDate, dto.endDate);
-    contract.businessLicenseFileId = businessLicenseFile?.id ?? null;
-    contract.businessLicenseFile = businessLicenseFile ?? null;
-    contract.attachmentFiles = attachmentFiles;
-
     const saved = await this.dataSource.transaction(async (manager) => {
       const repository = manager.getRepository(Contract);
+      const contract = await repository.findOne({
+        where: { id },
+        lock: { mode: "pessimistic_write" },
+        loadEagerRelations: false,
+      });
+      if (!contract) throw new NotFoundException("合同不存在");
+      const before = { ...contract };
+      const nextBillingFrequency =
+        dto.billingFrequency ?? contract.billingFrequency;
+      const scheduleShapeChanged =
+        contract.startDate !== dto.startDate ||
+        contract.endDate !== dto.endDate ||
+        toCents(contract.annualRent) !== toCents(dto.annualRent) ||
+        contract.billingFrequency !== nextBillingFrequency;
+      contract.unitId = dto.unitId;
+      contract.lessorName = dto.lessorName.trim();
+      contract.lessorLicenseCode = dto.lessorLicenseCode?.trim() ?? "";
+      contract.lessorContactName = dto.lessorContactName?.trim() ?? "";
+      contract.lessorPhone = dto.lessorPhone?.trim() ?? "";
+      contract.lessorSafetyManager = dto.lessorSafetyManager.trim();
+      contract.tenantName = dto.tenantName.trim();
+      contract.contactName = dto.contactName?.trim() ?? "";
+      contract.tenantPhone = dto.tenantPhone?.trim() ?? "";
+      contract.licenseCode = dto.licenseCode?.trim() ?? "";
+      contract.tenantSafetyManager = dto.tenantSafetyManager.trim();
+      contract.signedDate = dto.signedDate;
+      contract.startDate = dto.startDate;
+      contract.endDate = dto.endDate;
+      contract.annualRent = dto.annualRent;
+      contract.depositAmount = dto.depositAmount;
+      contract.electricUnitPrice = dto.electricUnitPrice;
+      contract.electricLineLossPercent = dto.electricLineLossPercent;
+      contract.waterUnitPrice = dto.waterUnitPrice;
+      contract.earlyTerminationPenaltyAmount =
+        dto.earlyTerminationPenaltyAmount;
+      contract.billingFrequency = nextBillingFrequency;
+      contract.status = resolveContractStatus(dto.startDate, dto.endDate);
+      contract.businessLicenseFileId = businessLicenseFile?.id ?? null;
+      contract.businessLicenseFile = businessLicenseFile ?? null;
+      contract.attachmentFiles = attachmentFiles;
+
       const saved = await repository.save(repository.create(contract));
       if (scheduleShapeChanged) {
         await this.rentReceivablesService.syncContractSchedules(manager, saved);
       }
-      return repository.findOneOrFail({ where: { id: saved.id } });
+      const persisted = await repository.findOneOrFail({
+        where: { id: saved.id },
+      });
+      await appendContractFinancialHistory(manager, before, persisted, actor);
+      await this.documentQueue.enqueue(manager, persisted, unit);
+      return persisted;
     });
-    void this.prepareDocumentAfterSave(saved.id);
+    this.documentQueue.kick();
     return saved;
   }
 
   async remove(id: string) {
-    await this.findOneOrFail(id);
-    await this.contractsRepository.softDelete(id);
-    await this.filesService.removeGeneratedContractDocuments(id);
+    await this.dataSource.transaction(async (manager) => {
+      const repository = manager.getRepository(Contract);
+      const contract = await repository.findOne({
+        where: { id },
+        lock: { mode: "pessimistic_write" },
+        loadEagerRelations: false,
+      });
+      if (!contract) throw new NotFoundException("合同不存在");
+      await repository.softDelete(id);
+      await manager
+        .getRepository(ContractDocumentJob)
+        .delete({ contractId: id });
+      await this.filesService.removeGeneratedContractDocuments(id);
+    });
     return { success: true };
   }
 
-  async generateDocument(id: string) {
-    const contract = await this.findOneOrFail(id);
-    const unit = await this.unitsRepository.findOne({
-      where: { id: contract.unitId },
-      relations: { meterConfigs: true },
+  generateDocument(id: string) {
+    return this.documentQueue.generate(id);
+  }
+
+  documentStatus(id: string) {
+    return this.documentQueue.status(id);
+  }
+
+  retryDocument(id: string) {
+    return this.documentQueue.status(id, true);
+  }
+
+  async history(id: string) {
+    await this.findOneOrFail(id);
+    return this.dataSource.getRepository(ContractFinancialHistory).find({
+      where: { contractId: id },
+      order: { createdAt: "DESC", id: "DESC" },
     });
-
-    if (!unit) {
-      throw new BadRequestException("厂房不存在");
-    }
-
-    const filename = buildGeneratedContractFilename(contract, unit);
-    const revision = this.buildDocumentRevision(contract, unit);
-    const cached = await this.filesService.readGeneratedContractDocument(
-      id,
-      revision,
-    );
-    if (cached) {
-      return {
-        filename,
-        mimeType: "application/pdf" as const,
-        buffer: cached,
-      };
-    }
-
-    const buildKey = `${id}:${revision}`;
-    const inFlight = this.documentBuilds.get(buildKey);
-    if (inFlight) {
-      return inFlight;
-    }
-
-    const build = this.buildAndCacheDocument(
-      contract,
-      unit,
-      filename,
-      revision,
-    );
-    this.documentBuilds.set(buildKey, build);
-
-    try {
-      return await build;
-    } finally {
-      if (this.documentBuilds.get(buildKey) === build) {
-        this.documentBuilds.delete(buildKey);
-      }
-    }
-  }
-
-  private async buildAndCacheDocument(
-    contract: Contract,
-    unit: FactoryUnit & { meterConfigs: FactoryUnit["meterConfigs"] },
-    filename: string,
-    revision: string,
-  ): Promise<GeneratedContractDocument> {
-    const buffer = await buildContractDocumentPdf({
-      contract,
-      unit,
-      generatedDate: formatShanghaiDate(),
-    });
-    await this.filesService.saveGeneratedContractDocument(
-      contract.id,
-      revision,
-      buffer,
-    );
-    return {
-      filename,
-      mimeType: "application/pdf",
-      buffer,
-    };
-  }
-
-  private async prepareDocumentAfterSave(contractId: string) {
-    try {
-      await this.generateDocument(contractId);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "未知错误";
-      this.logger.error(`合同 ${contractId} PDF 预生成失败：${message}`);
-    }
-  }
-
-  private buildDocumentRevision(
-    contract: Contract,
-    unit: FactoryUnit & { meterConfigs: FactoryUnit["meterConfigs"] },
-  ) {
-    const meters = [...(unit.meterConfigs ?? [])]
-      .sort((left, right) => left.id.localeCompare(right.id))
-      .map((meter) => ({
-        id: meter.id,
-        type: meter.type,
-        name: meter.name,
-        unitPrice: meter.unitPrice,
-        lineLossPercent: meter.lineLossPercent,
-        enabled: meter.enabled,
-      }));
-    const payload = {
-      version: CONTRACT_DOCUMENT_CACHE_VERSION,
-      contract: {
-        lessorName: contract.lessorName,
-        lessorLicenseCode: contract.lessorLicenseCode,
-        lessorContactName: contract.lessorContactName,
-        lessorPhone: contract.lessorPhone,
-        lessorSafetyManager: contract.lessorSafetyManager,
-        tenantName: contract.tenantName,
-        contactName: contract.contactName,
-        tenantPhone: contract.tenantPhone,
-        licenseCode: contract.licenseCode,
-        tenantSafetyManager: contract.tenantSafetyManager,
-        signedDate: contract.signedDate,
-        startDate: contract.startDate,
-        endDate: contract.endDate,
-        annualRent: contract.annualRent,
-        depositAmount: contract.depositAmount,
-        electricUnitPrice: contract.electricUnitPrice,
-        electricLineLossPercent: contract.electricLineLossPercent,
-        waterUnitPrice: contract.waterUnitPrice,
-        earlyTerminationPenaltyAmount: contract.earlyTerminationPenaltyAmount,
-        billingFrequency: contract.billingFrequency,
-      },
-      unit: {
-        code: unit.code,
-        location: unit.location,
-        area: unit.area,
-        meters,
-      },
-    };
-
-    return createHash("sha256").update(JSON.stringify(payload)).digest("hex");
   }
 
   private async ensureUnitExists(unitId: string) {

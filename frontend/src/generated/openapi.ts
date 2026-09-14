@@ -9,6 +9,51 @@ export type User = {
   username: string;
 };
 
+export type UnitListItem = {
+  id: string;
+  code: string;
+  location: string;
+  area: number | null;
+  status: UnitSummary["status"];
+  activeContract: Pick<Contract, "id" | "tenantName" | "startDate" | "endDate" | "annualRent"> | null;
+  contractCount: number;
+  outstandingAmount: number;
+};
+
+export type UnitPage = {
+  items: UnitListItem[];
+  total: number;
+  page: number;
+  pageSize: number;
+  stats: {
+    occupiedCount: number;
+    vacantCount: number;
+    expiringCount: number;
+    expiredCount: number;
+    activeRentSum: number;
+  };
+};
+
+export type ContractDocumentStatus = {
+  contractId: string;
+  revision: string;
+  status: "pending" | "processing" | "ready" | "failed";
+  attempts: number;
+  error: string | null;
+  updatedAt: string;
+};
+
+export type ContractFinancialHistory = {
+  id: string;
+  contractId: string;
+  field: string;
+  beforeValue: string | null;
+  afterValue: string;
+  actorId: string | null;
+  actorUsername: string | null;
+  createdAt: string;
+};
+
 export type StoredFile = {
   id: string;
   originalName: string;

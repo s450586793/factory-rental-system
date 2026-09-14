@@ -10,8 +10,9 @@ import { Contract, ContractStatus } from "../contracts/contract.entity";
 import { RentContractFinancialSummary } from "../rent-receivables/rent-receivables.dto";
 import { RentReceivablesService } from "../rent-receivables/rent-receivables.service";
 import { UtilityMeterConfig } from "../utilities/utility-meter-config.entity";
-import { CreateUnitDto, UpdateUnitDto } from "./units.dto";
+import { CreateUnitDto, UnitsPageQueryDto, UpdateUnitDto } from "./units.dto";
 import { FactoryUnit } from "./factory-unit.entity";
+import { UNITS_PAGE_QUERY } from "./units-page.query";
 
 function today() {
   return formatShanghaiDate();
@@ -57,6 +58,13 @@ export class UnitsService {
     private readonly meterConfigsRepository: Repository<UtilityMeterConfig>,
     private readonly rentReceivablesService: RentReceivablesService,
   ) {}
+
+  async listPage({ page = 1, pageSize = 20 }: UnitsPageQueryDto) {
+    const [result] = await this.unitsRepository.query(UNITS_PAGE_QUERY, [
+      today(), pageSize, (page - 1) * pageSize,
+    ]);
+    return { ...result, page, pageSize };
+  }
 
   async list() {
     const units = await this.unitsRepository.find({

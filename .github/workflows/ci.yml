@@ -28,6 +28,13 @@ jobs:
           WEB_UPDATE_PROJECT_DIR: /tmp/factory-rental-system
         run: docker compose -f docker-compose.ghcr.yml -f docker-compose.web-update.yml config
 
+      - name: Verify database and attachment backups
+        env:
+          RESTORE_IMAGE: postgres:16
+        run: |
+          docker pull "$RESTORE_IMAGE"
+          sh scripts/test-backup.sh
+
   backend-check:
     runs-on: ubuntu-latest
     defaults:
@@ -48,13 +55,16 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y --no-install-recommends python3-pil
 
       - name: Install dependencies
-        run: npm install
+        run: npm ci
 
       - name: Build backend
         run: npm run build
 
       - name: Run backend tests
         run: npm test
+
+      - name: Lint backend
+        run: npm run lint
 
   migration-smoke:
     runs-on: ubuntu-latest
@@ -104,13 +114,28 @@ jobs:
           cache-dependency-path: backend/package-lock.json
 
       - name: Install dependencies
-        run: npm install
+        run: npm ci
 
       - name: Run migrations
         run: npm run migration:run
 
       - name: Seed admin user
         run: npm run seed:admin
+
+      - name: Install PDF renderer
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends python3-pil
+
+      - name: Build worker runtime
+        run: npm run build
+
+      - name: Test real database rental workflow
+        env:
+          INTEGRATION_DB_HOST: 127.0.0.1
+          INTEGRATION_DB_PORT: "5432"
+          INTEGRATION_DB_USER: postgres
+          INTEGRATION_DB_PASSWORD: postgres
+          INTEGRATION_DB_NAME: factory_rental
+        run: npm run test:integration
 
   frontend-check:
     runs-on: ubuntu-latest
@@ -129,7 +154,7 @@ jobs:
           cache-dependency-path: frontend/package-lock.json
 
       - name: Install dependencies
-        run: npm install
+        run: npm ci
 
       - name: Type-check frontend
         run: npm run type-check

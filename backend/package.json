@@ -1,6 +1,6 @@
 {
   "name": "factory-rental-backend",
-  "version": "0.8.0",
+  "version": "0.9.0",
   "private": true,
   "scripts": {
     "build": "nest build",
@@ -8,6 +8,7 @@
     "start:prod": "node dist/main.js",
     "start:dev": "nest start --watch",
     "test": "jest --config ./test/jest.config.ts --runInBand",
+    "test:integration": "jest --config ./test/jest.integration.config.ts --runInBand",
     "test:watch": "jest --config ./test/jest.config.ts --watch",
     "lint": "eslint \"src/**/*.ts\"",
     "format": "prettier --write \"src/**/*.ts\"",

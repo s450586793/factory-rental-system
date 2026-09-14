@@ -11,23 +11,23 @@
       <div class="stats-row units-stats-row">
         <div class="stat-item">
           <small>厂房总数</small>
-          <strong>{{ units.length }}</strong>
+          <strong>{{ total }}</strong>
         </div>
         <div class="stat-item">
           <small>当前在租</small>
-          <strong>{{ occupiedCount }}</strong>
+          <strong>{{ stats.occupiedCount }}</strong>
         </div>
         <div class="stat-item">
           <small>空置数量</small>
-          <strong>{{ vacantCount }}</strong>
+          <strong>{{ stats.vacantCount }}</strong>
         </div>
         <div class="stat-item">
           <small>即将到期</small>
-          <strong>{{ expiringCount }}</strong>
+          <strong>{{ stats.expiringCount }}</strong>
         </div>
         <div class="stat-item">
           <small>已到期</small>
-          <strong>{{ expiredCount }}</strong>
+          <strong>{{ stats.expiredCount }}</strong>
         </div>
         <div class="stat-item stat-item-sensitive">
           <div class="stat-item-head">
@@ -36,7 +36,7 @@
               {{ rentSumVisible ? "隐藏" : "显示" }}
             </button>
           </div>
-          <strong>{{ rentSumVisible ? formatCurrency(activeRentSum) : "*****" }}</strong>
+          <strong>{{ rentSumVisible ? formatCurrency(stats.activeRentSum) : "*****" }}</strong>
         </div>
       </div>
     </section>
@@ -84,8 +84,8 @@
         <el-table-column label="合计欠费" min-width="124">
           <template #default="{ row }">
             {{
-              row.contracts.length
-                ? displayRentAmount(resolveUnitOutstandingAmount(row))
+              row.contractCount
+                ? displayRentAmount(row.outstandingAmount)
                 : "--"
             }}
           </template>
@@ -99,6 +99,18 @@
           </template>
         </el-table-column>
         </el-table>
+      </div>
+      <div class="units-pagination">
+        <el-pagination
+          :current-page="page"
+          :page-size="pageSize"
+          :total="total"
+          :pager-count="5"
+          :page-sizes="[20, 50, 100]"
+          :layout="viewportWidth < 768 ? 'prev, pager, next' : 'total, sizes, prev, pager, next'"
+          @current-change="changePage"
+          @size-change="changePageSize"
+        />
       </div>
     </section>
 
@@ -140,229 +152,14 @@
               </div>
             </div>
 
-            <h4 class="contract-party-heading">甲方信息</h4>
-            <el-row :gutter="14">
-              <el-col :span="12">
-                <el-form-item label="甲方名称">
-                  <el-input
-                    v-model="unitContractForm.lessorName"
-                    aria-label="初始合同甲方名称"
-                    placeholder="个人姓名或公司名称"
-                  />
-                </el-form-item>
-              </el-col>
-              <el-col :span="12">
-                <el-form-item label="甲方营业执照代码">
-                  <el-input
-                    v-model="unitContractForm.lessorLicenseCode"
-                    aria-label="初始合同甲方营业执照代码"
-                    placeholder="个人出租可留空"
-                  />
-                </el-form-item>
-              </el-col>
-            </el-row>
-
-            <el-row :gutter="14">
-              <el-col :span="12">
-                <el-form-item label="甲方联系人">
-                  <el-input v-model="unitContractForm.lessorContactName" aria-label="初始合同甲方联系人" />
-                </el-form-item>
-              </el-col>
-              <el-col :span="12">
-                <el-form-item label="甲方电话">
-                  <el-input v-model="unitContractForm.lessorPhone" aria-label="初始合同甲方电话" />
-                </el-form-item>
-              </el-col>
-            </el-row>
-
-            <h4 class="contract-party-heading">乙方信息</h4>
-            <el-row :gutter="14">
-              <el-col :span="12">
-                <el-form-item label="乙方名称">
-                  <el-input
-                    v-model="unitContractForm.tenantName"
-                    aria-label="初始合同乙方名称"
-                    placeholder="个人姓名或公司名称"
-                  />
-                </el-form-item>
-              </el-col>
-              <el-col :span="12">
-                <el-form-item label="乙方营业执照代码">
-                  <el-input
-                    v-model="unitContractForm.licenseCode"
-                    aria-label="初始合同乙方营业执照代码"
-                    placeholder="统一社会信用代码"
-                  />
-                </el-form-item>
-              </el-col>
-            </el-row>
-
-            <el-row :gutter="14">
-              <el-col :span="12">
-                <el-form-item label="乙方联系人">
-                  <el-input
-                    v-model="unitContractForm.contactName"
-                    aria-label="初始合同乙方联系人"
-                    placeholder="例如 林建生"
-                  />
-                </el-form-item>
-              </el-col>
-              <el-col :span="12">
-                <el-form-item label="乙方电话">
-                  <el-input
-                    v-model="unitContractForm.tenantPhone"
-                    aria-label="初始合同乙方电话"
-                    placeholder="例如 13800000000"
-                  />
-                </el-form-item>
-              </el-col>
-            </el-row>
-
-            <h4 class="contract-party-heading">合同与安全协议</h4>
-            <el-row :gutter="14">
-              <el-col :span="12">
-                <el-form-item label="甲方安全管理负责人">
-                  <el-input
-                    v-model="unitContractForm.lessorSafetyManager"
-                    aria-label="初始合同甲方安全管理负责人"
-                  />
-                </el-form-item>
-              </el-col>
-              <el-col :span="12">
-                <el-form-item label="乙方安全管理负责人">
-                  <el-input
-                    v-model="unitContractForm.tenantSafetyManager"
-                    aria-label="初始合同乙方安全管理负责人"
-                  />
-                </el-form-item>
-              </el-col>
-            </el-row>
-
-            <el-row :gutter="14">
-              <el-col :span="12">
-                <el-form-item label="合同签订日期">
-                  <el-date-picker
-                    v-model="unitContractForm.signedDate"
-                    aria-label="初始合同签订日期"
-                    type="date"
-                    value-format="YYYY-MM-DD"
-                    style="width: 100%"
-                  />
-                </el-form-item>
-              </el-col>
-              <el-col :span="12">
-                <el-form-item label="提前退租违约金">
-                  <el-input-number
-                    v-model="unitContractForm.earlyTerminationPenaltyAmount"
-                    aria-label="初始合同提前退租违约金"
-                    :min="0"
-                    :precision="2"
-                    style="width: 100%"
-                    @update:model-value="unitPenaltyUsesDefault = false"
-                  />
-                </el-form-item>
-              </el-col>
-            </el-row>
-
-            <el-row :gutter="14">
-              <el-col :span="12">
-                <el-form-item label="合同开始">
-                  <el-date-picker
-                    v-model="unitContractForm.startDate"
-                    aria-label="初始合同开始"
-                    type="date"
-                    value-format="YYYY-MM-DD"
-                    style="width: 100%"
-                    @change="handleUnitContractStartDateChange"
-                  />
-                </el-form-item>
-              </el-col>
-              <el-col :span="12">
-                <el-form-item label="合同结束">
-                  <el-date-picker
-                    v-model="unitContractForm.endDate"
-                    type="date"
-                    value-format="YYYY-MM-DD"
-                    style="width: 100%"
-                  />
-                </el-form-item>
-              </el-col>
-            </el-row>
-
-            <el-row :gutter="14">
-              <el-col :span="12">
-                <el-form-item label="年租金">
-                  <el-input-number
-                    v-model="unitContractForm.annualRent"
-                    aria-label="初始合同年租金"
-                    :min="0"
-                    :precision="2"
-                    style="width: 100%"
-                    @update:model-value="handleUnitContractAnnualRentUpdate"
-                  />
-                  <el-radio-group
-                    v-model="unitContractForm.billingFrequency"
-                    class="billing-frequency-control"
-                    aria-label="初始合同收租周期"
-                    disabled
-                  >
-                    <el-radio-button label="annual" aria-label="初始合同收租周期-按年">按年</el-radio-button>
-                    <el-radio-button label="semiannual" aria-label="初始合同收租周期-按半年">按半年</el-radio-button>
-                  </el-radio-group>
-                  <div v-if="unitContractPreview.count" class="schedule-preview-line">
-                    <span>预计 {{ unitContractPreview.count }} 期</span>
-                    <span>首期到期日 {{ unitContractPreview.firstDueDate }}</span>
-                  </div>
-                </el-form-item>
-              </el-col>
-              <el-col :span="12">
-                <el-form-item label="押金">
-                  <el-input-number
-                    v-model="unitContractForm.depositAmount"
-                    aria-label="初始合同押金"
-                    :min="0"
-                    :precision="2"
-                    style="width: 100%"
-                  />
-                </el-form-item>
-              </el-col>
-            </el-row>
-
-            <el-row :gutter="14">
-              <el-col :span="8">
-                <el-form-item label="电费单价（元/度）">
-                  <el-input-number
-                    v-model="unitContractForm.electricUnitPrice"
-                    aria-label="初始合同电费单价（元/度）"
-                    :min="0"
-                    :precision="4"
-                    style="width: 100%"
-                  />
-                </el-form-item>
-              </el-col>
-              <el-col :span="8">
-                <el-form-item label="电费线损（%）">
-                  <el-input-number
-                    v-model="unitContractForm.electricLineLossPercent"
-                    aria-label="初始合同电费线损（%）"
-                    :min="0"
-                    :precision="2"
-                    style="width: 100%"
-                  />
-                </el-form-item>
-              </el-col>
-              <el-col :span="8">
-                <el-form-item label="水费单价（元/吨）">
-                  <el-input-number
-                    v-model="unitContractForm.waterUnitPrice"
-                    aria-label="初始合同水费单价（元/吨）"
-                    :min="0"
-                    :precision="4"
-                    style="width: 100%"
-                  />
-                </el-form-item>
-              </el-col>
-            </el-row>
+            <ContractFormFields
+              :form="unitContractForm"
+              :preview="unitContractPreview"
+              initial
+              @start-change="handleUnitContractStartDateChange"
+              @annual-rent-change="handleUnitContractAnnualRentUpdate"
+              @penalty-change="unitPenaltyUsesDefault = false"
+            />
 
             <el-form-item label="营业执照">
               <div class="detail-grid">
@@ -546,10 +343,32 @@
                 </div>
               </template>
             </el-table-column>
+            <el-table-column label="合同文件" min-width="128">
+              <template #default="{ row }">
+                <div v-if="documentErrors[row.id]" role="alert">
+                  获取状态失败
+                  <el-button text @click="refreshDocuments([row.id])">刷新</el-button>
+                </div>
+                <template v-else>
+                  <el-tag :type="documentStatuses[row.id]?.status === 'failed' ? 'danger' : 'info'">
+                    {{ documentStatusLabel(documentStatuses[row.id]?.status) }}
+                  </el-tag>
+                  <el-button
+                    v-if="documentStatuses[row.id]?.status === 'failed'"
+                    text
+                    type="primary"
+                    :loading="retryingDocuments[row.id]"
+                    @click="retryDocument(row.id)"
+                  >重试生成</el-button>
+                  <p v-if="documentStatuses[row.id]?.error" class="field-hint">{{ documentStatuses[row.id].error }}</p>
+                </template>
+              </template>
+            </el-table-column>
             <el-table-column label="操作" width="218">
               <template #default="{ row }">
                 <el-space wrap size="small" class="contracts-actions">
                   <el-button text @click="openRentSchedule(row)">查看期次</el-button>
+                  <el-button text @click="openContractHistory(row.id)">金额历史</el-button>
                   <el-button
                     text
                     type="primary"
@@ -617,209 +436,13 @@
       width="760px"
     >
         <el-form label-position="top">
-        <h4 class="contract-party-heading">甲方信息</h4>
-        <el-row :gutter="14">
-          <el-col :span="12">
-            <el-form-item label="甲方名称">
-              <el-input v-model="contractForm.lessorName" aria-label="甲方名称" placeholder="个人姓名或公司名称" />
-            </el-form-item>
-          </el-col>
-          <el-col :span="12">
-            <el-form-item label="甲方营业执照代码">
-              <el-input
-                v-model="contractForm.lessorLicenseCode"
-                aria-label="甲方营业执照代码"
-                placeholder="个人出租可留空"
-              />
-            </el-form-item>
-          </el-col>
-        </el-row>
-
-        <el-row :gutter="14">
-          <el-col :span="12">
-            <el-form-item label="甲方联系人">
-              <el-input v-model="contractForm.lessorContactName" aria-label="甲方联系人" />
-            </el-form-item>
-          </el-col>
-          <el-col :span="12">
-            <el-form-item label="甲方电话">
-              <el-input v-model="contractForm.lessorPhone" aria-label="甲方电话" />
-            </el-form-item>
-          </el-col>
-        </el-row>
-
-        <h4 class="contract-party-heading">乙方信息</h4>
-          <el-row :gutter="14">
-            <el-col :span="12">
-            <el-form-item label="乙方名称">
-              <el-input v-model="contractForm.tenantName" aria-label="乙方名称" />
-            </el-form-item>
-          </el-col>
-          <el-col :span="12">
-            <el-form-item label="乙方营业执照代码">
-              <el-input v-model="contractForm.licenseCode" aria-label="乙方营业执照代码" />
-            </el-form-item>
-          </el-col>
-        </el-row>
-
-        <el-row :gutter="14">
-          <el-col :span="12">
-            <el-form-item label="乙方联系人">
-              <el-input v-model="contractForm.contactName" aria-label="乙方联系人" />
-            </el-form-item>
-          </el-col>
-          <el-col :span="12">
-            <el-form-item label="乙方电话">
-              <el-input v-model="contractForm.tenantPhone" aria-label="乙方电话" />
-            </el-form-item>
-          </el-col>
-        </el-row>
-
-        <h4 class="contract-party-heading">合同与安全协议</h4>
-        <el-row :gutter="14">
-          <el-col :span="12">
-            <el-form-item label="甲方安全管理负责人">
-              <el-input
-                v-model="contractForm.lessorSafetyManager"
-                aria-label="甲方安全管理负责人"
-              />
-            </el-form-item>
-          </el-col>
-          <el-col :span="12">
-            <el-form-item label="乙方安全管理负责人">
-              <el-input
-                v-model="contractForm.tenantSafetyManager"
-                aria-label="乙方安全管理负责人"
-              />
-            </el-form-item>
-          </el-col>
-        </el-row>
-
-        <el-row :gutter="14">
-          <el-col :span="12">
-            <el-form-item label="合同签订日期">
-              <el-date-picker
-                v-model="contractForm.signedDate"
-                aria-label="合同签订日期"
-                type="date"
-                value-format="YYYY-MM-DD"
-                style="width: 100%"
-              />
-            </el-form-item>
-          </el-col>
-          <el-col :span="12">
-            <el-form-item label="提前退租违约金">
-              <el-input-number
-                v-model="contractForm.earlyTerminationPenaltyAmount"
-                aria-label="提前退租违约金"
-                :min="0"
-                :precision="2"
-                style="width: 100%"
-                @update:model-value="contractPenaltyUsesDefault = false"
-              />
-            </el-form-item>
-          </el-col>
-        </el-row>
-
-        <el-row :gutter="14">
-          <el-col :span="12">
-            <el-form-item label="合同开始">
-              <el-date-picker
-                v-model="contractForm.startDate"
-                aria-label="合同开始"
-                type="date"
-                value-format="YYYY-MM-DD"
-                style="width: 100%"
-                @change="handleContractStartDateChange"
-              />
-            </el-form-item>
-          </el-col>
-          <el-col :span="12">
-            <el-form-item label="合同结束">
-              <el-date-picker
-                v-model="contractForm.endDate"
-                aria-label="合同结束"
-                type="date"
-                value-format="YYYY-MM-DD"
-                style="width: 100%"
-              />
-            </el-form-item>
-          </el-col>
-        </el-row>
-
-        <el-row :gutter="14">
-          <el-col :span="12">
-            <el-form-item label="年租金">
-              <el-input-number
-                v-model="contractForm.annualRent"
-                aria-label="年租金"
-                :min="0"
-                :precision="2"
-                style="width: 100%"
-                @update:model-value="handleContractAnnualRentUpdate"
-              />
-              <el-radio-group
-                v-model="contractForm.billingFrequency"
-                class="billing-frequency-control"
-                aria-label="收租周期"
-              >
-                <el-radio-button label="annual" aria-label="收租周期-按年">按年</el-radio-button>
-                <el-radio-button label="semiannual" aria-label="收租周期-按半年">按半年</el-radio-button>
-              </el-radio-group>
-              <div v-if="contractPreview.count" class="schedule-preview-line">
-                <span>预计 {{ contractPreview.count }} 期</span>
-                <span>首期到期日 {{ contractPreview.firstDueDate }}</span>
-              </div>
-            </el-form-item>
-          </el-col>
-          <el-col :span="12">
-            <el-form-item label="押金">
-              <el-input-number
-                v-model="contractForm.depositAmount"
-                aria-label="押金"
-                :min="0"
-                :precision="2"
-                style="width: 100%"
-              />
-            </el-form-item>
-          </el-col>
-        </el-row>
-
-        <el-row :gutter="14">
-          <el-col :span="8">
-            <el-form-item label="电费单价（元/度）">
-              <el-input-number
-                v-model="contractForm.electricUnitPrice"
-                aria-label="电费单价（元/度）"
-                :min="0"
-                :precision="4"
-                style="width: 100%"
-              />
-            </el-form-item>
-          </el-col>
-          <el-col :span="8">
-            <el-form-item label="电费线损（%）">
-              <el-input-number
-                v-model="contractForm.electricLineLossPercent"
-                aria-label="电费线损（%）"
-                :min="0"
-                :precision="2"
-                style="width: 100%"
-              />
-            </el-form-item>
-          </el-col>
-          <el-col :span="8">
-            <el-form-item label="水费单价（元/吨）">
-              <el-input-number
-                v-model="contractForm.waterUnitPrice"
-                aria-label="水费单价（元/吨）"
-                :min="0"
-                :precision="4"
-                style="width: 100%"
-              />
-            </el-form-item>
-          </el-col>
-        </el-row>
+        <ContractFormFields
+          :form="contractForm"
+          :preview="contractPreview"
+          @start-change="handleContractStartDateChange"
+          @annual-rent-change="handleContractAnnualRentUpdate"
+          @penalty-change="contractPenaltyUsesDefault = false"
+        />
 
         <el-form-item label="营业执照">
           <div class="detail-grid">
@@ -863,6 +486,8 @@
         <el-button type="primary" :loading="submittingContract" @click="saveContract(true)">保存并下载合同</el-button>
       </template>
     </el-dialog>
+
+    <ContractHistoryDialog v-model="contractHistoryVisible" :contract-id="contractHistoryId" />
 
     <el-dialog
       v-model="rentScheduleDialogVisible"
@@ -983,15 +608,21 @@
 import { computed, onMounted, reactive, ref, watch } from "vue";
 import { ElMessage, ElMessageBox } from "element-plus";
 import AppShell from "../components/AppShell.vue";
+import ContractFormFields from "../features/units/components/ContractFormFields.vue";
+import ContractHistoryDialog from "../features/units/components/ContractHistoryDialog.vue";
+import { useContractDocuments } from "../features/units/composables/useContractDocuments";
 import { apiFileUrl, apiGeneratedContractDocumentUrl } from "../api/client";
 import { contractsApi, filesApi, rentReceivablesApi, unitsApi, utilitiesApi } from "../api";
 import { useViewportWidth } from "../composables/useViewportWidth";
 import type {
   Contract,
+  ContractDocumentStatus,
   MeterConfig,
   RentReceivable,
   StoredFile,
   UnitSummary,
+  UnitListItem,
+  UnitPage,
 } from "../types/models";
 import { formatCurrency } from "../utils/format";
 import { buildRentSchedulePreview } from "../utils/rent-schedule-preview";
@@ -1001,7 +632,15 @@ const DEFAULT_LESSOR_CONTACT_NAME = "吴孝斌";
 const DEFAULT_LESSOR_PHONE = "18651510352";
 
 const loading = ref(false);
-const units = ref<UnitSummary[]>([]);
+const units = ref<UnitListItem[]>([]);
+const page = ref(1);
+const pageSize = ref(20);
+const total = ref(0);
+const stats = ref<UnitPage["stats"]>({
+  occupiedCount: 0, vacantCount: 0, expiringCount: 0, expiredCount: 0, activeRentSum: 0,
+});
+let unitsRequestSequence = 0;
+let detailRequestSequence = 0;
 const selectedUnit = ref<UnitSummary | null>(null);
 const detailDrawerVisible = ref(false);
 const submittingDetailUnit = ref(false);
@@ -1105,16 +744,18 @@ const filePreviewTitle = ref("文件预览");
 const viewportWidth = useViewportWidth();
 const rentSumVisible = ref(false);
 const downloadingContractId = ref("");
+const contractHistoryVisible = ref(false);
+const contractHistoryId = ref("");
+const {
+  statuses: documentStatuses, errors: documentErrors, retrying: retryingDocuments,
+  track: trackDocuments, retry: retryDocument, refresh: refreshDocuments, downloadWhenReady,
+} = useContractDocuments((message) => ElMessage.error(message));
 
-const occupiedCount = computed(() =>
-  units.value.filter((item) => item.status === "occupied" || item.status === "expiring").length,
+watch(
+  () => detailDrawerVisible.value ? selectedUnit.value?.contracts.map((contract) => contract.id) ?? [] : [],
+  trackDocuments,
 );
-const vacantCount = computed(() => units.value.filter((item) => item.status === "vacant").length);
-const expiringCount = computed(() => units.value.filter((item) => item.status === "expiring").length);
-const expiredCount = computed(() => units.value.filter((item) => item.status === "expired").length);
-const activeRentSum = computed(() =>
-  units.value.reduce((sum, item) => sum + Number(item.activeContract?.annualRent ?? 0), 0),
-);
+
 const actionColumnFixed = computed<false | "right">(() => (viewportWidth.value < 768 ? false : "right"));
 const unitContractPreview = computed(() =>
   buildRentSchedulePreview(
@@ -1170,20 +811,38 @@ function defaultSafetyManager(currentManager: string, previousContact: string, c
 }
 
 async function loadUnits() {
+  const requestSequence = ++unitsRequestSequence;
   try {
     loading.value = true;
-    units.value = await unitsApi.list();
-    if (selectedUnit.value) {
-      const found = units.value.find((item) => item.id === selectedUnit.value?.id);
-      if (found && detailDrawerVisible.value) {
-        await openDetail(found.id);
-      }
+    const result = await unitsApi.page({ page: page.value, pageSize: pageSize.value });
+    if (requestSequence !== unitsRequestSequence) return;
+    total.value = result.total;
+    stats.value = result.stats;
+    const lastPage = Math.max(1, Math.ceil(result.total / pageSize.value));
+    if (page.value > lastPage) {
+      page.value = lastPage;
+      await loadUnits();
+      return;
     }
+    units.value = result.items;
   } catch (error) {
-    ElMessage.error(error instanceof Error ? error.message : "加载厂房失败");
+    if (requestSequence === unitsRequestSequence) {
+      ElMessage.error(error instanceof Error ? error.message : "加载厂房失败");
+    }
   } finally {
-    loading.value = false;
+    if (requestSequence === unitsRequestSequence) loading.value = false;
   }
+}
+
+function changePage(value: number) {
+  page.value = value;
+  void loadUnits();
+}
+
+function changePageSize(value: number) {
+  pageSize.value = value;
+  page.value = 1;
+  void loadUnits();
 }
 
 function resetUnitForm() {
@@ -1461,12 +1120,17 @@ function validateInitialContractForm() {
 }
 
 async function openDetail(unitId: string) {
+  const requestSequence = ++detailRequestSequence;
   try {
-    selectedUnit.value = await unitsApi.detail(unitId);
+    const unit = await unitsApi.detail(unitId);
+    if (requestSequence !== detailRequestSequence) return;
+    selectedUnit.value = unit;
     syncDetailUnitForm(selectedUnit.value);
     detailDrawerVisible.value = true;
   } catch (error) {
-    ElMessage.error(error instanceof Error ? error.message : "加载详情失败");
+    if (requestSequence === detailRequestSequence) {
+      ElMessage.error(error instanceof Error ? error.message : "加载详情失败");
+    }
   }
 }
 
@@ -1474,7 +1138,10 @@ async function refreshSelectedUnit() {
   if (!selectedUnit.value) {
     return;
   }
-  selectedUnit.value = await unitsApi.detail(selectedUnit.value.id);
+  const requestSequence = ++detailRequestSequence;
+  const unit = await unitsApi.detail(selectedUnit.value.id);
+  if (requestSequence !== detailRequestSequence) return;
+  selectedUnit.value = unit;
   syncDetailUnitForm(selectedUnit.value);
 }
 
@@ -1503,6 +1170,10 @@ async function confirmRemoveUnit(unitId: string) {
   try {
     await ElMessageBox.confirm("删除后将无法恢复，确定继续吗？", "删除厂房", { type: "warning" });
     await unitsApi.remove(unitId);
+    if (selectedUnit.value?.id === unitId) {
+      detailDrawerVisible.value = false;
+      selectedUnit.value = null;
+    }
     ElMessage.success("厂房已删除");
     await loadUnits();
   } catch (error) {
@@ -1749,21 +1420,10 @@ async function saveContract(generateDocumentAfterSave = false) {
       savedContract = await contractsApi.create(payload);
     }
 
-    if (shouldGenerateDocument) {
-      triggerFileDownload(apiGeneratedContractDocumentUrl(savedContract.id), buildGeneratedContractDownloadName(savedContract));
-    }
-
     closeContractDialog();
     await Promise.all([refreshSelectedUnit(), loadUnits()]);
-    ElMessage.success(
-      shouldGenerateDocument
-        ? isEditing
-          ? "合同已更新并已下载合同文件"
-          : "合同已新增并已下载合同文件"
-        : isEditing
-          ? "合同已更新"
-          : "合同已新增",
-    );
+    ElMessage.success(isEditing ? "合同已更新" : "合同已新增");
+    if (shouldGenerateDocument) await downloadContractDocument(savedContract.id, savedContract);
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : "保存合同失败");
   } finally {
@@ -1817,17 +1477,29 @@ function handleRentScheduleDialogClosed() {
   rentScheduleError.value = "";
 }
 
-async function downloadContractDocument(contractId: string) {
+async function downloadContractDocument(contractId: string, savedContract?: Contract) {
   try {
     downloadingContractId.value = contractId;
-    const contract = selectedUnit.value?.contracts.find((item) => item.id === contractId);
-    triggerFileDownload(apiGeneratedContractDocumentUrl(contractId), buildGeneratedContractDownloadName(contract));
-    ElMessage.success("合同已开始下载");
+    const contract = savedContract ?? selectedUnit.value?.contracts.find((item) => item.id === contractId);
+    const ready = await downloadWhenReady(contractId, () => {
+      triggerFileDownload(apiGeneratedContractDocumentUrl(contractId), buildGeneratedContractDownloadName(contract));
+      ElMessage.success("合同已开始下载");
+    });
+    if (!ready) ElMessage.info("合同正在生成，完成后将自动下载");
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : "下载合同失败");
   } finally {
     downloadingContractId.value = "";
   }
+}
+
+function documentStatusLabel(status?: ContractDocumentStatus["status"]) {
+  return status ? { pending: "排队中", processing: "生成中", ready: "已生成", failed: "生成失败" }[status] : "加载中";
+}
+
+function openContractHistory(contractId: string) {
+  contractHistoryId.value = contractId;
+  contractHistoryVisible.value = true;
 }
 
 function buildGeneratedContractDownloadName(contract?: Pick<Contract, "tenantName" | "startDate" | "endDate"> | null) {
@@ -1996,14 +1668,6 @@ function displayRentAmount(amount: number | null | undefined) {
   return rentSumVisible.value ? formatCurrency(Number(amount)) : "*****";
 }
 
-function resolveUnitOutstandingAmount(unit: UnitSummary) {
-  return Number(
-    (unit.contracts ?? [])
-      .reduce((sum, contract) => sum + Number(contract.outstandingAmount ?? 0), 0)
-      .toFixed(2),
-  );
-}
-
 function deriveContractEndDate(startDate: string) {
   if (!startDate) {
     return "";
@@ -2042,3 +1706,30 @@ function deriveNextDate(dateText: string) {
   return `${nextYear}-${nextMonth}-${nextDay}`;
 }
 </script>
+
+<style scoped>
+.units-pagination {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 16px;
+  max-width: 100%;
+}
+
+@media (max-width: 767px) {
+  .units-stats-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+
+  .units-stats-row .stat-item-sensitive {
+    grid-column: 1 / -1;
+  }
+
+  .units-stats-row .stat-item small {
+    white-space: normal;
+  }
+
+  .units-pagination {
+    justify-content: center;
+  }
+}
+</style>

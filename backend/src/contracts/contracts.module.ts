@@ -6,15 +6,28 @@ import { FactoryUnit } from "../units/factory-unit.entity";
 import { Contract } from "./contract.entity";
 import { ContractsController } from "./contracts.controller";
 import { ContractsService } from "./contracts.service";
+import { ContractDocumentJob } from "./contract-document-job.entity";
+import { ContractFinancialHistory } from "./contract-financial-history.entity";
+import { ContractDocumentQueueService } from "./contract-document-queue.service";
+import { ContractPdfRendererService } from "./contract-pdf-renderer.service";
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Contract, FactoryUnit]),
+    TypeOrmModule.forFeature([
+      Contract,
+      FactoryUnit,
+      ContractDocumentJob,
+      ContractFinancialHistory,
+    ]),
     FilesModule,
     RentReceivablesModule,
   ],
   controllers: [ContractsController],
-  providers: [ContractsService],
+  providers: [
+    ContractsService,
+    ContractDocumentQueueService,
+    ContractPdfRendererService,
+  ],
   exports: [ContractsService, TypeOrmModule],
 })
 export class ContractsModule {}

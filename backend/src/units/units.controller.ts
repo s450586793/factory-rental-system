@@ -1,7 +1,7 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, UseGuards } from "@nestjs/common";
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query, UseGuards } from "@nestjs/common";
 import { ApiTags } from "@nestjs/swagger";
 import { JwtAuthGuard } from "../common/guards/jwt-auth.guard";
-import { CreateUnitDto, UpdateUnitDto } from "./units.dto";
+import { CreateUnitDto, UnitsPageQueryDto, UpdateUnitDto } from "./units.dto";
 import { UnitsService } from "./units.service";
 
 @ApiTags("units")
@@ -13,6 +13,11 @@ export class UnitsController {
   @Get()
   list() {
     return this.unitsService.list();
+  }
+
+  @Get("page")
+  page(@Query() query: UnitsPageQueryDto) {
+    return this.unitsService.listPage(query);
   }
 
   @Get(":id")

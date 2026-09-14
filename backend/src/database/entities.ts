@@ -1,4 +1,6 @@
 import { Contract } from "../contracts/contract.entity";
+import { ContractDocumentJob } from "../contracts/contract-document-job.entity";
+import { ContractFinancialHistory } from "../contracts/contract-financial-history.entity";
 import { DepositRecord } from "../deposits/deposit-record.entity";
 import { StoredFile } from "../files/stored-file.entity";
 import { Receipt } from "../receipts/receipt.entity";
@@ -12,6 +14,8 @@ import { UtilityChargeRecord } from "../utilities/utility-charge-record.entity";
 import { UtilityMeterConfig } from "../utilities/utility-meter-config.entity";
 
 export const databaseEntities = [
+  ContractDocumentJob,
+  ContractFinancialHistory,
   AdminUser,
   StoredFile,
   FactoryUnit,

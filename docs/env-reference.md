@@ -68,6 +68,18 @@
   不走代理的地址列表，例如 `localhost,127.0.0.1,postgres,factory-rental-postgres,192.168.0.0/16,.local`
 - `WEB_UPDATE_ONLINE_VERSION_TIMEOUT_MS`
   查询线上版本的超时时间，默认 `5000`，最小 `1000`
+- `WEB_UPDATE_ONLINE_VERSION_URL`
+  完整发布清单地址，默认 `https://github.com/s450586793/factory-rental-system/releases/latest/download/release-manifest.json`；旧版指向 `raw.githubusercontent.com` 的配置需移除或替换
+- `WEB_UPDATE_DOCKER_TIMEOUT_MS`
+  Docker API 单次请求超时，默认 `120000` 毫秒
+- `WEB_UPDATE_TIMEOUT_SECONDS`
+  更新任务总超时，应用默认 `900` 秒；DSM 覆盖配置默认 `1800` 秒，包含拉取、备份及健康检查
+- `WEB_UPDATE_HEALTH_TIMEOUT_SECONDS`
+  重建后等待两个应用容器健康且版本一致的时间，默认 `300` 秒
+- `WEB_UPDATE_BACKUP_ENABLED`
+  更新前备份数据库及附件并验证恢复，默认 `true`；需在项目目录安装 `scripts/backup.sh` 和 `scripts/verify-backup.sh`，备份失败会停止更新
+
+备份脚本的保留天数及任务配置见[备份与恢复说明](./backup-restore.md)。
 
 启用 Web 端更新需要额外挂载 Docker socket。默认 compose 不挂载该权限，需显式加载 `docker-compose.web-update.yml`。
 

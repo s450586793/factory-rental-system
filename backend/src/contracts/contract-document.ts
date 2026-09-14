@@ -25,7 +25,7 @@ const STANDARD_CONTRACT_BODY_WIDTH = 480;
 const SAFETY_AGREEMENT_CLOSING_TEMPLATE_PAGE = 9;
 export const STANDARD_CONTRACT_SIGNATURE_TAB_STOP = 315;
 
-type ContractDocumentPayload = {
+export type ContractDocumentPayload = {
   contract: Contract;
   unit: FactoryUnit & { meterConfigs: UtilityMeterConfig[] };
   generatedDate: string;

@@ -10,7 +10,7 @@
 
 ```bash
 cd backend
-npm install
+npm ci
 npm run migration:run
 npm run seed:admin
 ```
@@ -41,19 +41,12 @@ backend 容器入口会自动执行：
 
 ## 备份与恢复
 
-推荐至少保留两种备份方式：
-
-- 文件级备份：备份 `./volumes/postgres`
-- 数据库级备份：使用 `pg_dump`
-
-示例：
+使用项目的备份脚本，同时保存 PostgreSQL 一致性快照与附件、收据及生成合同文件，并在隔离数据库中实际恢复验证：
 
 ```bash
-docker exec -t factory-rental-postgres pg_dump -U postgres -d factory_rental > factory_rental.sql
+BACKUP_DIR=/volume1/docker/factory-rental-system/backups/automatic sh scripts/backup.sh
 ```
 
-恢复：
+备份和恢复步骤、保留策略、DSM 定时任务见[备份与恢复说明](./backup-restore.md)。直接复制正在运行的 PostgreSQL 数据目录不能替代一致性快照。
 
-```bash
-cat factory_rental.sql | docker exec -i factory-rental-postgres psql -U postgres -d factory_rental
-```
+V0.9.0 新增 `1712900000000-contract-document-jobs-and-history` 迁移，创建合同 PDF 任务及金额修改历史表。CI 会在真实 PostgreSQL 中从空库运行全部迁移，再验证第二次运行没有待执行项，以及合同、押金、收款、附件、PDF 和对账流程。

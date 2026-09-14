@@ -2,9 +2,9 @@
 
 > 此项目由 Codex 生成，并按实际业务需求持续迭代。
 
-当前版本：V0.8.0
+当前版本：V0.9.0
 
-更新时间：2026-08-30 11:15 CST
+更新时间：2026-09-14 17:38 CST
 
 版本规则：小修复递增补丁号（例如 `V0.1.2`），大功能或结构调整递增小版本号（例如 `V0.2.0`）。
 
@@ -18,6 +18,7 @@
 
 ## 更新历史
 
+- `2026-09-14 17:38 CST` `V0.9.0` 完善发布和恢复流程：CI 通过后才发布同一提交的前后端镜像，Web 更新固定镜像摘要，更新前自动备份，并保留阶段、退出结果和脱敏日志，确认版本一致且服务健康后才显示成功。合同 PDF 使用独立进程生成，任务状态持久化，异常后可恢复、重试；新增合同金额修改历史。增加数据库与附件的每日备份、隔离恢复校验和真实 PostgreSQL 业务流程测试。厂房列表改为分页摘要及按需加载详情，抽取共用合同表单，前端路由和组件按需加载。
 - `2026-08-30 11:15 CST` `V0.8.0` 修复从厂房详情编辑合同时安全负责人、签订日期和提前退租违约金字段缺失导致的 `trim` 报错；每份合同新增电费单价、电费线损和水费单价，续租默认继承上一份合同，无历史合同时读取厂房启用表计作为初始值。水电收费预填、金额计算和合同 PDF 均按所选合同的计费条款执行，收费明细继续保存单价与线损快照，后续换租户或修改新合同不会影响历史记录。
 - `2026-08-29 16:15 CST` `V0.7.5` 修复新增或编辑合同保存超时的问题：合同及应收计划写入数据库后立即返回，PDF 改为后台预生成并持久化缓存，不再因生成大文件阻塞保存请求；补充押金编辑回归测试，确保押金与提前退租违约金分别提交到对应字段。
 - `2026-08-28 16:53 CST` `V0.7.4` 优化安全生产管理负责人默认值：新增厂房初始合同或新增续租合同时，甲乙方安全管理负责人分别默认使用甲方联系人和乙方联系人；手工指定负责人后不再随联系人变化而覆盖，编辑已有合同时继续保留原负责人。
@@ -136,6 +137,9 @@
 - 水表/电表配置与水电收费记录
 - 房租收费记录、押金记录
 - 收据 PDF 生成、查看与作废
+- 合同 PDF 后台生成、持久化下载、状态查询与失败重试
+- 合同租金、押金、违约金和水电计费条款的修改历史
+- 版本弹窗更新、更新前备份、每日备份与恢复验证
 
 ## 仓库结构
 
@@ -182,7 +186,9 @@ WEB_UPDATE_PROJECT_DIR=/volume1/docker/factory-rental-system \
 docker compose -f docker-compose.ghcr.yml -f docker-compose.web-update.yml up -d
 ```
 
-启用后，按钮会让后端通过 Docker socket 启动一次性 updater 容器，使用 `docker-compose.ghcr.yml` 和 `docker-compose.web-update.yml` 执行 `docker compose pull backend frontend` 与 `docker compose up -d --no-deps --remove-orphans backend frontend`，仅重建应用容器，不重建 PostgreSQL。
+启用前，将仓库的 `scripts/backup.sh` 和 `scripts/verify-backup.sh` 放入 DSM 项目的 `scripts/` 目录，并按[备份与恢复说明](./docs/backup-restore.md)配置每日任务。
+
+版本弹窗读取 GitHub 最新完整发布的 `release-manifest.json`。点击更新后，后端通过 Docker socket 启动 updater 容器，使用发布清单中的前后端镜像摘要创建 `.web-update-images.json` 覆盖配置，拉取镜像、备份数据库和附件、验证恢复，再执行 `up -d --no-deps --no-build backend frontend`。应用健康且两个容器的提交版本均匹配才显示成功；日志和结果保留至下一次更新。
 
 如果 DSM 访问 GitHub 或 GHCR 需要代理，可在启动时一起传入：
 
@@ -216,6 +222,7 @@ docker compose -f docker-compose.ghcr.yml -f docker-compose.web-update.yml up -d
 - [群晖部署说明](./docs/synology-deploy.md)
 - [数据库迁移说明](./docs/database-migrations.md)
 - [数据库表结构说明](./docs/database-schema.md)
+- [备份与恢复验证](./docs/backup-restore.md)
 
 ## Docker 文件说明
 
@@ -233,6 +240,6 @@ docker compose -f docker-compose.ghcr.yml -f docker-compose.web-update.yml up -d
 ## GitHub Actions
 
 - [CI 工作流](./.github/workflows/ci.yml)
-  包含 compose 校验、前后端检查、数据库 migration smoke 和镜像构建
+  包含 Compose 校验、前后端检查、迁移、真实 PostgreSQL 业务流程、备份恢复验证和镜像构建
 - [Docker 发布工作流](./.github/workflows/docker-publish.yml)
-  在推送到 `main` / `master` 或打 `v*` tag 时，把前后端镜像推送到 GHCR
+  默认分支的同一提交通过 CI 后才把前后端镜像推送到 GHCR；双镜像校验通过后发布完整版本清单。手动发布同样要求该提交已通过 CI。

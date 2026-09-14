@@ -1,4 +1,8 @@
 export type {
+  UnitListItem,
+  UnitPage,
+  ContractDocumentStatus,
+  ContractFinancialHistory,
   Contract,
   DepositAccountSummary,
   DepositRecord,

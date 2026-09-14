@@ -153,6 +153,28 @@ function createService(
 }
 
 describe("RentReconciliationService", () => {
+  beforeEach(() => {
+    jest.useFakeTimers({ now: new Date("2026-08-30T04:00:00+08:00") });
+  });
+
+  afterEach(() => {
+    jest.useRealTimers();
+  });
+
+  it("moves prepaid rent into due rent exactly at Shanghai midnight on the due date", async () => {
+    const payment = paymentFixture({ id: "boundary-payment", contractId: "contract-1", amount: 10000, paymentDate: "2026-08-30" });
+    const { service } = createService({
+      schedules: [scheduleFixture({
+        id: "boundary-schedule", sequence: 1, periodStart: "2026-09-01", periodEnd: "2027-08-31", dueDate: "2026-09-01",
+        allocations: [{ payment, allocatedAmount: 10000 }],
+      })],
+      payments: [payment],
+    });
+    jest.setSystemTime(new Date("2026-08-31T23:59:59+08:00"));
+    await expect(service.detail({ tenantName: "大理石" })).resolves.toMatchObject({ dueReceivableAmount: 0, outstandingAmount: 0, prepaidAmount: 10000 });
+    jest.setSystemTime(new Date("2026-09-01T00:00:00+08:00"));
+    await expect(service.detail({ tenantName: "大理石" })).resolves.toMatchObject({ dueReceivableAmount: 90000, duePaidAmount: 10000, outstandingAmount: 80000, prepaidAmount: 0 });
+  });
   it("uses saved schedules and preserves one payment's allocated amount across periods", async () => {
     const payment = paymentFixture({
       id: "payment-1",

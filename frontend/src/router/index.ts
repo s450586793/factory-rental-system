@@ -1,18 +1,11 @@
 import { createRouter, createWebHistory } from "vue-router";
 import { useAuthStore } from "../stores/auth";
-import LoginView from "../features/auth/views/LoginView.vue";
-import UnitsView from "../features/units/views/UnitsView.vue";
-import UtilitiesView from "../features/utilities/views/UtilitiesView.vue";
-import RentPaymentsView from "../features/rent-payments/views/RentPaymentsView.vue";
-import RentReconciliationView from "../features/rent-reconciliation/views/RentReconciliationView.vue";
-import DepositsView from "../features/deposits/views/DepositsView.vue";
-import ReceiptsView from "../features/receipts/views/ReceiptsView.vue";
 
 const routes = [
   {
     path: "/login",
     name: "login",
-    component: LoginView,
+    component: () => import("../features/auth/views/LoginView.vue"),
   },
   {
     path: "/",
@@ -21,37 +14,37 @@ const routes = [
   {
     path: "/units",
     name: "units",
-    component: UnitsView,
+    component: () => import("../features/units/views/UnitsView.vue"),
     meta: { requiresAuth: true },
   },
   {
     path: "/utilities",
     name: "utilities",
-    component: UtilitiesView,
+    component: () => import("../features/utilities/views/UtilitiesView.vue"),
     meta: { requiresAuth: true },
   },
   {
     path: "/rent-payments",
     name: "rent-payments",
-    component: RentPaymentsView,
+    component: () => import("../features/rent-payments/views/RentPaymentsView.vue"),
     meta: { requiresAuth: true },
   },
   {
     path: "/rent-reconciliation",
     name: "rent-reconciliation",
-    component: RentReconciliationView,
+    component: () => import("../features/rent-reconciliation/views/RentReconciliationView.vue"),
     meta: { requiresAuth: true },
   },
   {
     path: "/deposits",
     name: "deposits",
-    component: DepositsView,
+    component: () => import("../features/deposits/views/DepositsView.vue"),
     meta: { requiresAuth: true },
   },
   {
     path: "/receipts",
     name: "receipts",
-    component: ReceiptsView,
+    component: () => import("../features/receipts/views/ReceiptsView.vue"),
     meta: { requiresAuth: true },
   },
 ];

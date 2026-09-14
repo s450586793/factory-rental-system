@@ -1,7 +1,21 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, Query, Res, StreamableFile, UseGuards } from "@nestjs/common";
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  Patch,
+  Post,
+  Query,
+  Res,
+  StreamableFile,
+  UseGuards,
+} from "@nestjs/common";
 import { ApiTags } from "@nestjs/swagger";
 import type { Response } from "express";
 import { JwtAuthGuard } from "../common/guards/jwt-auth.guard";
+import { CurrentUser } from "../common/decorators/current-user.decorator";
+import { ContractActor } from "./contract-financial-history";
 import { buildGeneratedContractVirtualFileId } from "./contract-document";
 import { CreateContractDto, UpdateContractDto } from "./contracts.dto";
 import { ContractsService } from "./contracts.service";
@@ -28,13 +42,32 @@ export class ContractsController {
   }
 
   @Post()
-  create(@Body() dto: CreateContractDto) {
-    return this.contractsService.create(dto);
+  create(@Body() dto: CreateContractDto, @CurrentUser() actor: ContractActor) {
+    return this.contractsService.create(dto, actor);
   }
 
   @Patch(":id")
-  update(@Param("id") id: string, @Body() dto: UpdateContractDto) {
-    return this.contractsService.update(id, dto);
+  update(
+    @Param("id") id: string,
+    @Body() dto: UpdateContractDto,
+    @CurrentUser() actor: ContractActor,
+  ) {
+    return this.contractsService.update(id, dto, actor);
+  }
+
+  @Get(":id/history")
+  history(@Param("id") id: string) {
+    return this.contractsService.history(id);
+  }
+
+  @Get(":id/document-status")
+  documentStatus(@Param("id") id: string) {
+    return this.contractsService.documentStatus(id);
+  }
+
+  @Post(":id/retry-document")
+  retryDocument(@Param("id") id: string) {
+    return this.contractsService.retryDocument(id);
   }
 
   @Post(":id/generate-document")
@@ -52,10 +85,16 @@ export class ContractsController {
   }
 
   @Get(":id/generated-document")
-  async downloadGeneratedDocument(@Param("id") id: string, @Res({ passthrough: true }) response: Response) {
+  async downloadGeneratedDocument(
+    @Param("id") id: string,
+    @Res({ passthrough: true }) response: Response,
+  ) {
     const generated = await this.contractsService.generateDocument(id);
     response.setHeader("Content-Type", generated.mimeType);
-    response.setHeader("Content-Disposition", this.buildAttachmentDisposition(generated.filename));
+    response.setHeader(
+      "Content-Disposition",
+      this.buildAttachmentDisposition(generated.filename),
+    );
     response.setHeader("Content-Length", String(generated.buffer.length));
     return new StreamableFile(generated.buffer);
   }
