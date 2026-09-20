@@ -1,5 +1,7 @@
 import {
   ArrayUnique,
+  ArrayMaxSize,
+  ArrayNotEmpty,
   IsArray,
   IsDateString,
   IsEnum,
@@ -117,3 +119,13 @@ export class CreateContractDto {
 }
 
 export class UpdateContractDto extends CreateContractDto {}
+
+export class AddContractAttachmentsDto {
+  @IsArray()
+  @ArrayNotEmpty()
+  @ArrayMaxSize(10)
+  @ArrayUnique()
+  @IsString({ each: true })
+  @IsNotEmpty({ each: true })
+  attachmentFileIds!: string[];
+}

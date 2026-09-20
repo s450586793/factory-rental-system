@@ -1,4 +1,4 @@
-import { flushPromises, mount } from "@vue/test-utils";
+import { enableAutoUnmount, flushPromises, mount } from "@vue/test-utils";
 import { defineComponent, h, inject, provide } from "vue";
 import { ElMessage, ElMessageBox } from "element-plus";
 import RentPaymentsView from "./RentPaymentsView.vue";
@@ -36,6 +36,18 @@ vi.mock("../components/AppShell.vue", () => ({
 vi.mock("../composables/useViewportWidth", () => ({
   useViewportWidth: () => ({ value: 1280 }),
 }));
+
+enableAutoUnmount(afterEach);
+
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((resolvePromise, rejectPromise) => {
+    resolve = resolvePromise;
+    reject = rejectPromise;
+  });
+  return { promise, resolve, reject };
+}
 
 const contract = {
   id: "contract-1",
@@ -226,6 +238,85 @@ function uploader(wrapper: ReturnType<typeof mountView>) {
 }
 
 describe("RentPaymentsView 收款凭证", () => {
+  it("旧页面请求晚到时不覆盖保存后刷新的收款数据", async () => {
+    const oldUnits = deferred<UnitSummary[]>();
+    const oldPayments = deferred<RentPayment[]>();
+    const oldReceipts = deferred<Receipt[]>();
+    const freshUnit = { ...unit, code: "NEW" } satisfies UnitSummary;
+    const freshPayment = { ...existingPayment, tenantNameSnapshot: "新收款", unit: freshUnit } satisfies RentPayment;
+    vi.mocked(unitsApi.list).mockReturnValueOnce(oldUnits.promise).mockResolvedValueOnce([freshUnit]);
+    vi.mocked(rentPaymentsApi.list).mockReturnValueOnce(oldPayments.promise).mockResolvedValueOnce([freshPayment]);
+    vi.mocked(receiptsApi.list).mockReturnValueOnce(oldReceipts.promise).mockResolvedValueOnce([activeReceipt]);
+    const wrapper = mountView();
+
+    await findButton(wrapper, "新增房租收费").trigger("click");
+    await findButton(wrapper, "保存").trigger("click");
+    await flushPromises();
+
+    oldUnits.resolve([{ ...unit, code: "OLD" }]);
+    oldPayments.resolve([{ ...existingPayment, tenantNameSnapshot: "旧收款" }]);
+    oldReceipts.resolve([]);
+    await flushPromises();
+
+    expect(wrapper.get(".rent-payments-table").text()).toContain("新收款");
+    expect(wrapper.get(".rent-payments-table").text()).toContain("已开");
+    expect(wrapper.get(".rent-payments-table").text()).not.toContain("旧收款");
+    expect(wrapper.get('button[aria-label="刷新"]').attributes("disabled")).toBeUndefined();
+  });
+
+  it("旧页面请求失败时不覆盖新成功，也不能结束最新请求的 loading", async () => {
+    const oldUnits = deferred<UnitSummary[]>();
+    const latestUnits = deferred<UnitSummary[]>();
+    const latestPayments = deferred<RentPayment[]>();
+    const latestReceipts = deferred<Receipt[]>();
+    const freshUnit = { ...unit, code: "NEW" } satisfies UnitSummary;
+    vi.mocked(unitsApi.list)
+      .mockReturnValueOnce(oldUnits.promise)
+      .mockResolvedValueOnce([freshUnit])
+      .mockReturnValueOnce(latestUnits.promise);
+    vi.mocked(rentPaymentsApi.list)
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([existingPayment])
+      .mockReturnValueOnce(latestPayments.promise);
+    vi.mocked(receiptsApi.list)
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([])
+      .mockReturnValueOnce(latestReceipts.promise);
+    const wrapper = mountView();
+
+    await findButton(wrapper, "新增房租收费").trigger("click");
+    await findButton(wrapper, "保存").trigger("click");
+    await flushPromises();
+
+    await wrapper.get('button[aria-label="刷新"]').trigger("click");
+    expect(wrapper.get('button[aria-label="刷新"]').attributes("disabled")).toBeDefined();
+    oldUnits.reject(new Error("旧请求失败"));
+    await flushPromises();
+    expect(ElMessage.error).not.toHaveBeenCalledWith("旧请求失败");
+    expect(wrapper.get('button[aria-label="刷新"]').attributes("disabled")).toBeDefined();
+
+    latestUnits.resolve([freshUnit]);
+    latestPayments.resolve([existingPayment]);
+    latestReceipts.resolve([]);
+    await flushPromises();
+    expect(wrapper.get('button[aria-label="刷新"]').attributes("disabled")).toBeUndefined();
+  });
+
+  it("直接显示收款记录，不展示期次或请求分期预览", async () => {
+    vi.mocked(rentPaymentsApi.list).mockResolvedValue([existingPayment]);
+    const wrapper = mountView();
+    await flushPromises();
+    expect(wrapper.find(".rent-payments-table").exists()).toBe(true);
+    expect(wrapper.text()).not.toContain("应收计划");
+    expect(wrapper.find(".rent-payments-tabs").exists()).toBe(false);
+    expect(rentReceivablesApi.list).not.toHaveBeenCalled();
+    await findButton(wrapper, "新增房租收费").trigger("click");
+    await wrapper.get('[aria-label="金额"]').setValue(1000);
+    await new Promise((resolve) => setTimeout(resolve, 220));
+    expect(rentPaymentsApi.previewAllocation).not.toHaveBeenCalled();
+    wrapper.unmount();
+  });
+
   beforeEach(() => {
     vi.mocked(unitsApi.list).mockResolvedValue([unit]);
     vi.mocked(rentPaymentsApi.list).mockResolvedValue([]);

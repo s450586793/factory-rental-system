@@ -140,19 +140,6 @@
                 style="width: 100%"
                 @update:model-value="emit('annualRentChange', $event)"
               />
-              <el-radio-group
-                v-model="form.billingFrequency"
-                class="billing-frequency-control"
-                :disabled="initial"
-                :aria-label="aria('收租周期')"
-              >
-                <el-radio-button label="annual" :aria-label="aria('收租周期-按年')">按年</el-radio-button>
-                <el-radio-button label="semiannual" :aria-label="aria('收租周期-按半年')">按半年</el-radio-button>
-              </el-radio-group>
-              <div v-if="preview.count" class="schedule-preview-line">
-                <span>预计 {{ preview.count }} 期</span>
-                <span>首期到期日 {{ preview.firstDueDate }}</span>
-              </div>
             </el-form-item>
           </el-col>
           <el-col :span="12">
@@ -212,7 +199,6 @@ import type { ContractFormFields } from "./contract-form";
 const props = defineProps<{
   form: ContractFormFields;
   initial?: boolean;
-  preview: { count: number; firstDueDate: string | null };
 }>();
 const emit = defineEmits<{
   startChange: [];

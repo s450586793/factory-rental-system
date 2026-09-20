@@ -1,6 +1,16 @@
 import { validate } from "class-validator";
 import { BillingFrequency } from "./contract.enums";
-import { CreateContractDto } from "./contracts.dto";
+import { AddContractAttachmentsDto, CreateContractDto } from "./contracts.dto";
+
+describe("AddContractAttachmentsDto", () => {
+  it.each([undefined, null, [], [""], ["same", "same"], [1], "file", Array.from({ length: 11 }, (_, i) => String(i))])("拒绝无效的附件 ID 列表 %j", async (attachmentFileIds) => {
+    const dto = Object.assign(new AddContractAttachmentsDto(), { attachmentFileIds });
+    expect(await validate(dto)).not.toHaveLength(0);
+  });
+  it("接受附件 ID 列表", async () => {
+    expect(await validate(Object.assign(new AddContractAttachmentsDto(), { attachmentFileIds: ["a", "b"] }))).toEqual([]);
+  });
+});
 
 function buildDto(overrides: Record<string, unknown> = {}) {
   return Object.assign(new CreateContractDto(), {

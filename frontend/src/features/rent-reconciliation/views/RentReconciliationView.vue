@@ -139,7 +139,7 @@
             <div class="reconciliation-period-header">
               <div>
                 <h3>{{ period.unit.code }} / {{ period.unit.location }}</h3>
-                <p>第 {{ period.sequence }} 期 · {{ period.startDate }} 至 {{ period.endDate }} · 到期日 {{ period.dueDate }}</p>
+                <p>{{ period.startDate }} 至 {{ period.endDate }} · 应收日期 {{ period.dueDate }}</p>
               </div>
               <el-tag :type="periodStatusTagType(period.status)" size="small">
                 {{ periodStatusLabel(period.status) }}

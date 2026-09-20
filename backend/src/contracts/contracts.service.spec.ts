@@ -3,6 +3,39 @@ import { ContractFinancialHistory } from "./contract-financial-history.entity";
 import { Contract, ContractStatus } from "./contract.entity";
 import { ContractsService } from "./contracts.service";
 
+describe("已签合同附件追加", () => {
+  const file = { id: "new", category: "contract-attachment", mimeType: "application/pdf" };
+
+  it("追加附件且重复提交不重复关联，不修改金额或触发 PDF 生成", async () => {
+    const existing = existingContract({ attachmentFiles: [{ ...file, id: "old" }] });
+    const { service, filesService, receivablesService, documentQueue, contractsRepository } = buildService({ existingContract: existing });
+    filesService.findByIds.mockResolvedValue([file]);
+    const result = await service.addAttachments("contract-1", { attachmentFileIds: ["new"] });
+    expect(result.attachmentFiles.map((item: { id: string }) => item.id)).toEqual(["old", "new"]);
+    expect(result.depositAmount).toBe(10000);
+    await service.addAttachments("contract-1", { attachmentFileIds: ["new"] });
+    expect(contractsRepository.save.mock.calls.at(-1)?.[0].attachmentFiles).toHaveLength(2);
+    expect(receivablesService.syncContractSchedules).not.toHaveBeenCalled();
+    expect(documentQueue.enqueue).not.toHaveBeenCalled();
+  });
+
+  it("不接受不存在的附件或其他用途的文件", async () => {
+    const { service, filesService, contractsRepository } = buildService({ existingContract: existingContract() });
+    filesService.findByIds.mockResolvedValue([]);
+    await expect(service.addAttachments("contract-1", { attachmentFileIds: ["missing"] })).rejects.toThrow("部分合同附件不存在");
+    filesService.findByIds.mockResolvedValue([{ ...file, category: "payment-voucher" }]);
+    await expect(service.addAttachments("contract-1", { attachmentFileIds: ["new"] })).rejects.toThrow("已签合同仅支持合同附件中的 PDF 或图片");
+    expect(contractsRepository.save).not.toHaveBeenCalled();
+  });
+
+  it("合同不存在时不写入附件", async () => {
+    const { service, filesService, contractsRepository } = buildService();
+    filesService.findByIds.mockResolvedValue([file]);
+    await expect(service.addAttachments("missing", { attachmentFileIds: ["new"] })).rejects.toThrow("合同不存在");
+    expect(contractsRepository.save).not.toHaveBeenCalled();
+  });
+});
+
 function existingContract(overrides: Record<string, unknown> = {}) {
   return {
     id: "contract-1",

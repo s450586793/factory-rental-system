@@ -8,6 +8,7 @@ import { DataSource, Repository } from "typeorm";
 import { formatShanghaiDate } from "../common/date/shanghai-date";
 import { toCents } from "../common/money/cents";
 import { FilesService } from "../files/files.service";
+import { StoredFileCategory } from "../files/stored-file.entity";
 import { RentReceivablesService } from "../rent-receivables/rent-receivables.service";
 import { FactoryUnit } from "../units/factory-unit.entity";
 import { ContractDocumentQueueService } from "./contract-document-queue.service";
@@ -19,7 +20,7 @@ import {
 } from "./contract-financial-history";
 import { BillingFrequency, DepositSettlementMode } from "./contract.enums";
 import { Contract, ContractStatus } from "./contract.entity";
-import { CreateContractDto, UpdateContractDto } from "./contracts.dto";
+import { AddContractAttachmentsDto, CreateContractDto, UpdateContractDto } from "./contracts.dto";
 
 function resolveContractStatus(startDate: string, endDate: string) {
   const today = formatShanghaiDate();
@@ -181,6 +182,39 @@ export class ContractsService {
     });
     this.documentQueue.kick();
     return saved;
+  }
+
+  async addAttachments(id: string, dto: AddContractAttachmentsDto) {
+    const files = await this.filesService.findByIds(dto.attachmentFileIds);
+    if (files.length !== dto.attachmentFileIds.length) {
+      throw new BadRequestException("部分合同附件不存在");
+    }
+    const mimeTypes = new Set([
+      "application/pdf", "image/jpeg", "image/png", "image/webp",
+    ]);
+    if (files.some((file) =>
+      file.category !== StoredFileCategory.CONTRACT_ATTACHMENT || !mimeTypes.has(file.mimeType),
+    )) {
+      throw new BadRequestException("已签合同仅支持合同附件中的 PDF 或图片");
+    }
+    return this.dataSource.transaction(async (manager) => {
+      const repository = manager.getRepository(Contract);
+      const locked = await repository.findOne({
+        where: { id },
+        lock: { mode: "pessimistic_write" },
+        loadEagerRelations: false,
+      });
+      if (!locked) throw new NotFoundException("合同不存在");
+      // 在合同锁内读取并追加附件，重试及并发补传均保留已有文件。
+      const contract = await repository.findOne({
+        where: { id }, relations: { attachmentFiles: true },
+      });
+      if (!contract) throw new NotFoundException("合同不存在");
+      const attachments = new Map((contract.attachmentFiles ?? []).map((file) => [file.id, file]));
+      for (const file of files) attachments.set(file.id, file);
+      contract.attachmentFiles = [...attachments.values()];
+      return repository.save(contract);
+    });
   }
 
   async remove(id: string) {

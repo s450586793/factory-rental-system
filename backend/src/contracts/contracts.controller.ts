@@ -17,7 +17,7 @@ import { JwtAuthGuard } from "../common/guards/jwt-auth.guard";
 import { CurrentUser } from "../common/decorators/current-user.decorator";
 import { ContractActor } from "./contract-financial-history";
 import { buildGeneratedContractVirtualFileId } from "./contract-document";
-import { CreateContractDto, UpdateContractDto } from "./contracts.dto";
+import { AddContractAttachmentsDto, CreateContractDto, UpdateContractDto } from "./contracts.dto";
 import { ContractsService } from "./contracts.service";
 
 @ApiTags("contracts")
@@ -58,6 +58,11 @@ export class ContractsController {
   @Get(":id/history")
   history(@Param("id") id: string) {
     return this.contractsService.history(id);
+  }
+
+  @Post(":id/attachments")
+  addAttachments(@Param("id") id: string, @Body() dto: AddContractAttachmentsDto) {
+    return this.contractsService.addAttachments(id, dto);
   }
 
   @Get(":id/document-status")

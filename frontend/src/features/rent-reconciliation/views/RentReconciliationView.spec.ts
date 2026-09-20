@@ -304,7 +304,8 @@ describe("RentReconciliationView", () => {
     expect(detailStats.text()).toContain("预收");
     expect(detailStats.text()).toContain("未分配");
     expect(wrapper.text()).toContain("2025-09-01 至 2026-08-31");
-    expect(wrapper.text()).toContain("到期日 2026-09-01");
+    expect(wrapper.text()).toContain("应收日期 2026-09-01");
+    expect(wrapper.text()).not.toContain("第 1 期");
     expect(wrapper.text()).toContain("部分预收");
     expect(wrapper.text()).toContain("¥25,000.00");
     expect(wrapper.text()).toContain("转账");

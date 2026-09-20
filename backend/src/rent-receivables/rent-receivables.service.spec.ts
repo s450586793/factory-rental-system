@@ -7,6 +7,7 @@ import {
   UpdateRentReceivableDto,
 } from "./rent-receivables.dto";
 import { RentReceivablesService } from "./rent-receivables.service";
+import { buildRentSchedule } from "./rent-schedule";
 
 function schedule(overrides: Record<string, unknown> = {}) {
   return {
@@ -105,6 +106,20 @@ function buildService(options: {
 }
 
 describe("RentReceivablesService", () => {
+  it("三年合同保留三个年度记录，只有付款日到来的年度计入应收", async () => {
+    const lease = contract({ startDate: "2026-09-01", endDate: "2029-08-31", annualRent: 100000 });
+    const schedules = buildRentSchedule(lease).map((item) => schedule({ ...item, id: `annual-${item.sequence}` }));
+    const { service } = buildService({ schedules });
+    expect(schedules).toHaveLength(3);
+    for (const [date, due] of [
+      ["2026-08-31", 0], ["2026-09-01", 100000], ["2026-09-20", 100000],
+      ["2027-08-31", 100000], ["2027-09-01", 200000], ["2028-09-01", 300000],
+    ] as const) {
+      const summary = (await service.getContractSummaries([lease.id], date)).get(lease.id);
+      expect(summary).toMatchObject({ dueReceivableAmount: due, outstandingAmount: due, prepaidAmount: 0 });
+    }
+  });
+
   it.each(["2027-02-29", "2027-02-28T00:00:00Z"])(
     "rejects a non-date-only or nonexistent due date in the DTO: %s",
     async (dueDate) => {

@@ -87,11 +87,14 @@ describe("真实数据库租赁业务流程", () => {
     const payload = {
       unitId: unit.id, lessorName: "测试出租方", lessorContactName: "甲方联系人", lessorSafetyManager: "甲方联系人",
       tenantName: "集成测试租户", contactName: "乙方联系人", tenantSafetyManager: "乙方联系人",
-      signedDate: `${year}-01-01`, startDate: `${year}-01-01`, endDate: `${year + 1}-12-31`,
+      signedDate: `${year}-01-01`, startDate: `${year}-01-01`, endDate: `${year + 2}-12-31`,
       annualRent: 100000, depositAmount: 5000, electricUnitPrice: 0.95, electricLineLossPercent: 5, waterUnitPrice: 3,
       earlyTerminationPenaltyAmount: 5000, billingFrequency: "annual", attachmentFileIds: [],
     };
     const contract = (await session.post("/api/contracts").send(payload).expect(201)).body;
+    const schedules = (await session.get("/api/rent-receivables").query({ contractId: contract.id }).expect(200)).body.items;
+    expect(schedules).toHaveLength(3);
+    expect(schedules.map((item: { dueReceivableAmount: number }) => item.dueReceivableAmount)).toEqual([100000, 0, 0]);
     await session.get("/api/health").timeout(2000).expect(200);
     let detail = (await session.get(`/api/units/${unit.id}`).expect(200)).body;
     expect(detail.contracts[0]).toMatchObject({ depositAmount: 5000, electricUnitPrice: 0.95, tenantSafetyManager: "乙方联系人" });
@@ -117,6 +120,21 @@ describe("真实数据库租赁业务流程", () => {
     const cached = await session.get(`/api/contracts/${contract.id}/generated-document`).expect(200);
     expect(cached.body.equals(pdf.body)).toBe(true);
     expect((await session.get(`/api/contracts/${contract.id}/document-status`).expect(200)).body.attempts).toBe(attemptsBefore);
+
+    const signed = (await session.post("/api/files/upload").field("category", "contract-attachment")
+      .attach("files", pdf.body, { filename: "signed.pdf", contentType: "application/pdf" }).expect(201)).body[0];
+    await request(app!.getHttpServer()).post(`/api/contracts/${contract.id}/attachments`).send({ attachmentFileIds: [signed.id] }).expect(401);
+    await session.post(`/api/contracts/${contract.id}/attachments`).send({ attachmentFileIds: [] }).expect(400);
+    await session.post(`/api/contracts/${contract.id}/attachments`).send({ attachmentFileIds: [signed.id] }).expect(201);
+    await session.post(`/api/contracts/${contract.id}/attachments`).send({ attachmentFileIds: [signed.id] }).expect(201);
+    const signedDetail = (await session.get(`/api/units/${unit.id}`).expect(200)).body;
+    expect(signedDetail.contracts).toHaveLength(1);
+    expect(signedDetail.contracts[0]).toMatchObject({ depositAmount: 6000, annualRent: 100000, dueReceivableAmount: 100000 });
+    expect(signedDetail.contracts[0].attachmentFiles).toHaveLength(1);
+    const signedPreview = await session.get(`/api/files/${signed.id}/download`).expect(200).expect("Content-Type", /application\/pdf/);
+    expect(signedPreview.body.equals(pdf.body)).toBe(true);
+    expect((await session.get(`/api/contracts/${contract.id}/document-status`).expect(200)).body.attempts).toBe(attemptsBefore);
+    expect((await session.get(`/api/contracts/${contract.id}/generated-document`).expect(200)).body.equals(pdf.body)).toBe(true);
 
     const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jJ1sAAAAASUVORK5CYII=", "base64");
     const uploaded = (await session.post("/api/files/upload").field("category", "payment-voucher").attach("files", png, { filename: "receipt.png", contentType: "image/png" }).expect(201)).body;

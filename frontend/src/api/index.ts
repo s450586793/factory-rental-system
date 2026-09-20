@@ -110,6 +110,11 @@ export const unitsApi = {
 };
 
 export const contractsApi = {
+  addAttachments: (id: string, attachmentFileIds: string[]) =>
+    apiFetch<Contract>(`/contracts/${id}/attachments`, {
+      method: "POST",
+      body: JSON.stringify({ attachmentFileIds }),
+    }),
   documentStatus: (id: string) => apiFetch<ContractDocumentStatus>(`/contracts/${id}/document-status`),
   retryDocument: (id: string) => apiFetch<ContractDocumentStatus>(`/contracts/${id}/retry-document`, { method: "POST" }),
   history: (id: string) => apiFetch<ContractFinancialHistory[]>(`/contracts/${id}/history`),

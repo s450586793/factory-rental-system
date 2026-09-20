@@ -21,6 +21,7 @@ vi.mock("../api", () => ({
   contractsApi: {
     create: vi.fn(),
     update: vi.fn(),
+    addAttachments: vi.fn(),
     generateDocument: vi.fn(),
     documentStatus: vi.fn(),
     retryDocument: vi.fn(),
@@ -226,15 +227,6 @@ const receivable = {
   outstandingAmount: 0,
   prepaidAmount: 0,
   status: "settled",
-} satisfies RentReceivable;
-
-const secondReceivable = {
-  ...receivable,
-  id: "schedule-2",
-  contractId: "contract-second",
-  periodStart: "2028-07-01",
-  periodEnd: "2029-06-30",
-  dueDate: "2028-07-01",
 } satisfies RentReceivable;
 
 function deferred<T>() {
@@ -649,6 +641,17 @@ describe("UnitsView contract download", () => {
     }));
   });
 
+  it("合同列表直接提供已签合同上传入口，不再展示查看期次", async () => {
+    const wrapper = mountUnitsView();
+    await flushPromises();
+    await findButton(wrapper, "管理").trigger("click");
+    await flushPromises();
+    expect(wrapper.text()).not.toContain("查看期次");
+    await findButton(wrapper, "上传已签合同").trigger("click");
+    expect(wrapper.find('[aria-label="选择已签合同文件"]').exists()).toBe(true);
+    expect(wrapper.text()).toContain("曹忠");
+  });
+
   it("allows retrying monetary history after a request failure", async () => {
     vi.mocked(contractsApi.history).mockRejectedValueOnce(new Error("历史暂不可用")).mockResolvedValueOnce([]);
     const wrapper = mountUnitsView();
@@ -664,7 +667,7 @@ describe("UnitsView contract download", () => {
     expect(wrapper.find('[role="alert"]').exists()).toBe(false);
   });
 
-  it("shows due receivable, prepaid amount and billing frequency in contract history", async () => {
+  it("shows annual rent and due amounts in contract history", async () => {
     const accruedContract = Object.assign({}, oldContract, {
       billingFrequency: "semiannual",
       dueReceivableAmount: 100000,
@@ -684,7 +687,8 @@ describe("UnitsView contract download", () => {
     await flushPromises();
 
     expect(wrapper.text()).toContain("已到期应收");
-    expect(wrapper.text()).toContain("按半年");
+    expect(wrapper.text()).toContain("年租金");
+    expect(wrapper.text()).not.toContain("收租周期");
     expect(wrapper.text()).toContain("¥100,000.00");
     expect(wrapper.text()).toContain("¥25,000.00");
   });
@@ -705,94 +709,6 @@ describe("UnitsView contract download", () => {
     expect(wrapper.text()).toContain("预收¥0.00");
   });
 
-
-  it("loads contract receivable periods in the schedule dialog", async () => {
-    const wrapper = mountUnitsView();
-    await flushPromises();
-    await findButton(wrapper, "管理").trigger("click");
-    await flushPromises();
-    await findButton(wrapper, "查看期次").trigger("click");
-    await flushPromises();
-
-    expect(rentReceivablesApi.list).toHaveBeenCalledWith({ contractId: "contract-old" });
-    expect(wrapper.text()).toContain("第 1 期");
-    expect(wrapper.text()).toContain("2026-07-01");
-    expect(wrapper.text()).toContain("已结清");
-  });
-
-  it("ignores a late schedule success after closing contract A and opening contract B", async () => {
-    const contractB = { ...savedContract, id: "contract-second", startDate: "2028-07-01", endDate: "2029-06-30" };
-    const twoContractUnit = { ...unit, contracts: [oldContract, contractB] };
-    const requestA = deferred<{ items: RentReceivable[] }>();
-    const requestB = deferred<{ items: RentReceivable[] }>();
-    mockUnitsPage([twoContractUnit]);
-    vi.mocked(unitsApi.detail).mockResolvedValue(twoContractUnit);
-    vi.mocked(rentReceivablesApi.list).mockImplementation((query) =>
-      query.contractId === "contract-old" ? requestA.promise : requestB.promise,
-    );
-    const wrapper = mountUnitsView();
-    await flushPromises();
-    await findButton(wrapper, "管理").trigger("click");
-    await flushPromises();
-
-    const viewScheduleButtons = wrapper.findAll("button").filter((button) => button.text() === "查看期次");
-    await viewScheduleButtons[0].trigger("click");
-    await findButton(wrapper, "关闭").trigger("click");
-    await viewScheduleButtons[1].trigger("click");
-    requestA.resolve({ items: [receivable] });
-    await flushPromises();
-    expect(wrapper.text()).toContain("正在加载期次");
-    expect(wrapper.get(".rent-schedule-table").text()).not.toContain("第 1 期");
-
-    requestB.resolve({ items: [secondReceivable] });
-    await flushPromises();
-    expect(wrapper.text()).toContain("2028-07-01");
-    expect(wrapper.text()).not.toContain("正在加载期次");
-  });
-
-  it("shows an error for the current schedule request", async () => {
-    vi.mocked(rentReceivablesApi.list).mockRejectedValueOnce(new Error("期次接口不可用"));
-    const wrapper = mountUnitsView();
-    await flushPromises();
-    await findButton(wrapper, "管理").trigger("click");
-    await flushPromises();
-    await findButton(wrapper, "查看期次").trigger("click");
-    await flushPromises();
-
-    expect(wrapper.text()).toContain("期次接口不可用");
-    expect(wrapper.text()).not.toContain("正在加载期次");
-    expect(ElMessage.error).toHaveBeenCalledWith("期次接口不可用");
-  });
-
-  it("ignores a late schedule error and finally after contract B starts loading", async () => {
-    const contractB = { ...savedContract, id: "contract-second", startDate: "2028-07-01", endDate: "2029-06-30" };
-    const twoContractUnit = { ...unit, contracts: [oldContract, contractB] };
-    const requestA = deferred<{ items: RentReceivable[] }>();
-    const requestB = deferred<{ items: RentReceivable[] }>();
-    mockUnitsPage([twoContractUnit]);
-    vi.mocked(unitsApi.detail).mockResolvedValue(twoContractUnit);
-    vi.mocked(rentReceivablesApi.list).mockImplementation((query) =>
-      query.contractId === "contract-old" ? requestA.promise : requestB.promise,
-    );
-    const wrapper = mountUnitsView();
-    await flushPromises();
-    await findButton(wrapper, "管理").trigger("click");
-    await flushPromises();
-
-    const viewScheduleButtons = wrapper.findAll("button").filter((button) => button.text() === "查看期次");
-    await viewScheduleButtons[0].trigger("click");
-    await findButton(wrapper, "关闭").trigger("click");
-    await viewScheduleButtons[1].trigger("click");
-    requestA.reject(new Error("stale schedule failure"));
-    await flushPromises();
-    expect(wrapper.text()).toContain("正在加载期次");
-    expect(ElMessage.error).not.toHaveBeenCalledWith("stale schedule failure");
-
-    requestB.resolve({ items: [secondReceivable] });
-    await flushPromises();
-    expect(wrapper.text()).toContain("2028-07-01");
-    expect(wrapper.text()).not.toContain("正在加载期次");
-  });
 
   it("keeps rent payment mutation and list return types distinct", () => {
     expectTypeOf<Awaited<ReturnType<typeof rentPaymentsApi.list>>>().toEqualTypeOf<RentPayment[]>();
@@ -855,6 +771,23 @@ describe("UnitsView contract download", () => {
     expect(payload).not.toHaveProperty("depositSettlementMode");
     expect(payload).not.toHaveProperty("depositCarryoverAmount");
     expect(payload).not.toHaveProperty("depositCarryoverSourceContractId");
+  });
+
+  it("多年新合同默认按年记录，编辑旧的半年合同不改变原收费规则", async () => {
+    vi.mocked(unitsApi.detail).mockResolvedValue({ ...unit, contracts: [{ ...oldContract, billingFrequency: "semiannual" }] });
+    const wrapper = mountUnitsView();
+    await flushPromises();
+    await openCreateContractDialog(wrapper);
+    await findInputByLabel(wrapper, "合同结束").setValue("2030-06-30");
+    await findButton(wrapper, "保存").trigger("click");
+    await flushPromises();
+    expect(contractsApi.create).toHaveBeenCalledWith(expect.objectContaining({
+      startDate: "2027-07-01", endDate: "2030-06-30", billingFrequency: "annual",
+    }));
+    await findButton(wrapper, "编辑").trigger("click");
+    await findButton(wrapper, "保存").trigger("click");
+    await flushPromises();
+    expect(contractsApi.update).toHaveBeenCalledWith(oldContract.id, expect.objectContaining({ billingFrequency: "semiannual" }));
   });
 
   it("uses the individual lessor and safety manager defaults when no previous contract exists", async () => {

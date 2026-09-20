@@ -154,7 +154,6 @@
 
             <ContractFormFields
               :form="unitContractForm"
-              :preview="unitContractPreview"
               initial
               @start-change="handleUnitContractStartDateChange"
               @annual-rent-change="handleUnitContractAnnualRentUpdate"
@@ -175,7 +174,7 @@
               </div>
             </el-form-item>
 
-            <el-form-item label="合同附件">
+            <el-form-item label="已签合同（PDF / 图片）">
               <div class="detail-grid">
                 <div v-if="unitAttachmentUploads.length" class="file-chip-list">
                   <span
@@ -283,9 +282,9 @@
                 {{ formatCompactContractPeriod(row.startDate, row.endDate) }}
               </template>
             </el-table-column>
-            <el-table-column label="收租周期" width="82">
+            <el-table-column label="年租金" width="96">
               <template #default="{ row }">
-                {{ billingFrequencyLabel(row.billingFrequency) }}
+                {{ displayRentAmount(row.annualRent) }}
               </template>
             </el-table-column>
             <el-table-column label="已到期应收" width="104">
@@ -364,10 +363,10 @@
                 </template>
               </template>
             </el-table-column>
-            <el-table-column label="操作" width="218">
+            <el-table-column label="操作" width="218" :fixed="actionColumnFixed">
               <template #default="{ row }">
                 <el-space wrap size="small" class="contracts-actions">
-                  <el-button text @click="openRentSchedule(row)">查看期次</el-button>
+                  <el-button text type="primary" :icon="Upload" @click="signedUploadContract = row">上传已签合同</el-button>
                   <el-button text @click="openContractHistory(row.id)">金额历史</el-button>
                   <el-button
                     text
@@ -438,7 +437,6 @@
         <el-form label-position="top">
         <ContractFormFields
           :form="contractForm"
-          :preview="contractPreview"
           @start-change="handleContractStartDateChange"
           @annual-rent-change="handleContractAnnualRentUpdate"
           @penalty-change="contractPenaltyUsesDefault = false"
@@ -460,7 +458,7 @@
           </div>
         </el-form-item>
 
-        <el-form-item label="合同附件">
+        <el-form-item label="已签合同（PDF / 图片）">
           <div class="detail-grid">
             <div class="file-chip-list" v-if="existingAttachments.length">
               <span v-for="(file, index) in existingAttachments" :key="file.id" class="file-chip">
@@ -476,7 +474,6 @@
             </div>
             <input type="file" accept=".pdf,image/*" multiple @change="onAttachmentFilesChange" />
           </div>
-          <p class="field-hint">线下签字盖章后，请把已签署合同的 PDF 或照片上传到这里。</p>
         </el-form-item>
       </el-form>
 
@@ -489,42 +486,13 @@
 
     <ContractHistoryDialog v-model="contractHistoryVisible" :contract-id="contractHistoryId" />
 
-    <el-dialog
-      v-model="rentScheduleDialogVisible"
-      title="合同期次"
-      width="820px"
-      @closed="handleRentScheduleDialogClosed"
-    >
-      <div v-if="rentScheduleLoading" class="rent-schedule-status" role="status">正在加载期次</div>
-      <div v-else-if="rentScheduleError" class="rent-schedule-status is-error" role="alert">
-        {{ rentScheduleError }}
-      </div>
-      <div class="table-shell">
-        <el-table :data="rentScheduleItems" v-loading="rentScheduleLoading" size="small" class="rent-schedule-table">
-          <el-table-column label="期次" width="72">
-            <template #default="{ row }">第 {{ row.sequence }} 期</template>
-          </el-table-column>
-          <el-table-column prop="periodStart" label="周期开始" width="112" />
-          <el-table-column prop="periodEnd" label="周期结束" width="112" />
-          <el-table-column prop="dueDate" label="到期日" width="112" />
-          <el-table-column label="应收" width="112">
-            <template #default="{ row }">{{ formatCurrency(row.receivableAmount) }}</template>
-          </el-table-column>
-          <el-table-column label="已收" width="112">
-            <template #default="{ row }">{{ formatCurrency(row.paidAmount) }}</template>
-          </el-table-column>
-          <el-table-column label="预收" width="112">
-            <template #default="{ row }">{{ formatCurrency(row.prepaidAmount) }}</template>
-          </el-table-column>
-          <el-table-column label="状态" width="96">
-            <template #default="{ row }">{{ rentReceivableStatusLabel(row.status) }}</template>
-          </el-table-column>
-        </el-table>
-      </div>
-      <template #footer>
-        <el-button @click="closeRentScheduleDialog">关闭</el-button>
-      </template>
-    </el-dialog>
+    <SignedContractUploadDialog
+      v-if="signedUploadContract"
+      :contract="signedUploadContract"
+      @close="signedUploadContract = null"
+      @saved="handleSignedContractSaved"
+      @preview="openFilePreview($event, '已签合同')"
+    />
 
     <el-dialog v-model="meterDialogVisible" :title="meterForm.id ? '编辑表计' : '新增表计'" width="620px">
       <el-form label-position="top">
@@ -606,26 +574,26 @@
 
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from "vue";
+import { Upload } from "@element-plus/icons-vue";
 import { ElMessage, ElMessageBox } from "element-plus";
 import AppShell from "../components/AppShell.vue";
 import ContractFormFields from "../features/units/components/ContractFormFields.vue";
 import ContractHistoryDialog from "../features/units/components/ContractHistoryDialog.vue";
+import SignedContractUploadDialog from "../features/units/components/SignedContractUploadDialog.vue";
 import { useContractDocuments } from "../features/units/composables/useContractDocuments";
 import { apiFileUrl, apiGeneratedContractDocumentUrl } from "../api/client";
-import { contractsApi, filesApi, rentReceivablesApi, unitsApi, utilitiesApi } from "../api";
+import { contractsApi, filesApi, unitsApi, utilitiesApi } from "../api";
 import { useViewportWidth } from "../composables/useViewportWidth";
 import type {
   Contract,
   ContractDocumentStatus,
   MeterConfig,
-  RentReceivable,
   StoredFile,
   UnitSummary,
   UnitListItem,
   UnitPage,
 } from "../types/models";
 import { formatCurrency } from "../utils/format";
-import { buildRentSchedulePreview } from "../utils/rent-schedule-preview";
 
 const DEFAULT_LESSOR_NAME = "吴孝斌";
 const DEFAULT_LESSOR_CONTACT_NAME = "吴孝斌";
@@ -719,12 +687,7 @@ const existingBusinessLicense = ref<StoredFile | null>(null);
 const existingAttachments = ref<StoredFile[]>([]);
 const businessLicenseUpload = ref<File | null>(null);
 const attachmentUploads = ref<File[]>([]);
-const rentScheduleDialogVisible = ref(false);
-const rentScheduleLoading = ref(false);
-const rentScheduleItems = ref<RentReceivable[]>([]);
-const rentScheduleError = ref("");
-const rentScheduleContractId = ref("");
-let rentScheduleRequestSequence = 0;
+const signedUploadContract = ref<Contract | null>(null);
 
 const meterDialogVisible = ref(false);
 const submittingMeter = ref(false);
@@ -757,16 +720,6 @@ watch(
 );
 
 const actionColumnFixed = computed<false | "right">(() => (viewportWidth.value < 768 ? false : "right"));
-const unitContractPreview = computed(() =>
-  buildRentSchedulePreview(
-    unitContractForm.startDate,
-    unitContractForm.endDate,
-    unitContractForm.billingFrequency,
-  ),
-);
-const contractPreview = computed(() =>
-  buildRentSchedulePreview(contractForm.startDate, contractForm.endDate, contractForm.billingFrequency),
-);
 
 watch(
   [() => unitContractForm.lessorContactName, () => unitContractForm.contactName],
@@ -989,7 +942,7 @@ function openFilePreview(file: StoredFile, title: string) {
 }
 
 function attachmentPreviewLabel(index: number, total: number) {
-  return total > 1 ? `合同附件 ${index + 1}` : "合同附件";
+  return total > 1 ? `已签合同 ${index + 1}` : "已签合同";
 }
 
 function isPreviewImage(file: StoredFile) {
@@ -1236,7 +1189,6 @@ function openCreateContract() {
     contractForm.electricUnitPrice = latestContract.electricUnitPrice;
     contractForm.electricLineLossPercent = latestContract.electricLineLossPercent;
     contractForm.waterUnitPrice = latestContract.waterUnitPrice;
-    contractForm.billingFrequency = latestContract.billingFrequency;
     contractForm.earlyTerminationPenaltyAmount = defaultEarlyTerminationPenalty(contractForm.annualRent);
   } else {
     const electricMeter = selectedUnit.value?.meterConfigs.find(
@@ -1431,50 +1383,9 @@ async function saveContract(generateDocumentAfterSave = false) {
   }
 }
 
-async function openRentSchedule(contract: Contract) {
-  const requestSequence = ++rentScheduleRequestSequence;
-  rentScheduleContractId.value = contract.id;
-  rentScheduleDialogVisible.value = true;
-  rentScheduleItems.value = [];
-  rentScheduleError.value = "";
-  try {
-    rentScheduleLoading.value = true;
-    const result = await rentReceivablesApi.list({ contractId: contract.id });
-    if (isCurrentRentScheduleRequest(requestSequence, contract.id)) {
-      rentScheduleItems.value = result.items;
-    }
-  } catch (error) {
-    if (isCurrentRentScheduleRequest(requestSequence, contract.id)) {
-      const message = error instanceof Error ? error.message : "加载合同期次失败";
-      rentScheduleError.value = message;
-      ElMessage.error(message);
-    }
-  } finally {
-    if (isCurrentRentScheduleRequest(requestSequence, contract.id)) {
-      rentScheduleLoading.value = false;
-    }
-  }
-}
-
-function isCurrentRentScheduleRequest(requestSequence: number, contractId: string) {
-  return (
-    requestSequence === rentScheduleRequestSequence &&
-    contractId === rentScheduleContractId.value &&
-    rentScheduleDialogVisible.value
-  );
-}
-
-function closeRentScheduleDialog() {
-  rentScheduleDialogVisible.value = false;
-  handleRentScheduleDialogClosed();
-}
-
-function handleRentScheduleDialogClosed() {
-  rentScheduleRequestSequence += 1;
-  rentScheduleContractId.value = "";
-  rentScheduleLoading.value = false;
-  rentScheduleItems.value = [];
-  rentScheduleError.value = "";
+async function handleSignedContractSaved() {
+  signedUploadContract.value = null;
+  await refreshSelectedUnit();
 }
 
 async function downloadContractDocument(contractId: string, savedContract?: Contract) {
@@ -1609,19 +1520,6 @@ function contractTagType(status: Contract["status"]) {
   if (status === "future") return "warning";
   return "info";
 }
-
-function billingFrequencyLabel(frequency: Contract["billingFrequency"]) {
-  return frequency === "semiannual" ? "按半年" : "按年";
-}
-
-function rentReceivableStatusLabel(status: RentReceivable["status"]) {
-  if (status === "settled") return "已结清";
-  if (status === "overdue") return "逾期";
-  if (status === "prepaid") return "已预付";
-  if (status === "partially-prepaid") return "部分预付";
-  return "未到期";
-}
-
 function unitStatusLabel(status: UnitSummary["status"]) {
   if (status === "occupied") return "在租";
   if (status === "expiring") return "即将到期";
