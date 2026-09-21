@@ -367,7 +367,6 @@
               <template #default="{ row }">
                 <el-space wrap size="small" class="contracts-actions">
                   <el-button text type="primary" :icon="Upload" @click="signedUploadContract = row">上传已签合同</el-button>
-                  <el-button text @click="openContractHistory(row.id)">金额历史</el-button>
                   <el-button
                     text
                     type="primary"
@@ -484,8 +483,6 @@
       </template>
     </el-dialog>
 
-    <ContractHistoryDialog v-model="contractHistoryVisible" :contract-id="contractHistoryId" />
-
     <SignedContractUploadDialog
       v-if="signedUploadContract"
       :contract="signedUploadContract"
@@ -578,7 +575,6 @@ import { Upload } from "@element-plus/icons-vue";
 import { ElMessage, ElMessageBox } from "element-plus";
 import AppShell from "../components/AppShell.vue";
 import ContractFormFields from "../features/units/components/ContractFormFields.vue";
-import ContractHistoryDialog from "../features/units/components/ContractHistoryDialog.vue";
 import SignedContractUploadDialog from "../features/units/components/SignedContractUploadDialog.vue";
 import { useContractDocuments } from "../features/units/composables/useContractDocuments";
 import { apiFileUrl, apiGeneratedContractDocumentUrl } from "../api/client";
@@ -707,8 +703,6 @@ const filePreviewTitle = ref("文件预览");
 const viewportWidth = useViewportWidth();
 const rentSumVisible = ref(false);
 const downloadingContractId = ref("");
-const contractHistoryVisible = ref(false);
-const contractHistoryId = ref("");
 const {
   statuses: documentStatuses, errors: documentErrors, retrying: retryingDocuments,
   track: trackDocuments, retry: retryDocument, refresh: refreshDocuments, downloadWhenReady,
@@ -1406,11 +1400,6 @@ async function downloadContractDocument(contractId: string, savedContract?: Cont
 
 function documentStatusLabel(status?: ContractDocumentStatus["status"]) {
   return status ? { pending: "排队中", processing: "生成中", ready: "已生成", failed: "生成失败" }[status] : "加载中";
-}
-
-function openContractHistory(contractId: string) {
-  contractHistoryId.value = contractId;
-  contractHistoryVisible.value = true;
 }
 
 function buildGeneratedContractDownloadName(contract?: Pick<Contract, "tenantName" | "startDate" | "endDate"> | null) {

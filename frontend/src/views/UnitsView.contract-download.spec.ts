@@ -594,25 +594,6 @@ describe("UnitsView contract download", () => {
     wrapper.unmount();
   });
 
-  it("loads monetary history on demand with actor and exact monetary values", async () => {
-    vi.mocked(contractsApi.history).mockResolvedValue([{
-      id: "history-1", contractId: oldContract.id, field: "annualRent", beforeValue: "50000.00",
-      afterValue: "55000.00", actorId: "user-1", actorUsername: "管理员", createdAt: "2026-09-14T08:00:00.000Z",
-    }]);
-    const wrapper = mountUnitsView();
-    await flushPromises();
-    await findButton(wrapper, "管理").trigger("click");
-    await flushPromises();
-    expect(contractsApi.history).not.toHaveBeenCalled();
-    await findButton(wrapper, "金额历史").trigger("click");
-    await flushPromises();
-    expect(contractsApi.history).toHaveBeenCalledWith(oldContract.id);
-    expect(wrapper.text()).toContain("管理员");
-    expect(wrapper.text()).toContain("50000.00");
-    expect(wrapper.text()).toContain("55000.00");
-    wrapper.unmount();
-  });
-
   it("keeps existing attachments while adding an upload in the shared edit form", async () => {
     const attachment: StoredFile = {
       id: "attachment-old", originalName: "signed.pdf", mimeType: "application/pdf", size: 100,
@@ -647,24 +628,11 @@ describe("UnitsView contract download", () => {
     await findButton(wrapper, "管理").trigger("click");
     await flushPromises();
     expect(wrapper.text()).not.toContain("查看期次");
+    expect(wrapper.text()).not.toContain("金额历史");
+    expect(contractsApi.history).not.toHaveBeenCalled();
     await findButton(wrapper, "上传已签合同").trigger("click");
     expect(wrapper.find('[aria-label="选择已签合同文件"]').exists()).toBe(true);
     expect(wrapper.text()).toContain("曹忠");
-  });
-
-  it("allows retrying monetary history after a request failure", async () => {
-    vi.mocked(contractsApi.history).mockRejectedValueOnce(new Error("历史暂不可用")).mockResolvedValueOnce([]);
-    const wrapper = mountUnitsView();
-    await flushPromises();
-    await findButton(wrapper, "管理").trigger("click");
-    await flushPromises();
-    await findButton(wrapper, "金额历史").trigger("click");
-    await flushPromises();
-    expect(wrapper.find('[role="alert"]').text()).toContain("历史暂不可用");
-    await findButton(wrapper, "重新加载").trigger("click");
-    await flushPromises();
-    expect(contractsApi.history).toHaveBeenCalledTimes(2);
-    expect(wrapper.find('[role="alert"]').exists()).toBe(false);
   });
 
   it("shows annual rent and due amounts in contract history", async () => {
