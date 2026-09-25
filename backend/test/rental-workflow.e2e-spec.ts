@@ -8,6 +8,7 @@ import { join } from "node:path";
 import { PDFDocument } from "pdf-lib";
 import request from "supertest";
 import { DataSource } from "typeorm";
+import { RepairUploadFilenames1713000000000 } from "../src/database/migrations/1713000000000-repair-upload-filenames";
 
 // 仅创建和销毁本测试随机命名的数据库，避免测试覆盖现有库。
 const databaseName = `rent_test_${process.pid}_${Date.now()}`;
@@ -122,7 +123,8 @@ describe("真实数据库租赁业务流程", () => {
     expect((await session.get(`/api/contracts/${contract.id}/document-status`).expect(200)).body.attempts).toBe(attemptsBefore);
 
     const signed = (await session.post("/api/files/upload").field("category", "contract-attachment")
-      .attach("files", pdf.body, { filename: "signed.pdf", contentType: "application/pdf" }).expect(201)).body[0];
+      .attach("files", pdf.body, { filename: "已签合同.pdf", contentType: "application/pdf" }).expect(201)).body[0];
+    expect(signed.originalName).toBe("已签合同.pdf");
     await request(app!.getHttpServer()).post(`/api/contracts/${contract.id}/attachments`).send({ attachmentFileIds: [signed.id] }).expect(401);
     await session.post(`/api/contracts/${contract.id}/attachments`).send({ attachmentFileIds: [] }).expect(400);
     await session.post(`/api/contracts/${contract.id}/attachments`).send({ attachmentFileIds: [signed.id] }).expect(201);
@@ -133,6 +135,24 @@ describe("真实数据库租赁业务流程", () => {
     expect(signedDetail.contracts[0].attachmentFiles).toHaveLength(1);
     const signedPreview = await session.get(`/api/files/${signed.id}/download`).expect(200).expect("Content-Type", /application\/pdf/);
     expect(signedPreview.body.equals(pdf.body)).toBe(true);
+    expect(signedPreview.headers["content-disposition"]).toContain(encodeURIComponent("已签合同.pdf"));
+
+    await database.query('UPDATE "stored_files" SET "originalName" = $1 WHERE "id" = $2', [
+      Buffer.from("已签合同.pdf").toString("latin1"), signed.id,
+    ]);
+    const runner = database.createQueryRunner();
+    await runner.connect();
+    try {
+      await new RepairUploadFilenames1713000000000().up(runner);
+      await new RepairUploadFilenames1713000000000().up(runner);
+    } finally {
+      await runner.release();
+    }
+    const repaired = (await session.get(`/api/units/${unit.id}`).expect(200)).body.contracts[0].attachmentFiles[0];
+    expect(repaired).toMatchObject({ id: signed.id, originalName: "已签合同.pdf", storagePath: signed.storagePath });
+    const repairedPreview = await session.get(`/api/files/${signed.id}/download`).expect(200);
+    expect(repairedPreview.headers["content-disposition"]).toContain(encodeURIComponent("已签合同.pdf"));
+    expect(repairedPreview.body.equals(pdf.body)).toBe(true);
     expect((await session.get(`/api/contracts/${contract.id}/document-status`).expect(200)).body.attempts).toBe(attemptsBefore);
     expect((await session.get(`/api/contracts/${contract.id}/generated-document`).expect(200)).body.equals(pdf.body)).toBe(true);
 

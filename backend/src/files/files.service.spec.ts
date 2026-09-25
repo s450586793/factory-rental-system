@@ -51,6 +51,24 @@ describe("FilesService", () => {
     ).rejects.toThrow("收款凭证仅支持 JPG、PNG 或 WebP 图片");
   });
 
+  it.each([
+    [Buffer.from("大理石租赁合同.pdf").toString("latin1"), "大理石租赁合同.pdf"],
+    [Buffer.from("厂房租赁合同_曹忠_2026-07-01_2027-06-30+.pdf").toString("latin1"), "厂房租赁合同_曹忠_2026-07-01_2027-06-30+.pdf"],
+    [Buffer.from("合同📄.pdf").toString("latin1"), "合同📄.pdf"],
+    ["已签合同.pdf", "已签合同.pdf"],
+    ["signed.pdf", "signed.pdf"],
+    ["café.pdf", "café.pdf"],
+    ["\u00e5\u00a4.pdf", "\u00e5\u00a4.pdf"],
+  ])("preserves the intended uploaded filename: %s", async (originalname, expected) => {
+    const { service } = createService();
+    const buffer = Buffer.from("pdf-content");
+    const [saved] = await service.saveUploadedFiles([
+      { originalname, mimetype: "application/pdf", size: buffer.length, buffer },
+    ], "contract-attachment" as never);
+    expect(saved.originalName).toBe(expected);
+    expect(writeFile).toHaveBeenCalledWith(saved.storagePath, buffer);
+  });
+
   it("limits one record to ten payment voucher images", async () => {
     const { service } = createService();
     const resolvePaymentVoucherFiles = service as unknown as {

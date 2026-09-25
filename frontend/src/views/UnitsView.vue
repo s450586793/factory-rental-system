@@ -307,11 +307,6 @@
                 {{ displayRentAmount(row.outstandingAmount) }}
               </template>
             </el-table-column>
-            <el-table-column label="预收" width="90">
-              <template #default="{ row }">
-                {{ displayRentAmount(row.prepaidAmount) }}
-              </template>
-            </el-table-column>
             <el-table-column label="状态" width="80">
               <template #default="{ row }">
                 <el-tag :type="contractTagType(row.status)">
@@ -363,17 +358,18 @@
                 </template>
               </template>
             </el-table-column>
-            <el-table-column label="操作" width="218" :fixed="actionColumnFixed">
+            <el-table-column label="操作" width="176" :fixed="actionColumnFixed">
               <template #default="{ row }">
-                <el-space wrap size="small" class="contracts-actions">
-                  <el-button text type="primary" :icon="Upload" @click="signedUploadContract = row">上传已签合同</el-button>
+                <el-space size="small" class="contracts-actions">
+                  <el-button text type="primary" :icon="Upload" title="上传已签合同" @click="signedUploadContract = row">上传</el-button>
                   <el-button
                     text
                     type="primary"
+                    title="下载合同"
                     :loading="downloadingContractId === row.id"
                     @click="downloadContractDocument(row.id)"
                   >
-                    下载合同
+                    合同
                   </el-button>
                   <el-button text @click="openEditContract(row)">编辑</el-button>
                   <el-button text type="danger" @click="confirmRemoveContract(row.id)">删除</el-button>

@@ -12,6 +12,7 @@ import { In, Repository } from "typeorm";
 import type { StorageConfig } from "../config/storage.config";
 import { GenerateStoredFileDto } from "./files.dto";
 import { StoredFile, StoredFileCategory } from "./stored-file.entity";
+import { normalizeUploadFilename } from "./filename-encoding";
 
 const PAYMENT_VOUCHER_IMAGE_MIME_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
 const MAX_PAYMENT_VOUCHERS_PER_RECORD = 10;
@@ -41,10 +42,11 @@ export class FilesService {
     const saved: StoredFile[] = [];
 
     for (const file of files) {
-      const storageName = this.buildStorageName(category, file.originalname);
+      const originalName = normalizeUploadFilename(file.originalname);
+      const storageName = this.buildStorageName(category, originalName);
       const storagePath = await this.writeFileToCategory(category, storageName, file.buffer);
       const entity = this.storedFilesRepository.create({
-        originalName: file.originalname,
+        originalName,
         storageName,
         storagePath,
         mimeType: file.mimetype || "application/octet-stream",

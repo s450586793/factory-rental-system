@@ -630,7 +630,9 @@ describe("UnitsView contract download", () => {
     expect(wrapper.text()).not.toContain("查看期次");
     expect(wrapper.text()).not.toContain("金额历史");
     expect(contractsApi.history).not.toHaveBeenCalled();
-    await findButton(wrapper, "上传已签合同").trigger("click");
+    const actions = wrapper.get(".contracts-actions");
+    expect(actions.findAll("button").map((item) => item.text())).toEqual(["上传", "合同", "编辑", "删除"]);
+    await findButton(wrapper, "上传").trigger("click");
     expect(wrapper.find('[aria-label="选择已签合同文件"]').exists()).toBe(true);
     expect(wrapper.text()).toContain("曹忠");
   });
@@ -658,7 +660,8 @@ describe("UnitsView contract download", () => {
     expect(wrapper.text()).toContain("年租金");
     expect(wrapper.text()).not.toContain("收租周期");
     expect(wrapper.text()).toContain("¥100,000.00");
-    expect(wrapper.text()).toContain("¥25,000.00");
+    expect(wrapper.text()).not.toContain("预收");
+    expect(wrapper.text()).not.toContain("¥25,000.00");
   });
 
   it("renders zero contract summary amounts instead of placeholders", async () => {
@@ -674,7 +677,7 @@ describe("UnitsView contract download", () => {
 
     expect(wrapper.text()).toContain("已到期应收¥0.00");
     expect(wrapper.text()).toContain("已到期已收¥0.00");
-    expect(wrapper.text()).toContain("预收¥0.00");
+    expect(wrapper.text()).not.toContain("预收");
   });
 
 
@@ -1140,7 +1143,7 @@ describe("UnitsView contract download", () => {
 
     await findButton(wrapper, "管理").trigger("click");
     await flushPromises();
-    await findButton(wrapper, "下载合同").trigger("click");
+    await findButton(wrapper, "合同").trigger("click");
     await flushPromises();
 
     expect(contractsApi.generateDocument).not.toHaveBeenCalled();
