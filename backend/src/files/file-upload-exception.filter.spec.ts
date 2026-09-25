@@ -31,7 +31,7 @@ describe("FileUploadExceptionFilter", () => {
     expect(status).toHaveBeenCalledWith(413);
     expect(json).toHaveBeenCalledWith({
       statusCode: 413,
-      message: "单个文件不能超过 25 MB",
+      message: "单个文件不能超过 100 MB",
     });
   });
 

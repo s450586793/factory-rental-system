@@ -36,7 +36,8 @@ export class FilesController {
       storage: memoryStorage(),
       limits: {
         files: 10,
-        fileSize: 25 * 1024 * 1024,
+        // Busboy 在达到限制时即拒绝，多留 1 字节以接受恰好 100 MB 的文件。
+        fileSize: 100 * 1024 * 1024 + 1,
       },
     }),
   )

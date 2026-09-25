@@ -22,7 +22,7 @@
       @dragover.prevent="dragging = !saving" @dragleave.prevent="dragging = false" @drop.prevent="dropFiles">
       <UploadFilled width="28" height="28" aria-hidden="true" />
       <strong>已签合同</strong>
-      <span>PDF / JPG / PNG / WebP · 每个文件最多 25 MB</span>
+      <span>PDF / JPG / PNG / WebP · 每个文件最多 100 MB</span>
     </div>
     <ul v-if="uploads.length" class="signed-contract-files">
       <li v-for="(item, index) in uploads" :key="index">
@@ -64,8 +64,8 @@ function appendFiles(files: FileList | File[]) {
     ElMessage.error("已签合同仅支持 PDF、JPG、PNG 或 WebP");
     return;
   }
-  if (selected.some((file) => file.size > 25 * 1024 * 1024)) {
-    ElMessage.error("每个文件不能超过 25 MB");
+  if (selected.some((file) => file.size > 100 * 1024 * 1024)) {
+    ElMessage.error("每个文件不能超过 100 MB");
     return;
   }
   const additions = selected.filter((file, index) => {
@@ -99,9 +99,9 @@ async function save() {
   saving.value = true;
   try {
     const pending = uploads.value.filter((item) => !item.storedId);
-    if (pending.length) {
-      const files = await filesApi.upload(pending.map((item) => item.file), "contract-attachment");
-      files.forEach((file, index) => { pending[index].storedId = file.id; });
+    for (const item of pending) {
+      const [file] = await filesApi.upload([item.file], "contract-attachment");
+      item.storedId = file.id;
     }
     await contractsApi.addAttachments(props.contract.id, uploads.value.map((item) => item.storedId!));
     ElMessage.success("已签合同已保存");

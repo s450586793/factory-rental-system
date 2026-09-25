@@ -28,7 +28,7 @@ function resolveUploadError(exception: unknown): UploadErrorPayload {
   if (/file too large/i.test(detail)) {
     return {
       statusCode: 413,
-      message: "单个文件不能超过 25 MB",
+      message: "单个文件不能超过 100 MB",
     };
   }
 

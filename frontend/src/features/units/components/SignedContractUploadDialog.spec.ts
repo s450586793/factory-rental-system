@@ -34,7 +34,9 @@ function button(wrapper: ReturnType<typeof mountDialog>, label: string) {
 describe("已签合同补传", () => {
   beforeEach(() => {
     vi.resetAllMocks();
-    vi.mocked(filesApi.upload).mockResolvedValue([{ ...existing, id: "new-pdf" }, { ...existing, id: "new-photo" }]);
+    vi.mocked(filesApi.upload).mockImplementation(async (files) => files.map((file) => ({
+      ...existing, id: file.type === "application/pdf" ? "new-pdf" : "new-photo",
+    })));
     vi.mocked(contractsApi.addAttachments).mockResolvedValue(contract);
   });
 
@@ -54,7 +56,45 @@ describe("已签合同补传", () => {
     expect(wrapper.emitted("preview")?.[0]).toEqual([existing]);
     await button(wrapper, "保存附件").trigger("click");
     await flushPromises();
-    expect(filesApi.upload).toHaveBeenCalledWith([pdf, photo], "contract-attachment");
+    expect(filesApi.upload).toHaveBeenCalledTimes(2);
+    expect(filesApi.upload).toHaveBeenNthCalledWith(1, [pdf], "contract-attachment");
+    expect(filesApi.upload).toHaveBeenNthCalledWith(2, [photo], "contract-attachment");
+    expect(contractsApi.addAttachments).toHaveBeenCalledWith("contract", ["new-pdf", "new-photo"]);
+    expect(wrapper.emitted("saved")).toHaveLength(1);
+  });
+
+  it.each([26, 100])("允许选择并保存 %i MB 的已签合同", async (megabytes) => {
+    const file = new File(["pdf"], "large.pdf", { type: "application/pdf" });
+    Object.defineProperty(file, "size", { value: megabytes * 1024 * 1024 });
+    const wrapper = mountDialog();
+    expect(wrapper.text()).toContain("每个文件最多 100 MB");
+    await wrapper.get('[role="button"]').trigger("drop", { dataTransfer: { files: [file] } });
+    await button(wrapper, "保存附件").trigger("click");
+    await flushPromises();
+    expect(ElMessage.error).not.toHaveBeenCalled();
+    expect(filesApi.upload).toHaveBeenCalledWith([file], "contract-attachment");
+    expect(wrapper.emitted("saved")).toHaveLength(1);
+  });
+
+  it("多文件逐个上传，中途失败后只重试未成功的文件", async () => {
+    let finish!: (value: StoredFile[]) => void;
+    vi.mocked(filesApi.upload)
+      .mockReturnValueOnce(new Promise((resolve) => { finish = resolve; }))
+      .mockRejectedValueOnce(new Error("上传中断"))
+      .mockResolvedValueOnce([{ ...existing, id: "new-photo" }]);
+    const wrapper = mountDialog();
+    await wrapper.get('[role="button"]').trigger("drop", { dataTransfer: { files: [pdf, photo] } });
+    await button(wrapper, "保存附件").trigger("click");
+    expect(filesApi.upload).toHaveBeenCalledOnce();
+    expect(filesApi.upload).toHaveBeenCalledWith([pdf], "contract-attachment");
+    finish([{ ...existing, id: "new-pdf" }]);
+    await flushPromises();
+    expect(ElMessage.error).toHaveBeenCalledWith("上传中断");
+    expect(contractsApi.addAttachments).not.toHaveBeenCalled();
+    await button(wrapper, "保存附件").trigger("click");
+    await flushPromises();
+    expect(filesApi.upload).toHaveBeenCalledTimes(3);
+    expect(filesApi.upload).toHaveBeenNthCalledWith(3, [photo], "contract-attachment");
     expect(contractsApi.addAttachments).toHaveBeenCalledWith("contract", ["new-pdf", "new-photo"]);
     expect(wrapper.emitted("saved")).toHaveLength(1);
   });
@@ -93,13 +133,14 @@ describe("已签合同补传", () => {
   it("拒绝错误格式、超限文件，允许移除待上传文件", async () => {
     const wrapper = mountDialog();
     const oversized = new File(["large"], "large.pdf", { type: "application/pdf" });
-    Object.defineProperty(oversized, "size", { value: 26 * 1024 * 1024 });
+    Object.defineProperty(oversized, "size", { value: 100 * 1024 * 1024 + 1 });
     for (const files of [[new File(["bad"], "x.html", { type: "text/html" })], [oversized],
       Array.from({ length: 11 }, (_, i) => new File(["x"], `${i}.pdf`, { type: "application/pdf" }))]) {
       await wrapper.get('[role="button"]').trigger("drop", { dataTransfer: { files } });
       expect(wrapper.findAll("li")).toHaveLength(0);
     }
     expect(ElMessage.error).toHaveBeenCalledTimes(3);
+    expect(ElMessage.error).toHaveBeenCalledWith("每个文件不能超过 100 MB");
     await wrapper.get('[role="button"]').trigger("drop", { dataTransfer: { files: [pdf] } });
     await button(wrapper, "移除").trigger("click");
     expect(wrapper.findAll("li")).toHaveLength(0);
